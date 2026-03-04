@@ -1,61 +1,48 @@
 "use client";
 
-import * as React from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
-interface SearchResult {
+type SearchResult = {
   id: string;
   username: string;
-  display_name?: string | null;
-  avatar_url?: string | null;
-}
+  display_name: string | null;
+  avatar_url: string | null;
+};
 
-interface PlayerSearchInputProps {
-  className?: string;
-  placeholder?: string;
-  onSearch?: (query: string) => Promise<SearchResult[]>;
-}
-
-export function PlayerSearchInput({
-  className = "",
-  placeholder = "Search for a player...",
-  onSearch,
-}: PlayerSearchInputProps) {
+export function NavbarSearch() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const [query, setQuery] = React.useState("");
-  const [results, setResults] = React.useState<SearchResult[]>([]);
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  React.useEffect(() => {
-    if (query.length < 2) {
-      setResults([]);
-      setIsOpen(false);
-      return;
-    }
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        if (onSearch) {
-          const searchResults = await onSearch(query);
-          setResults(searchResults);
-          setIsOpen(searchResults.length > 0);
-        }
-      } catch (error) {
-        console.error("Search error:", error);
-      } finally {
-        setIsLoading(false);
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (query.length < 2) {
+        setResults([]);
+        setIsOpen(false);
+        return;
       }
-    }, 300);
 
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      setIsLoading(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .limit(5);
+
+      setResults((data as SearchResult[]) || []);
+      setIsOpen(true);
+      setIsLoading(false);
     };
-  }, [query, onSearch]);
+
+    const debounce = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounce);
+  }, [query]);
 
   const handleSelect = (result: SearchResult) => {
     setQuery("");
@@ -63,39 +50,27 @@ export function PlayerSearchInput({
     router.push(`/player/${result.username}`);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && query.length >= 2) {
-      router.push(`/player/${query}`);
-      setIsOpen(false);
-    }
-    if (e.key === "Escape") {
-      setIsOpen(false);
-      inputRef.current?.blur();
-    }
-  };
-
   return (
-    <div className={`relative w-full ${className}`}>
+    <div style={{ position: "relative", width: "100%" }}>
       <div
         style={{
           position: "relative",
-          borderRadius: "0.75rem",
+          borderRadius: "0.5rem",
           overflow: "hidden",
-          backgroundColor: "rgba(18, 18, 26, 0.9)",
-          border: "1px solid rgba(255, 255, 255, 0.15)",
-          boxShadow: isOpen ? "0 0 30px rgba(168, 85, 247, 0.15)" : "none",
+          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
           transition: "all 0.2s",
         }}
       >
         <svg
           style={{
             position: "absolute",
-            left: "1rem",
+            left: "0.75rem",
             top: "50%",
             transform: "translateY(-50%)",
-            height: "1.25rem",
-            width: "1.25rem",
-            color: "#a1a1aa",
+            height: "1rem",
+            width: "1rem",
+            color: "#71717a",
           }}
           fill="none"
           stroke="currentColor"
@@ -113,16 +88,15 @@ export function PlayerSearchInput({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
           onFocus={() => results.length > 0 && setIsOpen(true)}
           onBlur={() => setTimeout(() => setIsOpen(false), 200)}
-          placeholder={placeholder}
+          placeholder="Search players..."
           style={{
             width: "100%",
-            height: "3.5rem",
-            paddingLeft: "3rem",
-            paddingRight: "3rem",
-            fontSize: "1rem",
+            height: "2.25rem",
+            paddingLeft: "2.25rem",
+            paddingRight: "1rem",
+            fontSize: "0.875rem",
             backgroundColor: "transparent",
             color: "#ffffff",
             border: "none",
@@ -133,15 +107,15 @@ export function PlayerSearchInput({
           <div
             style={{
               position: "absolute",
-              right: "1rem",
+              right: "0.75rem",
               top: "50%",
               transform: "translateY(-50%)",
             }}
           >
             <div
               style={{
-                height: "1.25rem",
-                width: "1.25rem",
+                height: "0.875rem",
+                width: "0.875rem",
                 borderRadius: "50%",
                 border: "2px solid #a855f7",
                 borderTopColor: "transparent",
@@ -160,7 +134,7 @@ export function PlayerSearchInput({
             left: 0,
             right: 0,
             marginTop: "0.5rem",
-            borderRadius: "0.75rem",
+            borderRadius: "0.5rem",
             overflow: "hidden",
             zIndex: 50,
             backgroundColor: "rgba(18, 18, 26, 0.98)",
@@ -174,10 +148,10 @@ export function PlayerSearchInput({
               onClick={() => handleSelect(result)}
               style={{
                 width: "100%",
-                padding: "0.75rem 1rem",
+                padding: "0.5rem 0.75rem",
                 display: "flex",
                 alignItems: "center",
-                gap: "0.75rem",
+                gap: "0.5rem",
                 textAlign: "left",
                 backgroundColor: "transparent",
                 border: "none",
@@ -193,13 +167,13 @@ export function PlayerSearchInput({
             >
               <div
                 style={{
-                  height: "2.5rem",
-                  width: "2.5rem",
+                  height: "1.75rem",
+                  width: "1.75rem",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "0.875rem",
+                  fontSize: "0.75rem",
                   fontWeight: 500,
                   overflow: "hidden",
                   backgroundColor: "rgba(255, 255, 255, 0.1)",
@@ -223,10 +197,10 @@ export function PlayerSearchInput({
                 )}
               </div>
               <div>
-                <div style={{ fontWeight: 500, color: "#ffffff" }}>
+                <div style={{ fontWeight: 500, color: "#ffffff", fontSize: "0.875rem" }}>
                   {result.display_name || result.username}
                 </div>
-                <div style={{ fontSize: "0.875rem", color: "#71717a" }}>
+                <div style={{ fontSize: "0.75rem", color: "#71717a" }}>
                   @{result.username}
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/ui/avatar";
+import { NavbarSearch } from "./navbar-search";
 
 type NavbarProfile = {
   username: string;
@@ -8,7 +9,11 @@ type NavbarProfile = {
   avatar_url: string | null;
 };
 
-export async function Navbar() {
+interface NavbarProps {
+  hideSearch?: boolean;
+}
+
+export async function Navbar({ hideSearch = false }: NavbarProps) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -61,6 +66,13 @@ export async function Navbar() {
           <span style={{ color: "#a855f7" }}>⚔️</span>
           <span>MTG Tracker</span>
         </Link>
+
+        {/* Search Bar */}
+        {!hideSearch && (
+          <div style={{ flex: 1, maxWidth: "24rem", marginLeft: "2rem", marginRight: "2rem" }}>
+            <NavbarSearch />
+          </div>
+        )}
 
         {/* Navigation */}
         <nav style={{ display: "flex", alignItems: "center", gap: "1rem" }}>

@@ -20,6 +20,7 @@ type MatchResult = {
     user_id: string;
     is_winner: boolean;
     commander_name: string | null;
+    commander_image_uri?: string | null;
     profiles: {
       username: string;
       display_name: string | null;
@@ -41,16 +42,29 @@ type ParticipantResult = {
 async function getTopCommanders() {
   const supabase = await createClient();
 
-  const { data } = await supabase
+  // Fetch commander names from both match_participants and guest_participants
+  const { data: matchData } = await supabase
     .from("match_participants")
-    .select("commander_name, commander_image_uri")
+    .select("commander_name")
     .not("commander_name", "is", null)
     .limit(100);
 
-  if (!data) return [];
+  const { data: guestData } = await supabase
+    .from("guest_participants")
+    .select("commander_name")
+    .not("commander_name", "is", null)
+    .limit(100);
 
-  const counts = new Map<string, { name: string; image: string; count: number }>();
-  (data as CommanderResult[]).forEach((p) => {
+  const allData = [
+    ...((matchData || []) as Array<{ commander_name: string | null }>),
+    ...((guestData || []) as Array<{ commander_name: string | null }>),
+  ];
+
+  if (allData.length === 0) return [];
+
+  // Count commander occurrences
+  const counts = new Map<string, { name: string; count: number }>();
+  allData.forEach((p) => {
     if (p.commander_name) {
       const existing = counts.get(p.commander_name);
       if (existing) {
@@ -58,16 +72,37 @@ async function getTopCommanders() {
       } else {
         counts.set(p.commander_name, {
           name: p.commander_name,
-          image: p.commander_image_uri || "",
           count: 1,
         });
       }
     }
   });
 
-  return Array.from(counts.values())
+  const topCommanders = Array.from(counts.values())
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
+
+  // Fetch images from user_commanders table
+  const commanderNames = topCommanders.map((c) => c.name);
+  const { data: commanderImages } = await supabase
+    .from("user_commanders")
+    .select("card_name, card_image_uri")
+    .in("card_name", commanderNames);
+
+  // Create a map of commander name to image
+  const imageMap = new Map<string, string>();
+  ((commanderImages || []) as Array<{ card_name: string; card_image_uri: string | null }>).forEach((c) => {
+    if (c.card_image_uri && !imageMap.has(c.card_name)) {
+      imageMap.set(c.card_name, c.card_image_uri);
+    }
+  });
+
+  // Combine counts with images
+  return topCommanders.map((c) => ({
+    name: c.name,
+    image: imageMap.get(c.name) || "",
+    count: c.count,
+  }));
 }
 
 async function getRecentMatches() {
@@ -88,12 +123,82 @@ async function getRecentMatches() {
           display_name,
           avatar_url
         )
+      ),
+      guest_participants (
+        id,
+        guest_name,
+        is_winner,
+        commander_name
       )
     `)
     .order("date_played", { ascending: false })
     .limit(5);
 
-  return (matches as unknown as MatchResult[]) || [];
+  // Collect all commander names to fetch images
+  const allCommanderNames = new Set<string>();
+  (matches || []).forEach((match: Record<string, unknown>) => {
+    const matchParticipants = (match.match_participants || []) as Array<{ commander_name: string | null }>;
+    const guestParticipants = (match.guest_participants || []) as Array<{ commander_name: string | null }>;
+    matchParticipants.forEach((p) => p.commander_name && allCommanderNames.add(p.commander_name));
+    guestParticipants.forEach((p) => p.commander_name && allCommanderNames.add(p.commander_name));
+  });
+
+  // Fetch commander images from user_commanders table
+  const { data: commanderImages } = await supabase
+    .from("user_commanders")
+    .select("card_name, card_image_uri")
+    .in("card_name", Array.from(allCommanderNames));
+
+  const imageMap = new Map<string, string>();
+  ((commanderImages || []) as Array<{ card_name: string; card_image_uri: string | null }>).forEach((c) => {
+    if (c.card_image_uri && !imageMap.has(c.card_name)) {
+      imageMap.set(c.card_name, c.card_image_uri);
+    }
+  });
+
+  // Combine registered users and guest participants
+  const processedMatches = (matches || []).map((match: Record<string, unknown>) => {
+    const matchParticipants = (match.match_participants || []) as Array<{
+      user_id: string;
+      is_winner: boolean;
+      commander_name: string | null;
+      profiles: { username: string; display_name: string | null; avatar_url: string | null } | null;
+    }>;
+    const guestParticipants = (match.guest_participants || []) as Array<{
+      id: string;
+      guest_name: string;
+      is_winner: boolean;
+      commander_name: string | null;
+    }>;
+
+    // Convert guest participants to the same format and add commander images
+    const allParticipants = [
+      ...matchParticipants.map((p) => ({
+        ...p,
+        commander_image_uri: p.commander_name ? imageMap.get(p.commander_name) || null : null,
+      })),
+      ...guestParticipants.map((g) => ({
+        user_id: g.id,
+        is_winner: g.is_winner,
+        commander_name: g.commander_name,
+        commander_image_uri: g.commander_name ? imageMap.get(g.commander_name) || null : null,
+        profiles: {
+          username: g.guest_name,
+          display_name: g.guest_name,
+          avatar_url: null,
+        },
+      })),
+    ];
+
+    return {
+      id: match.id as string,
+      format: match.format as string,
+      date_played: match.date_played as string,
+      match_participants: allParticipants,
+    };
+  });
+
+  return processedMatches as MatchResult[];
 }
 
 async function getLeaderboard() {
@@ -176,6 +281,119 @@ function SectionCard({
   );
 }
 
+// Participant card for landing page matches
+function LandingParticipantCard({
+  participant,
+  compact = false,
+}: {
+  participant: {
+    user_id: string;
+    is_winner: boolean;
+    commander_name: string | null;
+    commander_image_uri?: string | null;
+    profiles: { username: string; display_name: string | null; avatar_url: string | null } | null;
+  } | undefined;
+  compact?: boolean;
+}) {
+  if (!participant) return null;
+
+  const name = participant.profiles?.display_name || participant.profiles?.username || "Unknown";
+  const winnerGlow = participant.is_winner ? "0 0 8px rgba(34, 197, 94, 0.4)" : undefined;
+  const hasImage = !!participant.commander_image_uri;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: compact ? "0.25rem" : "0.375rem",
+        borderRadius: "0.375rem",
+        backgroundColor: participant.is_winner
+          ? "rgba(34, 197, 94, 0.1)"
+          : "rgba(255, 255, 255, 0.02)",
+        border: participant.is_winner
+          ? "1px solid rgba(34, 197, 94, 0.3)"
+          : "1px solid rgba(255, 255, 255, 0.05)",
+        boxShadow: winnerGlow,
+        minWidth: compact ? "2.5rem" : "3.5rem",
+        flex: compact ? "0 0 auto" : "1",
+      }}
+    >
+      {/* Username */}
+      <span
+        style={{
+          fontSize: compact ? "0.5rem" : "0.625rem",
+          fontWeight: participant.is_winner ? 600 : 400,
+          color: participant.is_winner ? "#22c55e" : "#ffffff",
+          marginBottom: "0.125rem",
+          maxWidth: compact ? "2.25rem" : "3rem",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {name}
+      </span>
+
+      {/* Commander card */}
+      <div
+        style={{
+          position: "relative",
+          width: compact ? "1.5rem" : "2rem",
+          height: compact ? "2rem" : "2.75rem",
+          borderRadius: "0.125rem",
+          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          border: participant.is_winner
+            ? "2px solid rgba(34, 197, 94, 0.5)"
+            : "1px solid rgba(255, 255, 255, 0.08)",
+          overflow: "hidden",
+        }}
+      >
+        {hasImage ? (
+          <Image
+            src={participant.commander_image_uri!}
+            alt={participant.commander_name || "Commander"}
+            fill
+            unoptimized
+            style={{ objectFit: "cover" }}
+          />
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "0.375rem",
+                color: "#71717a",
+                textAlign: "center",
+                padding: "0.0625rem",
+                wordBreak: "break-word",
+                lineHeight: 1.1,
+              }}
+            >
+              {participant.commander_name?.split(",")[0]?.slice(0, 10) || "?"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Winner crown */}
+      {participant.is_winner && (
+        <span style={{ fontSize: compact ? "0.5rem" : "0.625rem", marginTop: "0.0625rem" }}>
+          👑
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TopCommandersSection({
   commanders,
 }: {
@@ -210,6 +428,7 @@ function TopCommandersSection({
                     src={commander.image}
                     alt={commander.name}
                     fill
+                    unoptimized
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 )}
@@ -261,75 +480,121 @@ function RecentMatchesSection({
           Recent Matches
         </h3>
       </div>
-      <div className="p-5">
+      <div className="p-5" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {matches.length === 0 ? (
           <p style={{ color: "#a1a1aa" }} className="text-sm">
             No matches yet. Start tracking!
           </p>
         ) : (
-          <div className="space-y-2">
-            {matches.map((match) => {
-              const participants = (match.match_participants || []) as Array<{
-                user_id: string;
-                is_winner: boolean;
-                commander_name: string | null;
-                profiles: { username: string; display_name: string | null } | null;
-              }>;
-              const winner = participants.find((p) => p.is_winner);
-              const winnerName =
-                winner?.profiles?.display_name || winner?.profiles?.username;
+          matches.map((match) => {
+            const participants = (match.match_participants || []) as Array<{
+              user_id: string;
+              is_winner: boolean;
+              commander_name: string | null;
+              profiles: { username: string; display_name: string | null; avatar_url: string | null } | null;
+            }>;
+            const winners = participants.filter((p) => p.is_winner);
+            const losers = participants.filter((p) => !p.is_winner);
 
-              return (
-                <Link
-                  key={match.id}
-                  href={`/match/${match.id}`}
-                  className="block p-3 rounded-lg transition-all duration-200"
+            return (
+              <Link
+                key={match.id}
+                href={`/match/${match.id}`}
+                style={{
+                  display: "block",
+                  padding: "0.75rem",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  textDecoration: "none",
+                  transition: "background-color 0.2s",
+                }}
+              >
+                {/* Match header */}
+                <div
                   style={{
-                    backgroundColor: "rgba(255,255,255,0.03)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "0.5rem",
                   }}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="text-xs font-medium px-2 py-0.5 rounded"
-                        style={{
-                          backgroundColor:
-                            match.format === "commander"
-                              ? "rgba(168,85,247,0.2)"
-                              : "rgba(34,211,238,0.2)",
-                          color:
-                            match.format === "commander" ? "#a855f7" : "#22d3ee",
-                        }}
-                      >
-                        {match.format === "1v1"
-                          ? "1v1"
-                          : match.format === "2v2"
-                            ? "2v2"
-                            : `${participants.length}P`}
-                      </span>
-                    </div>
-                    <span className="text-xs" style={{ color: "#71717a" }}>
-                      {formatRelativeTime(match.date_played)}
-                    </span>
+                  <span
+                    style={{
+                      fontSize: "0.625rem",
+                      fontWeight: 600,
+                      padding: "0.125rem 0.375rem",
+                      borderRadius: "0.25rem",
+                      backgroundColor: "rgba(168,85,247,0.2)",
+                      color: "#a855f7",
+                    }}
+                  >
+                    {match.format === "1v1"
+                      ? "1v1"
+                      : match.format === "2v2"
+                        ? "2v2"
+                        : `${participants.length}P`}
+                  </span>
+                  <span style={{ fontSize: "0.625rem", color: "#71717a" }}>
+                    {formatRelativeTime(match.date_played)}
+                  </span>
+                </div>
+
+                {/* Participants display based on format */}
+                {match.format === "1v1" ? (
+                  /* 1v1: Two participants side by side with VS */
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto 1fr",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <LandingParticipantCard participant={participants[0]} />
+                    <span style={{ color: "#71717a", fontWeight: 600, fontSize: "0.625rem" }}>VS</span>
+                    <LandingParticipantCard participant={participants[1]} />
                   </div>
-                  {winnerName && (
-                    <div className="text-sm" style={{ color: "#a1a1aa" }}>
-                      Winner:{" "}
-                      <span style={{ color: "#22c55e", fontWeight: 600 }}>
-                        {winnerName}
-                      </span>
-                      {winner?.commander_name && (
-                        <span style={{ color: "#71717a" }}>
-                          {" "}
-                          • {winner.commander_name}
-                        </span>
-                      )}
+                ) : match.format === "2v2" ? (
+                  /* 2v2: Two teams with VS */
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto 1fr",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: "0.25rem" }}>
+                      {winners.slice(0, 2).map((p) => (
+                        <LandingParticipantCard key={p.user_id} participant={p} compact />
+                      ))}
                     </div>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+                    <span style={{ color: "#71717a", fontWeight: 600, fontSize: "0.625rem" }}>VS</span>
+                    <div style={{ display: "flex", gap: "0.25rem", justifyContent: "flex-end" }}>
+                      {losers.slice(0, 2).map((p) => (
+                        <LandingParticipantCard key={p.user_id} participant={p} compact />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* Multiplayer: Grid of participants */
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.25rem",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {participants.map((p) => (
+                      <LandingParticipantCard key={p.user_id} participant={p} compact />
+                    ))}
+                  </div>
+                )}
+              </Link>
+            );
+          })
         )}
       </div>
     </SectionCard>
@@ -426,7 +691,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0a0a0f" }}>
-      <Navbar />
+      <Navbar hideSearch />
 
       {/* Hero Section - Inspired by OP.GG */}
       <section style={{ paddingTop: "4rem", paddingBottom: "2rem", paddingLeft: "1rem", paddingRight: "1rem" }}>

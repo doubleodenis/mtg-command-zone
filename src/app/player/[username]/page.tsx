@@ -297,42 +297,65 @@ export default async function PlayerProfilePage({ params }: PageProps) {
   const topCommander = stats.commanderStats[0];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div style={{ minHeight: "100vh", backgroundColor: "#0a0a12" }}>
       <Navbar />
 
       {/* Hero Banner */}
-      <section className="relative py-12 px-4 bg-gradient-to-b from-accent/10 to-background">
-        <div className="container mx-auto max-w-6xl">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+      <section
+        style={{
+          position: "relative",
+          padding: "3rem 1rem",
+          background: "linear-gradient(to bottom, rgba(168, 85, 247, 0.1), #0a0a12)",
+        }}
+      >
+        <div style={{ maxWidth: "72rem", marginLeft: "auto", marginRight: "auto", padding: "0 1rem" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "1.5rem",
+            }}
+            className="sm-row"
+          >
             {/* Avatar */}
             <Avatar
               src={profile.avatar_url}
               fallback={profile.display_name || profile.username}
               size="xl"
-              className="ring-4 ring-accent/30"
+              style={{ boxShadow: "0 0 0 4px rgba(168, 85, 247, 0.3)" }}
             />
 
             {/* Info */}
-            <div className="flex-1 text-center sm:text-left">
-              <h1 className="text-3xl font-bold mb-1">
+            <div style={{ flex: 1, textAlign: "center" }} className="sm-text-left">
+              <h1 style={{ fontSize: "1.875rem", fontWeight: 700, marginBottom: "0.25rem", color: "#ffffff" }}>
                 {profile.display_name || profile.username}
               </h1>
-              <p className="text-foreground-muted mb-4">@{profile.username}</p>
+              <p style={{ color: "#a1a1aa", marginBottom: "1rem" }}>@{profile.username}</p>
 
               {/* Quick stats */}
-              <div className="flex flex-wrap justify-center sm:justify-start gap-4 text-sm">
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: "1rem",
+                  fontSize: "0.875rem",
+                }}
+                className="sm-justify-start"
+              >
                 <div>
-                  <span className="text-foreground-muted">Win Rate: </span>
-                  <span className="font-bold text-accent">{stats.winRate}%</span>
+                  <span style={{ color: "#a1a1aa" }}>Win Rate: </span>
+                  <span style={{ fontWeight: 700, color: "#a855f7" }}>{stats.winRate}%</span>
                 </div>
-                <div>
-                  <span className="text-foreground-muted">Matches: </span>
-                  <span className="font-bold">{stats.totalMatches}</span>
+                <div style={{ color: "#ffffff" }}>
+                  <span style={{ color: "#a1a1aa" }}>Matches: </span>
+                  <span style={{ fontWeight: 700 }}>{stats.totalMatches}</span>
                 </div>
                 {stats.currentStreak > 0 && (
                   <div>
-                    <span className="text-foreground-muted">Streak: </span>
-                    <span className={`font-bold ${stats.streakType === "win" ? "text-win" : "text-loss"}`}>
+                    <span style={{ color: "#a1a1aa" }}>Streak: </span>
+                    <span style={{ fontWeight: 700, color: stats.streakType === "win" ? "#22c55e" : "#ef4444" }}>
                       {stats.streakType === "win" ? "W" : "L"}{stats.currentStreak}
                     </span>
                   </div>
@@ -342,23 +365,31 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
             {/* Top Commander */}
             {topCommander && (
-              <div className="hidden lg:block">
-                <div className="text-xs text-foreground-muted uppercase tracking-wider mb-2 text-center">
+              <div className="hidden-sm" style={{ display: "none" }}>
+                <div style={{ fontSize: "0.75rem", color: "#a1a1aa", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", textAlign: "center" }}>
                   Top Commander
                 </div>
-                <div className="relative w-32 aspect-[3/4] rounded-lg overflow-hidden">
+                <div
+                  style={{
+                    position: "relative",
+                    width: "8rem",
+                    aspectRatio: "3/4",
+                    borderRadius: "0.5rem",
+                    overflow: "hidden",
+                  }}
+                >
                   {topCommander.image && (
                     <Image
                       src={topCommander.image}
                       alt={topCommander.name}
                       fill
-                      className="object-cover"
+                      style={{ objectFit: "cover" }}
                     />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <div className="text-sm font-medium truncate">{topCommander.name}</div>
-                    <div className="text-xs text-foreground-muted">
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }} />
+                  <div style={{ position: "absolute", bottom: "0.5rem", left: "0.5rem", right: "0.5rem" }}>
+                    <div style={{ fontSize: "0.875rem", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#ffffff" }}>{topCommander.name}</div>
+                    <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>
                       {topCommander.winRate}% WR • {topCommander.total} games
                     </div>
                   </div>
@@ -370,8 +401,8 @@ export default async function PlayerProfilePage({ params }: PageProps) {
       </section>
 
       {/* Stats and content */}
-      <section className="py-8 px-4">
-        <div className="container mx-auto max-w-6xl">
+      <section style={{ padding: "2rem 1rem" }}>
+        <div style={{ maxWidth: "72rem", marginLeft: "auto", marginRight: "auto", padding: "0 1rem" }}>
           <ProfileStats
             stats={stats}
             matches={matches}

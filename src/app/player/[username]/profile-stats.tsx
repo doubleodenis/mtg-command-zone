@@ -46,9 +46,104 @@ interface ProfileStatsProps {
   userId: string;
 }
 
+interface ParticipantCardProps {
+  participant: {
+    id: string;
+    name: string;
+    avatar_url: string | null;
+    commander_name: string | null;
+    is_winner: boolean;
+    is_guest: boolean;
+    username?: string;
+  };
+  isCurrentUser: boolean;
+  compact?: boolean;
+}
+
+function ParticipantCard({ participant, isCurrentUser, compact = false }: ParticipantCardProps) {
+  if (!participant) return null;
+
+  const winnerGlow = participant.is_winner
+    ? "0 0 12px rgba(34, 197, 94, 0.4)"
+    : undefined;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: compact ? "0.375rem" : "0.5rem",
+        borderRadius: "0.5rem",
+        backgroundColor: participant.is_winner
+          ? "rgba(34, 197, 94, 0.1)"
+          : "rgba(255, 255, 255, 0.02)",
+        border: participant.is_winner
+          ? "1px solid rgba(34, 197, 94, 0.3)"
+          : "1px solid rgba(255, 255, 255, 0.05)",
+        boxShadow: winnerGlow,
+        minWidth: compact ? "3.5rem" : "4.5rem",
+        flex: compact ? "0 0 auto" : "1",
+      }}
+    >
+      {/* Username */}
+      <span
+        style={{
+          fontSize: compact ? "0.625rem" : "0.75rem",
+          fontWeight: isCurrentUser ? 600 : 400,
+          color: isCurrentUser ? "#a855f7" : participant.is_winner ? "#22c55e" : "#ffffff",
+          marginBottom: "0.25rem",
+          maxWidth: compact ? "3rem" : "4rem",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {participant.name}
+      </span>
+
+      {/* Commander placeholder/name */}
+      <div
+        style={{
+          width: compact ? "2rem" : "2.5rem",
+          height: compact ? "2.75rem" : "3.5rem",
+          borderRadius: "0.25rem",
+          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          border: participant.is_winner
+            ? "2px solid rgba(34, 197, 94, 0.5)"
+            : "1px solid rgba(255, 255, 255, 0.1)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "0.5rem",
+            color: "#71717a",
+            textAlign: "center",
+            padding: "0.125rem",
+            wordBreak: "break-word",
+          }}
+        >
+          {participant.commander_name?.split(",")[0]?.slice(0, 12) || "?"}
+        </span>
+      </div>
+
+      {/* Winner crown */}
+      {participant.is_winner && (
+        <span style={{ fontSize: compact ? "0.625rem" : "0.75rem", marginTop: "0.125rem" }}>
+          👑
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ProfileStats({ stats, matches, commanders, userId }: ProfileStatsProps) {
   return (
-    <div className="space-y-8">
+    <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
       {/* Stat Cards Row */}
       <motion.div
         initial="hidden"
@@ -56,7 +151,12 @@ export function ProfileStats({ stats, matches, commanders, userId }: ProfileStat
         variants={{
           visible: { transition: { staggerChildren: 0.1 } },
         }}
-        className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "1rem",
+        }}
+        className="lg-grid-4"
       >
         <StatCard
           icon={<span>🏆</span>}
@@ -84,7 +184,14 @@ export function ProfileStats({ stats, matches, commanders, userId }: ProfileStat
         />
       </motion.div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(1, 1fr)",
+          gap: "1.5rem",
+        }}
+        className="lg-grid-2"
+      >
         {/* Commander Performance */}
         <Card>
           <CardHeader>
@@ -143,50 +250,149 @@ export function ProfileStats({ stats, matches, commanders, userId }: ProfileStat
           <CardHeader>
             <CardTitle className="text-lg">Recent Matches</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {matches.length > 0 ? (
-              matches.slice(0, 8).map((m, index) => (
-                <motion.div
-                  key={m.match.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 * index }}
-                >
-                  <Link
-                    href={`/match/${m.match.id}`}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface transition-colors"
+              matches.slice(0, 5).map((m, index) => {
+                const winners = m.participants.filter((p) => p.is_winner);
+                const losers = m.participants.filter((p) => !p.is_winner);
+
+                return (
+                  <motion.div
+                    key={m.match.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 * index }}
                   >
-                    {/* Win/Loss indicator */}
-                    <div
-                      className={`w-1 h-8 rounded-full ${
-                        m.userIsWinner ? "bg-win" : "bg-loss"
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={m.userIsWinner ? "win" : "loss"} className="text-[10px]">
-                          {m.userIsWinner ? "WIN" : "LOSS"}
-                        </Badge>
-                        <span className="text-sm text-foreground-muted">
-                          {m.match.format === "1v1"
-                            ? "1v1"
-                            : m.match.format === "2v2"
-                            ? "2v2"
-                            : `${m.participants.length}-player`}
+                    <Link
+                      href={`/match/${m.match.id}`}
+                      style={{
+                        display: "block",
+                        padding: "1rem",
+                        borderRadius: "0.75rem",
+                        backgroundColor: "rgba(255, 255, 255, 0.03)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        textDecoration: "none",
+                        transition: "background-color 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.06)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.03)";
+                      }}
+                    >
+                      {/* Match header */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: "0.75rem",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <Badge variant={m.userIsWinner ? "win" : "loss"}>
+                            {m.userIsWinner ? "WIN" : "LOSS"}
+                          </Badge>
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "#a1a1aa",
+                              padding: "0.25rem 0.5rem",
+                              backgroundColor: "rgba(255, 255, 255, 0.05)",
+                              borderRadius: "0.25rem",
+                            }}
+                          >
+                            {m.match.format.toUpperCase()}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "0.75rem", color: "#71717a" }}>
+                          {formatRelativeTime(m.match.date_played)}
                         </span>
                       </div>
-                      <div className="text-xs text-foreground-subtle truncate">
-                        vs {m.participants.filter((p) => p.id !== userId).map((p) => p.name).join(", ")}
-                      </div>
-                    </div>
-                    <div className="text-xs text-foreground-muted">
-                      {formatRelativeTime(m.match.date_played)}
-                    </div>
-                  </Link>
-                </motion.div>
-              ))
+
+                      {/* Participants display based on format */}
+                      {m.match.format === "1v1" ? (
+                        /* 1v1: Two participants side by side with VS */
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr auto 1fr",
+                            alignItems: "center",
+                            gap: "0.75rem",
+                          }}
+                        >
+                          {/* Player 1 */}
+                          <ParticipantCard
+                            participant={m.participants[0]}
+                            isCurrentUser={m.participants[0]?.id === userId}
+                          />
+                          <span style={{ color: "#71717a", fontWeight: 600, fontSize: "0.75rem" }}>VS</span>
+                          {/* Player 2 */}
+                          <ParticipantCard
+                            participant={m.participants[1]}
+                            isCurrentUser={m.participants[1]?.id === userId}
+                          />
+                        </div>
+                      ) : m.match.format === "2v2" ? (
+                        /* 2v2: Two teams with VS */
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr auto 1fr",
+                            alignItems: "center",
+                            gap: "0.75rem",
+                          }}
+                        >
+                          {/* Team 1 (winners or first 2) */}
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
+                            {winners.slice(0, 2).map((p) => (
+                              <ParticipantCard
+                                key={p.id}
+                                participant={p}
+                                isCurrentUser={p.id === userId}
+                                compact
+                              />
+                            ))}
+                          </div>
+                          <span style={{ color: "#71717a", fontWeight: 600, fontSize: "0.75rem" }}>VS</span>
+                          {/* Team 2 (losers) */}
+                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                            {losers.slice(0, 2).map((p) => (
+                              <ParticipantCard
+                                key={p.id}
+                                participant={p}
+                                isCurrentUser={p.id === userId}
+                                compact
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Multiplayer: Grid of participants */
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "0.5rem",
+                          }}
+                        >
+                          {m.participants.map((p) => (
+                            <ParticipantCard
+                              key={p.id}
+                              participant={p}
+                              isCurrentUser={p.id === userId}
+                              compact
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </Link>
+                  </motion.div>
+                );
+              })
             ) : (
-              <p className="text-foreground-muted text-sm">No matches recorded yet.</p>
+              <p style={{ color: "#a1a1aa", fontSize: "0.875rem" }}>No matches recorded yet.</p>
             )}
           </CardContent>
         </Card>

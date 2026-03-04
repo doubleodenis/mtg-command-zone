@@ -63,6 +63,16 @@ body {
   .container {
     max-width: 640px;
   }
+  .sm-row {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+  }
+  .sm-text-left {
+    text-align: left !important;
+  }
+  .sm-justify-start {
+    justify-content: flex-start !important;
+  }
 }
 
 @media (min-width: 768px) {
@@ -74,6 +84,15 @@ body {
 @media (min-width: 1024px) {
   .container {
     max-width: 1024px;
+  }
+  .lg-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .lg-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .hidden-sm {
+    display: block !important;
   }
 }
 
