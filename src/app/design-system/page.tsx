@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   Button,
   Input,
@@ -21,9 +22,17 @@ import {
   ManaPip,
   ColorIdentity,
 } from "@/components/ui";
+import { Sidebar, TabNav, PageHeader, type NavItem } from "@/components/layout";
 import type { FormatSlug } from "@/types/format";
 import type { ManaColor } from "@/app/_design-system";
 import type { Bracket } from "@/components/ui/bracket-indicator";
+
+const sampleNavItems: NavItem[] = [
+  { label: "Overview", href: "#" },
+  { label: "Matches", href: "#" },
+  { label: "Commanders", href: "#" },
+  { label: "Settings", href: "#" },
+];
 
 export default function DesignSystemPage() {
   return (
@@ -33,6 +42,50 @@ export default function DesignSystemPage() {
           <h1 className="text-elo text-text-1 mb-2">Design System</h1>
           <p className="text-text-2 text-lg">CommandZone UI component library</p>
         </header>
+
+        {/* Navigation Components */}
+        <Section title="Navigation">
+          <div className="space-y-6">
+            <Row label="Navbar (static preview)">
+              <div className="w-full rounded-lg overflow-hidden border border-card-border">
+                <header className="w-full h-topbar bg-bg-surface/90 backdrop-blur-md border-b border-card-border">
+                  <div className="px-4 h-full flex items-center justify-between">
+                    <Link href="#" className="flex items-center gap-2 text-wordmark text-text-1">
+                      <span className="text-accent">⚔️</span>
+                      <span>CommandZone</span>
+                    </Link>
+                    <nav className="flex items-center gap-3">
+                      <span className="text-ui text-text-2">Dashboard</span>
+                      <span className="text-ui text-text-2">New Match</span>
+                      <Avatar size="sm" fallback="JD" />
+                    </nav>
+                  </div>
+                </header>
+              </div>
+            </Row>
+            <Row label="Tab Nav">
+              <div className="w-full rounded-lg overflow-hidden border border-card-border">
+                <TabNav items={sampleNavItems} />
+              </div>
+            </Row>
+            <Row label="Sidebar">
+              <div className="w-64 rounded-lg overflow-hidden border border-card-border bg-bg-surface">
+                <Sidebar items={sampleNavItems} />
+              </div>
+            </Row>
+          </div>
+        </Section>
+
+        {/* Page Header */}
+        <Section title="Page Header">
+          <div className="rounded-lg border border-card-border p-6 bg-bg-surface">
+            <PageHeader
+              title="Dashboard"
+              description="Track your matches, stats, and compete with friends"
+              actions={<Button size="sm">New Match</Button>}
+            />
+          </div>
+        </Section>
 
         {/* Buttons */}
         <Section title="Button">

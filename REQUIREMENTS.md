@@ -14,7 +14,59 @@
 
 ---
 
-## 1. Formats
+## 1. Application Routes
+
+### Route Structure
+
+| Route | Auth | Description |
+|---|---|---|
+| **Public** | | |
+| `/` | — | Dashboard (global view logged out, personal view logged in) |
+| `/login` | — | Login / sign up |
+| `/leaderboards` | — | Global leaderboards overview |
+| `/leaderboards/[format]` | — | Format-specific leaderboard |
+| `/player/[username]` | — | Public player profile |
+| `/player/[username]/matches` | — | Player's match history |
+| `/player/[username]/decks` | — | Player's public decks |
+| `/match/[id]` | — | Match detail view |
+| `/collections/[id]` | — | Public collection view (if `is_public = true`) |
+| `/collections/[id]/leaderboard` | — | Collection leaderboard |
+| **Auth Required** | | |
+| `/matches` | ✓ | Personal match history |
+| `/matches/new` | ✓ | Log a new match |
+| `/decks` | ✓ | Deck manager (my decks) |
+| `/decks/new` | ✓ | Add a new deck |
+| `/decks/[id]` | ✓ | Deck detail view |
+| `/decks/[id]/edit` | ✓ | Edit deck |
+| `/collections` | ✓ | My collections list |
+| `/collections/new` | ✓ | Create a new collection |
+| `/collections/[id]/matches` | ✓ | Collection match history (members only if private) |
+| `/collections/[id]/settings` | ✓ | Collection settings (owner only) |
+| `/collections/[id]/members` | ✓ | Member management (owner only) |
+| `/friends` | ✓ | Friends list and requests |
+| `/notifications` | ✓ | Notification center |
+| `/settings` | ✓ | User settings overview |
+| `/settings/profile` | ✓ | Edit profile (username, avatar, bio) |
+| `/settings/account` | ✓ | Account settings (email, password, delete) |
+
+### Route Behaviors
+
+**Home (`/`)** is the dashboard and adapts based on auth state:
+- **Logged out**: Shows global leaderboards, recent platform matches, top commanders, platform stats, sign-up CTA — gives visitors a reason to explore and social proof the platform is active
+- **Logged in**: Shows personal ratings, pending confirmations, recent matches, collections activity, quick actions
+
+**Player Profile (`/player/[username]`)** is always public — ratings, win rates, and match history are visible to all. The profile owner sees additional editing options.
+
+**Collections (`/collections/[id]`)** respect the `is_public` flag:
+- Public collections are viewable by anyone
+- Private collections return 404 for non-members
+- Settings and member management are owner-only
+
+**Match Detail (`/match/[id]`)** is public — participants, decks, results, and rating deltas are visible. Participants see confirmation actions.
+
+---
+
+## 2. Formats
 
 The system is designed to be **format-agnostic and extensible** — new formats can be added without restructuring the core data model.
 
@@ -54,7 +106,7 @@ When adding a new format, the following must be defined:
 
 ---
 
-## 2. Data Models (Conceptual)
+## 3. Data Models (Conceptual)
 
 ### `users`
 Standard authentication record (managed by Supabase Auth).
@@ -242,7 +294,7 @@ Immutable append-only log of every rating change, for audit trail and charting. 
 
 ---
 
-## 3. Key System Behaviors
+## 4. Key System Behaviors
 
 ### 3.1 Match Creation Flow
 
@@ -377,7 +429,7 @@ When a guest participant later creates an account:
 
 ---
 
-## 4. Tracked Metrics
+## 5. Tracked Metrics
 
 Only **win/loss** is recorded per match — no manual stat entry required. All metrics are derived from results, deck associations, and participants.
 
@@ -405,25 +457,41 @@ Only **win/loss** is recorded per match — no manual stat entry required. All m
 
 ---
 
-## 5. User-Facing Features (Planned)
+## 6. User-Facing Features (Planned)
 
 ### Dashboard
 
+The dashboard is **publicly accessible** and displays different content based on authentication state.
+
+**Logged Out — Global Dashboard**
+
+Showcases platform activity and provides social proof to visitors:
+- Global leaderboards (top rated players per format)
+- Recent matches across the platform
+- Most played commanders/decks
+- Platform stats (total matches played, active players, etc.)
+- Clear call to action to sign up
+
+**Logged In — Personal Dashboard**
+
 Two primary views, toggleable:
 
-**Rating View**
+*Rating View*
 - Current Rating per format (reflects opponent strength, bracket differential, experience)
 - Rating history chart over time
 - Pending match confirmations
 - Recent matches with rating delta per match
 
-**Win Rate View**
+*Win Rate View*
 - Overall win rate and per-format win rate
 - Win rate per deck/commander
 - Win/loss record vs. specific opponents
 - Current and longest win streak
 
-Both views show recent match activity and link to the full match log.
+Both views show:
+- Recent match activity and link to the full match log
+- Pods/collections activity feed
+- Quick action to log a new match
 
 ### Collection Dashboard
 - Collection-scoped Rating leaderboard among members
@@ -464,7 +532,7 @@ Both views show recent match activity and link to the full match log.
 
 ---
 
-## 6. Design Principles
+## 7. Design Principles
 
 - **Extensible formats** — new game modes are config-driven, not hardcoded.
 - **Lightweight match logging** — only the winner is required; everything else is optional or retroactively correctable.
@@ -476,7 +544,7 @@ Both views show recent match activity and link to the full match log.
 
 ---
 
-## 7. Future Considerations
+## 8. Future Considerations
 
 - **Scryfall API** for commander autocomplete and color identity lookup
 - **Deck archetypes / power level tags** (e.g., CEDH, Casual, 1–10 scale)

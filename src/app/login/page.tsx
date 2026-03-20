@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 
 function LoginContent() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") || "/dashboard";
+  const redirectTo = searchParams.get("redirectTo") || "/";
   const error = searchParams.get("error");
   const [isLoading, setIsLoading] = useState<"google" | "discord" | null>(null);
 

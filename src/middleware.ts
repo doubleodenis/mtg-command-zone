@@ -34,10 +34,27 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protected routes - redirect to login if not authenticated
-  const protectedPaths = ["/dashboard", "/matches/new", "/friends", "/commanders", "/groups", "/settings"];
-  const isProtectedPath = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
+  // Protected routes - require authentication
+  // Public routes: /, /leaderboards, /player/*, /match/*, /collections/[id] (if public)
+  const protectedPaths = [
+    "/matches",           // Personal match history
+    "/decks",             // Deck manager
+    "/collections/new",   // Create collection (but not /collections/[id] which may be public)
+    "/friends",           // Friends list
+    "/notifications",     // Notifications
+    "/settings",          // User settings
+  ];
+  
+  // Check if path starts with any protected path
+  // Special handling: /collections is protected but /collections/[id] needs page-level auth check
+  const isProtectedPath = protectedPaths.some((path) => {
+    if (path === "/collections/new") {
+      return request.nextUrl.pathname === "/collections/new";
+    }
+    return request.nextUrl.pathname.startsWith(path);
+  }) || (
+    // /collections exactly (list view) requires auth, but not /collections/[id]
+    request.nextUrl.pathname === "/collections"
   );
 
   if (isProtectedPath && !user) {
@@ -55,7 +72,7 @@ export async function middleware(request: NextRequest) {
 
   if (isAuthPath && user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 

@@ -4,7 +4,7 @@ import { TabNav, type NavItem } from "@/components/layout";
 
 // Nav items shown when logged in (personal dashboard)
 const authenticatedNav: NavItem[] = [
-  { label: "Overview", href: "/dashboard" },
+  { label: "Overview", href: "/" },
   { label: "Matches", href: "/matches" },
   { label: "Decks", href: "/decks" },
   { label: "Collections", href: "/collections" },
@@ -13,11 +13,11 @@ const authenticatedNav: NavItem[] = [
 
 // Nav items shown when logged out (global dashboard)
 const publicNav: NavItem[] = [
-  { label: "Overview", href: "/dashboard" },
+  { label: "Overview", href: "/" },
   { label: "Leaderboards", href: "/leaderboards" },
 ];
 
-export default async function DashboardLayout({
+export default async function MainLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -28,12 +28,12 @@ export default async function DashboardLayout({
   const navItems = user ? authenticatedNav : publicNav;
 
   return (
-    <div className="min-h-screen bg-bg-base">
+    <>
       <Navbar />
       <TabNav items={navItems} />
       <main className="max-w-6xl mx-auto px-4 py-8">
         {children}
       </main>
-    </div>
+    </>
   );
 }

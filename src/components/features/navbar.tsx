@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { NavbarSearch } from "./navbar-search";
 
 type NavbarProfile = {
@@ -9,11 +10,7 @@ type NavbarProfile = {
   avatar_url: string | null;
 };
 
-interface NavbarProps {
-  hideSearch?: boolean;
-}
-
-export async function Navbar({ hideSearch = false }: NavbarProps) {
+export async function Navbar() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -30,67 +27,27 @@ export async function Navbar({ hideSearch = false }: NavbarProps) {
   }
 
   return (
-    <header
-      className="sticky top-0 z-50 w-full backdrop-blur-md"
-      style={{
-        backgroundColor: "rgba(10, 10, 15, 0.9)",
-        borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "72rem",
-          marginLeft: "auto",
-          marginRight: "auto",
-          paddingLeft: "1rem",
-          paddingRight: "1rem",
-          height: "4rem",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+    <header className="sticky top-0 z-50 w-full h-topbar bg-bg-surface/90 backdrop-blur-md border-b border-card-border">
+      <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
         {/* Logo */}
-        <Link
-          href="/"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            fontWeight: 700,
-            fontSize: "1.25rem",
-            color: "#ffffff",
-            textDecoration: "none",
-          }}
-        >
-          <span style={{ color: "#a855f7" }}>⚔️</span>
-          <span>MTG Tracker</span>
+        <Link href="/" className="flex items-center gap-2 text-wordmark text-text-1 hover:text-accent transition-colors">
+          <span className="text-accent">⚔️</span>
+          <span>CommandZone</span>
         </Link>
 
-        {/* Search Bar */}
-        {!hideSearch && (
-          <div style={{ flex: 1, maxWidth: "24rem", marginLeft: "2rem", marginRight: "2rem" }}>
-            <NavbarSearch />
-          </div>
-        )}
+        {/* Search Bar — always visible */}
+        <div className="flex-1 max-w-sm mx-8 hidden md:block">
+          <NavbarSearch />
+        </div>
 
         {/* Navigation */}
-        <nav style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <nav className="flex items-center gap-3">
           {user && profile ? (
             <>
-              <Link
-                href="/dashboard"
-                style={{ color: "#a1a1aa", fontSize: "0.875rem", fontWeight: 500, textDecoration: "none" }}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard/matches/new"
-                style={{ color: "#a1a1aa", fontSize: "0.875rem", fontWeight: 500, textDecoration: "none" }}
-              >
-                New Match
-              </Link>
-              <Link href={`/player/${profile.username}`}>
+              <Button asChild size="sm">
+                <Link href="/matches/new">New Match</Link>
+              </Button>
+              <Link href={`/player/${profile.username}`} className="ml-1">
                 <Avatar
                   src={profile.avatar_url}
                   fallback={profile.display_name || profile.username}
@@ -100,36 +57,25 @@ export async function Navbar({ hideSearch = false }: NavbarProps) {
             </>
           ) : (
             <>
-              <Link
-                href="/login"
-                style={{
-                  color: "#a1a1aa",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                  padding: "0.5rem 1rem",
-                  textDecoration: "none",
-                }}
-              >
-                Log in
-              </Link>
-              <Link
-                href="/login"
-                style={{
-                  backgroundColor: "#a855f7",
-                  color: "#fff",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                  padding: "0.5rem 1rem",
-                  borderRadius: "0.5rem",
-                  textDecoration: "none",
-                }}
-              >
-                Sign up
-              </Link>
+              <NavLink href="/login">Log in</NavLink>
+              <Button asChild size="sm">
+                <Link href="/login">Sign up</Link>
+              </Button>
             </>
           )}
         </nav>
       </div>
     </header>
+  );
+}
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="text-ui text-text-2 hover:text-text-1 transition-colors px-2 py-1"
+    >
+      {children}
+    </Link>
   );
 }

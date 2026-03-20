@@ -16,14 +16,14 @@
 ## Phase 2 — UI Shell
 > You are here.
 
-- [ ] Global layout (nav, sidebar, auth-aware shell)
-- [ ] Design tokens and Tailwind theme setup (colors, typography, spacing scale)
-- [ ] Primitive UI components
-  - [ ] `Button`, `Input`, `Card`, `Badge`, `Avatar`
-  - [ ] Format indicator (FFA, Pentagram, 1v1, etc.)
-  - [ ] Bracket indicator (1–4)
-  - [ ] Rating delta display (`+12`, `−8`)
-  - [ ] Confirmation status indicator
+- [x] Global layout (nav, sidebar, auth-aware shell)
+- [x] Design tokens and Tailwind theme setup (colors, typography, spacing scale)
+- [x] Primitive UI components
+  - [x] `Button`, `Input`, `Card`, `Badge`, `Avatar`
+  - [x] Format indicator (FFA, Pentagram, 1v1, etc.)
+  - [x] Bracket indicator (1–4)
+  - [x] Rating delta display (`+12`, `−8`)
+  - [x] Confirmation status indicator
 - [ ] Empty states for every data-dependent view
 - [ ] Loading skeletons for every data-dependent view
 
@@ -33,11 +33,19 @@
 
 > Build these fully against mock data. This is where missing fields, awkward data shapes, and anything the requirements doc didn't anticipate will surface.
 
-- [ ] Dashboard
-  - [ ] Rating view (per-format rating, history chart, recent matches with delta)
-  - [ ] Win Rate view (overall + per-format, per-deck, streaks)
-  - [ ] Toggle between the two views
-  - [ ] Pending confirmation prompts
+- [ ] Dashboard (dual-purpose — public when logged out, personal when logged in)
+  - [ ] **Logged Out — Global Dashboard**
+    - [ ] Global leaderboards (top rated players per format)
+    - [ ] Recent matches across the platform
+    - [ ] Most played commanders/decks
+    - [ ] Platform stats (total matches, active players)
+    - [ ] Sign up call to action
+  - [ ] **Logged In — Personal Dashboard**
+    - [ ] Rating view (per-format rating, history chart, recent matches with delta)
+    - [ ] Win Rate view (overall + per-format, per-deck, streaks)
+    - [ ] Toggle between the two views
+    - [ ] Pending confirmation prompts
+    - [ ] Pods/collections activity feed
 - [ ] Match Log
   - [ ] Full history list
   - [ ] Filters (format, date, deck, result)
