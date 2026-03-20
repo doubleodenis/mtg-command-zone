@@ -5,15 +5,16 @@
 ---
 
 ## Phase 1 — Foundation
-> You are here.
+> Complete!
 
-- [ ] TypeScript types for all data models (`/types`)
-- [ ] `RATING_CONFIG` constant and rating algorithm as pure functions (`/lib/rating`)
-- [ ] Mock data factories for every major type (`/lib/mock`)
+- [x] TypeScript types for all data models (`/types`)
+- [x] `RATING_CONFIG` constant and rating algorithm as pure functions (`/lib/rating`)
+- [x] Mock data factories for every major type (`/lib/mock`)
 
 ---
 
 ## Phase 2 — UI Shell
+> You are here.
 
 - [ ] Global layout (nav, sidebar, auth-aware shell)
 - [ ] Design tokens and Tailwind theme setup (colors, typography, spacing scale)
