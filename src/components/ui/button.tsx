@@ -2,81 +2,50 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "outline" | "destructive";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
+
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "secondary" | "ghost" | "outline" | "destructive";
-  size?: "default" | "sm" | "lg" | "icon";
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   asChild?: boolean;
 }
 
-const variantStyles: Record<string, React.CSSProperties> = {
-  default: {
-    backgroundColor: "#a855f7",
-    color: "#ffffff",
-    boxShadow: "0 0 20px rgba(168, 85, 247, 0.3)",
-  },
-  secondary: {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-    color: "#ffffff",
-    border: "1px solid rgba(255, 255, 255, 0.1)",
-  },
-  ghost: {
-    backgroundColor: "transparent",
-    color: "#a1a1aa",
-  },
-  outline: {
-    backgroundColor: "transparent",
-    color: "#ffffff",
-    border: "1px solid rgba(255, 255, 255, 0.1)",
-  },
-  destructive: {
-    backgroundColor: "#ef4444",
-    color: "#ffffff",
-  },
+const variantClasses: Record<ButtonVariant, string> = {
+  primary:
+    "bg-accent-fill text-text-1 shadow-[0_0_20px_rgba(136,24,200,0.3)] hover:bg-accent hover:shadow-[0_0_24px_rgba(170,40,216,0.4)]",
+  secondary:
+    "bg-card text-text-1 border border-card-border hover:bg-card-raised hover:border-card-border-hi",
+  ghost:
+    "bg-transparent text-text-2 hover:bg-bg-overlay hover:text-text-1",
+  outline:
+    "bg-transparent text-text-1 border border-card-border hover:bg-bg-overlay hover:border-card-border-hi",
+  destructive:
+    "bg-loss text-text-1 hover:bg-loss/90",
 };
 
-const sizeStyles: Record<string, React.CSSProperties> = {
-  default: {
-    height: "2.5rem",
-    padding: "0.5rem 1rem",
-    fontSize: "0.875rem",
-  },
-  sm: {
-    height: "2rem",
-    padding: "0.25rem 0.75rem",
-    fontSize: "0.75rem",
-  },
-  lg: {
-    height: "3rem",
-    padding: "0.75rem 1.5rem",
-    fontSize: "1rem",
-  },
-  icon: {
-    height: "2.5rem",
-    width: "2.5rem",
-  },
+const sizeClasses: Record<ButtonSize, string> = {
+  sm: "h-8 px-3 text-sm gap-1.5",
+  md: "h-10 px-4 text-base gap-2",
+  lg: "h-12 px-6 text-lg gap-2.5",
+  icon: "h-10 w-10",
 };
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", asChild = false, style, ...props }, ref) => {
+  ({ className, variant = "primary", size = "md", asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     return (
       <Comp
-        className={cn(className)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "0.5rem",
-          whiteSpace: "nowrap",
-          borderRadius: "0.5rem",
-          fontWeight: 500,
-          cursor: "pointer",
-          transition: "all 0.15s ease",
-          ...sizeStyles[size],
-          ...variantStyles[variant],
-          ...style,
-        }}
+        className={cn(
+          "text-ui inline-flex items-center justify-center whitespace-nowrap rounded-md font-semibold",
+          "transition-all duration-150 ease-out",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
+          "disabled:pointer-events-none disabled:opacity-50",
+          variantClasses[variant],
+          sizeClasses[size],
+          className
+        )}
         ref={ref}
         {...props}
       />
