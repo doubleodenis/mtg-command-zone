@@ -25,7 +25,7 @@ export function RatingDelta({
 
   // Format with proper minus sign (−) not hyphen (-)
   const formattedDelta = isNeutral
-    ? "0"
+    ? "+0"
     : isPositive
     ? `+${delta}`
     : `−${Math.abs(delta)}`;

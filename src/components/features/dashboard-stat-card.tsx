@@ -14,10 +14,10 @@ export function DashboardStatCard({ label, value, sublabel }: DashboardStatCardP
   return (
     <Card>
       <CardContent className="p-4">
-        <p className="text-sublabel text-text-2 mb-1">{label}</p>
+        <p className="text-sublabel text-sm text-text-2 mb-1">{label}</p>
         <p className="text-stat text-text-1">{value}</p>
         {sublabel && (
-          <p className="text-mono-xs text-text-2 mt-1">{sublabel}</p>
+          <p className="text-mono-sm text-text-2 mt-1">{sublabel}</p>
         )}
       </CardContent>
     </Card>

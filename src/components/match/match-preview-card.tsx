@@ -96,14 +96,14 @@ export function MatchPreviewCard({
 
                     {/* YOU badge - top left */}
                     {isCurrentUser && (
-                      <span className="absolute top-1 left-1 text-[9px] font-bold text-white bg-accent/90 px-1.5 py-0.5 rounded">
+                      <span className="absolute top-1 left-1 text-[11px] font-bold text-white bg-accent/90 px-1.5 py-0.5 rounded">
                         YOU
                       </span>
                     )}
 
                     {/* Player name - bottom, overlaid */}
                     <div className="absolute bottom-0 left-0 right-0 p-1.5">
-                      <p className="text-[10px] font-medium text-white truncate text-center drop-shadow-md">
+                      <p className="text-xs font-medium text-white truncate text-center drop-shadow-md">
                         {participant.name}
                       </p>
                     </div>
@@ -132,12 +132,12 @@ export function MatchPreviewCard({
               )}
 
               {/* Format & player count */}
-              <span className="text-xs text-text-2">
+              <span className="text-sm text-text-2">
                 {match.formatSlug.toUpperCase()} • {match.participantCount}P
               </span>
 
               {/* Average bracket */}
-              <span className="text-[10px] text-text-3 bg-surface px-1.5 py-0.5 rounded">
+              <span className="text-sm text-text-2 bg-surface ">
                 {getBracketName(avgBracket)}
               </span>
 

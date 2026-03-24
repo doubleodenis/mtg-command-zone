@@ -87,7 +87,7 @@ body {
 /* 9px JetBrains Mono caps — stat sublabels (WIN RATE, ELO) */
 .text-sublabel {
   font-family: var(--font-data);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   letter-spacing: 0.10em;
   text-transform: uppercase;
 }

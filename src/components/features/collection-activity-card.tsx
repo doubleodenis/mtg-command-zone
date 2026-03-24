@@ -21,7 +21,7 @@ export function CollectionActivityCard({ activity }: CollectionActivityCardProps
           {/* Collection header */}
           <div>
             <h3 className="font-display text-lg font-semibold text-text-1 truncate">{collection.name}</h3>
-            <p className="text-sm text-text-2 mt-1">
+            <p className="text-sm text-text-2">
               {collection.memberCount} members • {collection.matchCount} matches
             </p>
           </div>
@@ -29,18 +29,18 @@ export function CollectionActivityCard({ activity }: CollectionActivityCardProps
           {/* User stats */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-surface rounded-lg p-3 text-center">
-              <p className="text-sm text-text-2 mb-1">Rating</p>
+              <p className="text-sublabel text-text-2 mb-1">Rating</p>
               <div className="flex items-center justify-center gap-1">
                 <span className="font-display text-lg font-bold text-text-1">{userStats.rating}</span>
                 <RatingDelta delta={userStats.ratingDelta} size="sm" />
               </div>
             </div>
             <div className="bg-surface rounded-lg p-3 text-center">
-              <p className="text-sm text-text-2 mb-1">Win Rate</p>
+              <p className="text-sublabel text-text-2 mb-1">Win Rate</p>
               <span className="font-display text-lg font-bold text-text-1">{userStats.winRate}%</span>
             </div>
             <div className="bg-surface rounded-lg p-3 text-center">
-              <p className="text-sm text-text-2 mb-1">Games</p>
+              <p className="text-sublabel text-text-2 mb-1">Games</p>
               <span className="font-display text-lg font-bold text-text-1">{userStats.gamesPlayed}</span>
             </div>
           </div>
@@ -52,7 +52,6 @@ export function CollectionActivityCard({ activity }: CollectionActivityCardProps
               <p className="text-base text-text-1 truncate">{topPlayer.profile.username}</p>
               <p className="text-sm text-text-2">Top player • {topPlayer.winRate}% WR</p>
             </div>
-            <Badge variant="gold">#{1}</Badge>
           </div>
         </CardContent>
       </Card>
