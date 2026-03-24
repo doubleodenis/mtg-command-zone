@@ -9,6 +9,7 @@ import { LeaderboardPreview } from "@/components/features/leaderboard-preview";
 import { TopCommandersList } from "@/components/features/top-commanders-list";
 import { PendingConfirmationCard } from "@/components/features/pending-confirmation-card";
 import { CollectionActivityCard } from "@/components/features/collection-activity-card";
+import { RatingHistoryChart } from "@/components/features/rating-history-chart";
 import {
   createMockLeaderboard,
   createMockDeckWithStats,
@@ -17,6 +18,7 @@ import {
   createMockUserMatches,
   createMockPendingConfirmations,
   createMockCollectionActivities,
+  createMockRatingTimeline,
 } from "@/lib/mock";
 
 export default async function HomePage() {
@@ -148,6 +150,7 @@ async function PersonalDashboard({ userId }: { userId: string }) {
   const recentMatches = createMockUserMatches(userId);
   const pendingConfirmations = createMockPendingConfirmations(2);
   const collectionActivities = createMockCollectionActivities(3);
+  const ratingHistory = createMockRatingTimeline(20, 1100);
 
   return (
     <div className="space-y-8">
@@ -169,6 +172,11 @@ async function PersonalDashboard({ userId }: { userId: string }) {
           <DashboardStatCard label="Matches" value={stats.totalMatches.toString()} />
           <DashboardStatCard label="Win Streak" value={stats.currentStreak.toString()} />
         </div>
+      </Section>
+
+      {/* Rating History Chart */}
+      <Section title="RATING HISTORY">
+        <RatingHistoryChart data={ratingHistory} height={180} />
       </Section>
 
       {/* Collections Activity */}
