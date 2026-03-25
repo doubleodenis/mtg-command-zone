@@ -17,6 +17,8 @@ export { generateMockDate, generateMockId, resetMockIds } from './utils'
 
 // Re-export profile factories
 export {
+  createMockColorStats,
+  createMockFormatStats,
   createMockLeaderboard,
   createMockLeaderboardEntry,
   createMockPlayerStats,
@@ -24,6 +26,8 @@ export {
   createMockProfileSummary,
   createMockProfileWithStats,
 } from './profile'
+
+export type { ColorStats, FormatStatEntry } from './profile'
 
 // Re-export deck factories
 export {

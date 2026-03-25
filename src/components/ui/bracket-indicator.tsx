@@ -1,19 +1,12 @@
 import { cn } from "@/lib/utils";
-
-export type Bracket = 1 | 2 | 3 | 4;
+import { BRACKET_NAMES, BRACKET_DESCRIPTIONS } from "@/types";
+import type { Bracket } from "@/types";
 
 interface BracketIndicatorProps {
   bracket: Bracket;
   size?: "sm" | "md";
   className?: string;
 }
-
-const bracketDescriptions: Record<Bracket, string> = {
-  1: "Casual — Precons & low-power decks",
-  2: "Focused — Optimized casual with synergy",
-  3: "Powerful — Strong combos & high interaction",
-  4: "Competitive — cEDH & tournament level",
-};
 
 /**
  * Displays the MTG Commander bracket level (1-4).
@@ -37,8 +30,8 @@ export function BracketIndicator({ bracket, size = "md", className }: BracketInd
         sizeClasses[size],
         className
       )}
-      title={bracketDescriptions[bracket]}
-      aria-label={`Bracket ${bracket}: ${bracketDescriptions[bracket]}`}
+      title={BRACKET_DESCRIPTIONS[bracket]}
+      aria-label={`Bracket ${bracket}: ${BRACKET_DESCRIPTIONS[bracket]}`}
     >
       {[1, 2, 3, 4].map((level) => (
         <span
@@ -57,21 +50,21 @@ export function BracketIndicator({ bracket, size = "md", className }: BracketInd
 }
 
 /**
- * Displays bracket as a compact numeric badge.
+ * Displays bracket as a compact text badge.
  * Alternative to the segmented indicator when space is tight.
  */
 export function BracketBadge({ bracket, className }: Omit<BracketIndicatorProps, "size">) {
   return (
     <span
       className={cn(
-        "text-mono-xs inline-flex items-center justify-center",
-        "h-5 min-w-5 px-1 rounded-sm",
+        "text-xs inline-flex items-center justify-center",
+        "h-5 px-1.5 rounded-sm",
         "bg-bg-overlay text-text-2 border border-card-border",
         className
       )}
-      title={bracketDescriptions[bracket]}
+      title={BRACKET_DESCRIPTIONS[bracket]}
     >
-      B{bracket}
+      {BRACKET_NAMES[bracket]}
     </span>
   );
 }

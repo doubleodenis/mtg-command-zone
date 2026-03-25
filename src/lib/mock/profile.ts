@@ -117,3 +117,65 @@ export function createMockLeaderboard(size = 10): LeaderboardEntry[] {
     createMockLeaderboardEntry(i + 1)
   )
 }
+
+/**
+ * Color stats for radar chart (games played with each color)
+ */
+export type ColorStats = {
+  W: number
+  U: number
+  B: number
+  R: number
+  G: number
+}
+
+/**
+ * Create mock color stats based on commander color distribution
+ */
+export function createMockColorStats(): ColorStats {
+  return {
+    W: 15 + Math.floor(Math.random() * 30),
+    U: 20 + Math.floor(Math.random() * 35),
+    B: 25 + Math.floor(Math.random() * 30),
+    R: 10 + Math.floor(Math.random() * 25),
+    G: 18 + Math.floor(Math.random() * 28),
+  }
+}
+
+/**
+ * Format-specific stats
+ */
+export type FormatStatEntry = {
+  formatSlug: string
+  formatName: string
+  matchesPlayed: number
+  wins: number
+  winRate: number
+  rating: number
+}
+
+/**
+ * Create mock format stats
+ */
+export function createMockFormatStats(): FormatStatEntry[] {
+  const formats = [
+    { slug: 'ffa', name: 'FFA' },
+    { slug: '1v1', name: '1v1' },
+    { slug: '2v2', name: '2v2' },
+    { slug: '3v3', name: '3v3' },
+    { slug: 'pentagram', name: 'Pentagram' },
+  ]
+
+  return formats.map((format) => {
+    const matchesPlayed = 5 + Math.floor(Math.random() * 40)
+    const wins = Math.floor(matchesPlayed * (0.3 + Math.random() * 0.4))
+    return {
+      formatSlug: format.slug,
+      formatName: format.name,
+      matchesPlayed,
+      wins,
+      winRate: matchesPlayed > 0 ? Math.round((wins / matchesPlayed) * 100) : 0,
+      rating: 900 + Math.floor(Math.random() * 400),
+    }
+  }).sort((a, b) => b.matchesPlayed - a.matchesPlayed)
+}

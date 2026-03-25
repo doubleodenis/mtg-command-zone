@@ -15,7 +15,7 @@ export type {
   SortParams,
   UUID,
 } from './common'
-export { DEFAULT_BRACKET } from './common'
+export { DEFAULT_BRACKET, BRACKET_NAMES, BRACKET_DESCRIPTIONS, BRACKET_OPTIONS } from './common'
 
 // Profile types
 export type {

@@ -7,7 +7,7 @@ export { Avatar, type AvatarSize } from "./avatar";
 
 // Domain-specific primitives
 export { FormatBadge } from "./format-badge";
-export { BracketIndicator, BracketBadge, type Bracket } from "./bracket-indicator";
+export { BracketIndicator, BracketBadge } from "./bracket-indicator";
 export { RatingDelta, RatingDisplay } from "./rating-delta";
 export { ConfirmationStatus, ConfirmationCount, type ConfirmationState } from "./confirmation-status";
 export { WLBadge } from "./wl-badge";

@@ -71,3 +71,33 @@ export type Bracket = 1 | 2 | 3 | 4
  * Default bracket used when not specified
  */
 export const DEFAULT_BRACKET: Bracket = 2
+
+/**
+ * Human-readable bracket names for display
+ */
+export const BRACKET_NAMES: Record<Bracket, string> = {
+  1: 'Beginner',
+  2: 'Casual',
+  3: 'Upgraded',
+  4: 'cEDH',
+}
+
+/**
+ * Full bracket descriptions for tooltips and help text
+ */
+export const BRACKET_DESCRIPTIONS: Record<Bracket, string> = {
+  1: 'Beginner — Precons & low-power decks',
+  2: 'Casual — Optimized casual with synergy',
+  3: 'Upgraded — Strong combos & high interaction',
+  4: 'cEDH — Competitive & tournament level',
+}
+
+/**
+ * All bracket options for selectors and dropdowns
+ */
+export const BRACKET_OPTIONS: { value: Bracket; label: string; description: string }[] = [
+  { value: 1, label: BRACKET_NAMES[1], description: BRACKET_DESCRIPTIONS[1] },
+  { value: 2, label: BRACKET_NAMES[2], description: BRACKET_DESCRIPTIONS[2] },
+  { value: 3, label: BRACKET_NAMES[3], description: BRACKET_DESCRIPTIONS[3] },
+  { value: 4, label: BRACKET_NAMES[4], description: BRACKET_DESCRIPTIONS[4] },
+]

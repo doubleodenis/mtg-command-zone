@@ -31,24 +31,24 @@ export function TopCommandersList({ commanders }: TopCommandersListProps) {
             {i + 1}
           </span>
 
-          {/* Commander card image */}
-          <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-surface shrink-0">
-            <Image
-              src={buildCommanderImageUrl(deck.commanderName, "art_crop")}
-              alt={deck.commanderName}
-              fill
-              className="object-cover"
-              unoptimized
-            />
+          {/* Commander card image with color identity below */}
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-surface">
+              <Image
+                src={buildCommanderImageUrl(deck.commanderName, "art_crop")}
+                alt={deck.commanderName}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+            <ColorIdentity colors={deck.colorIdentity} size="sm" />
           </div>
-
-          {/* Color Identity */}
-          <ColorIdentity colors={deck.colorIdentity} />
 
           {/* Commander Name */}
           <div className="flex-1 min-w-0">
             <p className="font-medium text-text-1 truncate">{deck.commanderName}</p>
-            <p className="text-mono-xs text-text-2">
+            <p className="text-sm text-text-2">
               {deck.stats.gamesPlayed} games • {deck.stats.winRate}% WR
             </p>
           </div>
