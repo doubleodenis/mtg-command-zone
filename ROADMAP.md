@@ -14,7 +14,7 @@
 ---
 
 ## Phase 2 — UI Shell
-> You are here.
+> Complete!
 
 - [x] Global layout (nav, sidebar, auth-aware shell)
 - [x] Design tokens and Tailwind theme setup (colors, typography, spacing scale)
@@ -31,8 +31,7 @@
 ---
 
 ## Phase 3 — Core Pages Against Mock Data
-
-> Build these fully against mock data. This is where missing fields, awkward data shapes, and anything the requirements doc didn't anticipate will surface.
+> Complete (except match detail)!
 
 - [x] Dashboard (dual-purpose — public when logged out, personal when logged in)
   - [x] **Logged Out — Global Dashboard**
@@ -55,11 +54,11 @@
   - [x] Full history list with date grouping
   - [x] Filters (format, result)
   - [ ] Match detail view (participants, decks, rating deltas)
-- [ ] Profile Page
+- [x] Profile Page
   - [x] Public stats (rating by format, win rates, deck breakdown)
   - [x] Match history with filters
   - [x] Head-to-head comparison (when viewing another player's profile)
-    - [x] Win rate as enemies
+    - [x] Win rate as enemies  
     - [x] Win rate as teammates
     - [x] Per-format record against them
     - [x] Best commander vs their decks
@@ -75,10 +74,16 @@
 ---
 
 ## Phase 4 — Supabase Setup
+> You are here.
 
-- [ ] Supabase project creation and Auth configuration
-- [ ] Write migrations from finalized TypeScript types
-- [ ] Row Level Security policies for every table
+- [x] Supabase project creation and Auth configuration
+- [x] Write migrations from finalized TypeScript types
+  - [x] `001_initial_schema.sql` — Core tables (profiles, friends, decks, formats, matches, match_participants, collections, collection_members, collection_matches, ratings, rating_history)
+  - [x] `002_schema_additions.sql` — Notifications system with fan-out on write, TTL cleanup, Realtime subscription
+- [x] Row Level Security policies for every table
+- [x] Database functions (get_or_create_rating, get_user_stats, get_leaderboard, get_deck_stats)
+- [x] Notification triggers (match confirmation, friend request, claim request, collection invite)
+- [x] Run migrations against hosted Supabase (paste in SQL Editor or use CLI)
 - [ ] Generate types with Supabase CLI → `types/database.types.ts`
 - [ ] Wire generated types to application types
 - [ ] Seed script using mock factories
@@ -152,11 +157,14 @@
 
 ## Phase 10 — Polish & Edge Cases
 
-- [ ] Notifications
-  - [ ] Match confirmation requests
-  - [ ] Participant claim requests
-  - [ ] Collection match approval requests
-  - [ ] Friend requests
+- [ ] Notifications UI
+  - [x] Schema designed with fan-out on write, TTL cleanup, seen/read/dismissed states
+  - [x] Notification types defined (match_pending_confirmation, match_confirmed, elo_milestone, friend_request, claim_available, collection_invite, etc.)
+  - [x] Database triggers for auto-creating notifications
+  - [x] Realtime subscription enabled
+  - [ ] Notification dropdown component
+  - [ ] Notification center page
+  - [ ] Toast notifications for real-time updates
 - [ ] Supabase Realtime for notification count and match confirmation status
 - [ ] Optimistic updates for key actions (match confirm, add to collection)
 - [ ] Error boundaries and user-friendly error messages throughout
