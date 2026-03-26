@@ -1,32 +1,38 @@
 import Link from "next/link";
-// import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NavbarSearch } from "./navbar-search";
 
 type NavbarProfile = {
   username: string;
-  display_name: string | null;
   avatar_url: string | null;
 };
 
 export async function Navbar() {
-  // TODO: Re-enable Supabase auth when backend is configured
-  // const supabase = await createClient();
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser();
-  const user = null as { id: string } | null;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   let profile: NavbarProfile | null = null;
-  // if (user) {
-  //   const { data } = await supabase
-  //     .from("profiles")
-  //     .select("username, display_name, avatar_url")
-  //     .eq("id", user.id)
-  //     .single();
-  //   profile = data as NavbarProfile | null;
-  // }
+  if (user) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("username, avatar_url")
+      .eq("id", user.id)
+      .single();
+    
+    if (error) {
+      // Profile doesn't exist yet - create a fallback from user metadata
+      profile = {
+        username: user.email?.split("@")[0] || "user",
+        avatar_url: user.user_metadata?.avatar_url || null,
+      };
+    } else {
+      profile = data;
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full h-topbar bg-bg-surface/90 backdrop-blur-md border-b border-card-border">
@@ -52,7 +58,7 @@ export async function Navbar() {
               <Link href={`/player/${profile.username}`} className="ml-1">
                 <Avatar
                   src={profile.avatar_url}
-                  fallback={profile.display_name || profile.username}
+                  fallback={profile.username}
                   size="sm"
                 />
               </Link>

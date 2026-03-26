@@ -1,9 +1,12 @@
 /**
  * Supabase Query Helpers
  *
- * Central export for all data access layer functions.
- * All queries use mappers to convert DB types to application types.
+ * Raw database queries only — no business logic or data transformations.
+ * Uses mappers to convert DB types (snake_case) to app types (camelCase).
  * JSONB fields are validated and cast at this boundary.
+ *
+ * For business logic, data aggregation, and transformations,
+ * use the services layer: @/lib/services
  *
  * Usage:
  * ```ts

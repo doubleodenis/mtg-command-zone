@@ -46,13 +46,15 @@ export function CollectionActivityCard({ activity }: CollectionActivityCardProps
           </div>
 
           {/* Top player */}
-          <div className="flex items-center gap-3 pt-3 border-t border-card-border">
-            <Avatar src={topPlayer.profile.avatarUrl} fallback={topPlayer.profile.username} size="sm" />
-            <div className="flex-1 min-w-0">
-              <p className="text-base text-text-1 truncate">{topPlayer.profile.username}</p>
-              <p className="text-sm text-text-2">Top player • {topPlayer.winRate}% WR</p>
+          {topPlayer && (
+            <div className="flex items-center gap-3 pt-3 border-t border-card-border">
+              <Avatar src={topPlayer.profile.avatarUrl} fallback={topPlayer.profile.username} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-base text-text-1 truncate">{topPlayer.profile.username}</p>
+                <p className="text-sm text-text-2">Top player • {topPlayer.winRate}% WR</p>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </Link>

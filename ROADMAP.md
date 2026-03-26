@@ -103,8 +103,14 @@
   - [x] Matches
   - [x] Ratings
   - [x] Formats
+  - [x] Dashboard (combined queries for platform stats, match cards, etc.)
 - [x] Validate and cast `jsonb` fields (`match_data`, `participant_data`) at the data access boundary — components should never receive untyped json
 - [ ] Replace mock data in pages with real server-side queries, one page at a time
+  - [x] Dashboard (global + personal)
+  - [ ] Decks page
+  - [ ] Collections page
+  - [ ] Player profile page
+  - [ ] Match detail page
 
 ---
 

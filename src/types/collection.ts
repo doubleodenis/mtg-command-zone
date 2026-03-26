@@ -148,7 +148,7 @@ export type CollectionActivity = {
     rating: number
     ratingDelta: number
   }
-  topPlayer: {
+  topPlayer?: {
     profile: ProfileSummary
     winRate: number
     gamesPlayed: number

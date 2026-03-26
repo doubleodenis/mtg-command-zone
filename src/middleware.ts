@@ -2,11 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  // TODO: Re-enable Supabase auth when backend is configured
-  // For now, skip all auth checks and just pass through
-  return NextResponse.next({ request });
-
-  /*
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -34,7 +29,8 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if expired
+  // Refresh session if expired - IMPORTANT: do not remove this call
+  // It refreshes the auth token and keeps the user logged in
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -82,7 +78,6 @@ export async function middleware(request: NextRequest) {
   }
 
   return supabaseResponse;
-  */
 }
 
 export const config = {
