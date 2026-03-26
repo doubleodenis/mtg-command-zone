@@ -7,470 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FormatBadge } from "@/components/ui/format-badge";
 import { createClient } from "@/lib/supabase/client";
-import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
 import type { FormatSummary, FormatSlug, MatchData } from "@/types/format";
-import type { DeckSummary, ProfileSummary, ParticipantInput, ColorIdentity } from "@/types";
+import type { DeckSummary, ParticipantInput, ColorIdentity } from "@/types";
 
-// ============================================
-// Types
-// ============================================
-
-type ParticipantSlot = {
-  type: "empty" | "registered" | "placeholder";
-  userId?: string;
-  username?: string;
-  displayName?: string;
-  avatarUrl?: string;
-  deckId?: string;
-  deckName?: string;
-  placeholderName?: string;
-  commanderName?: string; // For placeholder players
-  team?: string;
-  isWinner: boolean;
-};
-
-type SearchResult = {
-  id: string;
-  username: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-};
-
-// ============================================
-// Sub-components
-// ============================================
-
-function FormatSelector({
-  formats,
-  selectedFormat,
-  onSelect,
-}: {
-  formats: FormatSummary[];
-  selectedFormat: FormatSummary | null;
-  onSelect: (format: FormatSummary) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <label className="text-sm font-medium text-text-1">Format</label>
-      <div className="flex flex-wrap gap-2">
-        {formats.map((format) => (
-          <button
-            key={format.id}
-            type="button"
-            onClick={() => onSelect(format)}
-            className={cn(
-              "px-4 py-2 rounded-md text-sm font-medium transition-all",
-              selectedFormat?.id === format.id
-                ? "bg-accent-fill text-text-1 shadow-[0_0_12px_rgba(136,24,200,0.3)]"
-                : "bg-card border border-card-border text-text-2 hover:border-card-border-hi hover:text-text-1"
-            )}
-          >
-            {format.name}
-          </button>
-        ))}
-      </div>
-      {selectedFormat && (
-        <p className="text-xs text-text-2">
-          {getFormatDescription(selectedFormat)}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function getFormatDescription(format: FormatSummary): string {
-  const playerText = format.maxPlayers
-    ? format.minPlayers === format.maxPlayers
-      ? `${format.minPlayers} players`
-      : `${format.minPlayers}-${format.maxPlayers} players`
-    : `${format.minPlayers}+ players`;
-
-  const teamText = format.hasTeams ? " • Team-based" : "";
-  return playerText + teamText;
-}
-
-function PlayerSlot({
-  slot,
-  index,
-  onSelectPlayer,
-  onSetAsGuest,
-  onRemove,
-  onToggleWinner,
-  onSelectDeck,
-  onChangePlaceholderName,
-  onChangeCommanderName,
-  availableDecks,
-  isTeamFormat,
-  team,
-  excludeIds,
-}: {
-  slot: ParticipantSlot;
-  index: number;
-  onSelectPlayer: (player: SearchResult) => void;
-  onSetAsGuest: () => void;
-  onRemove: () => void;
-  onToggleWinner: () => void;
-  onSelectDeck: (deckId: string) => void;
-  onChangePlaceholderName: (name: string) => void;
-  onChangeCommanderName: (name: string) => void;
-  availableDecks: DeckSummary[];
-  isTeamFormat: boolean;
-  team?: string;
-  excludeIds: string[];
-}) {
-  const [query, setQuery] = React.useState("");
-  const [results, setResults] = React.useState<SearchResult[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [isOpen, setIsOpen] = React.useState(false);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
-  // Commander search state for placeholder players
-  const [commanderQuery, setCommanderQuery] = React.useState("");
-  const [commanderResults, setCommanderResults] = React.useState<ScryfallCard[]>([]);
-  const [isCommanderLoading, setIsCommanderLoading] = React.useState(false);
-  const [isCommanderOpen, setIsCommanderOpen] = React.useState(false);
-  const commanderTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  // Commander search effect for placeholder slots
-  React.useEffect(() => {
-    if (slot.type !== "placeholder" || commanderQuery.length < 2) {
-      setCommanderResults([]);
-      return;
-    }
-
-    if (commanderTimeoutRef.current) clearTimeout(commanderTimeoutRef.current);
-    commanderTimeoutRef.current = setTimeout(async () => {
-      setIsCommanderLoading(true);
-      try {
-        const commanders = await searchCommanders(commanderQuery);
-        setCommanderResults(commanders.slice(0, 6));
-        setIsCommanderOpen(commanders.length > 0);
-      } catch (error) {
-        console.error("Commander search error:", error);
-      } finally {
-        setIsCommanderLoading(false);
-      }
-    }, 300);
-
-    return () => {
-      if (commanderTimeoutRef.current) clearTimeout(commanderTimeoutRef.current);
-    };
-  }, [commanderQuery, slot.type]);
-
-  const handleCommanderSelect = (card: ScryfallCard) => {
-    onChangeCommanderName(card.name);
-    setCommanderQuery("");
-    setCommanderResults([]);
-    setIsCommanderOpen(false);
-  };
-
-  // Search effect for empty slots
-  React.useEffect(() => {
-    if (slot.type !== "empty" || query.length < 2) {
-      setResults([]);
-      return;
-    }
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, username, avatar_url")
-          .ilike("username", `%${query}%`)
-          .not("id", "in", `(${excludeIds.join(",")})`)
-          .limit(5);
-
-        if (data) {
-          setResults(
-            data.map((p) => ({
-              id: p.id,
-              username: p.username,
-              displayName: null,
-              avatarUrl: p.avatar_url,
-            }))
-          );
-          setIsOpen(true);
-        }
-      } catch (error) {
-        console.error("Search error:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 300);
-
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [query, excludeIds, slot.type]);
-
-  const handleSelect = (player: SearchResult) => {
-    onSelectPlayer(player);
-    setQuery("");
-    setResults([]);
-    setIsOpen(false);
-  };
-
-  // Empty slot - show search with integrated guest option
-  if (slot.type === "empty") {
-    return (
-      <div className="p-3 rounded-lg border border-dashed border-card-border bg-card-raised/30">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs font-medium text-text-2">
-            Player {index + 1}
-            {isTeamFormat && team && ` • Team ${team}`}
-          </span>
-        </div>
-        <div className="relative">
-          <Input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setIsOpen(true)}
-            onBlur={() => setTimeout(() => setIsOpen(false), 200)}
-            placeholder="Search players or add guest..."
-            className="h-9 text-sm pr-10"
-          />
-          {isLoading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="h-4 w-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-            </div>
-          )}
-
-          {/* Dropdown with search results and guest option */}
-          {isOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card border border-card-border shadow-xl">
-              {/* Guest option - always shown at top */}
-              <button
-                type="button"
-                onClick={() => {
-                  onSetAsGuest();
-                  setQuery("");
-                  setIsOpen(false);
-                }}
-                className="w-full p-2 flex items-center gap-2 text-left hover:bg-accent/10 transition-colors border-b border-card-border"
-              >
-                <div className="w-8 h-8 rounded-full bg-card-raised flex items-center justify-center">
-                  <span className="text-text-2 text-sm">👤</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-text-1">Add as Guest</p>
-                  <p className="text-xs text-text-2">Player without account</p>
-                </div>
-              </button>
-
-              {/* Search results */}
-              {results.length > 0 && (
-                <>
-                  {results.map((player) => (
-                    <button
-                      key={player.id}
-                      type="button"
-                      onClick={() => handleSelect(player)}
-                      className="w-full p-2 flex items-center gap-2 text-left hover:bg-card-raised transition-colors"
-                    >
-                      {player.avatarUrl ? (
-                        <img
-                          src={player.avatarUrl}
-                          alt={player.username}
-                          className="w-8 h-8 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-card-raised flex items-center justify-center">
-                          <span className="text-text-2 text-xs font-medium">
-                            {player.username.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-text-1">
-                          {player.displayName || player.username}
-                        </p>
-                        <p className="text-xs text-text-2">@{player.username}</p>
-                      </div>
-                    </button>
-                  ))}
-                </>
-              )}
-
-              {/* No results message */}
-              {query.length >= 2 && results.length === 0 && !isLoading && (
-                <div className="p-2 text-center text-sm text-text-2">
-                  No players found
-                </div>
-              )}
-
-              {/* Hint when no query */}
-              {query.length < 2 && (
-                <div className="p-2 text-center text-xs text-text-2">
-                  Type to search for players
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Filled slot - show player card
-  return (
-    <div
-      className={cn(
-        "p-3 rounded-lg border transition-all",
-        slot.isWinner
-          ? "bg-win/10 border-win/50"
-          : "bg-card border-card-border"
-      )}
-    >
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div className="shrink-0">
-          {slot.type === "registered" && slot.avatarUrl ? (
-            <img
-              src={slot.avatarUrl}
-              alt={slot.username}
-              className="w-10 h-10 rounded-full"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-card-raised flex items-center justify-center">
-              <span className="text-text-2 text-sm font-medium">
-                {slot.type === "registered"
-                  ? slot.username?.charAt(0).toUpperCase()
-                  : "👤"}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {slot.type === "registered" ? (
-            <>
-              <p className="text-sm font-medium text-text-1 truncate">
-                {slot.displayName || slot.username}
-              </p>
-              <p className="text-xs text-text-2">@{slot.username}</p>
-            </>
-          ) : (
-            <Input
-              value={slot.placeholderName || ""}
-              onChange={(e) => onChangePlaceholderName(e.target.value)}
-              placeholder="Guest name"
-              className="h-8 text-sm"
-              autoFocus
-            />
-          )}
-
-          {/* Commander search for placeholder/guest players */}
-          {slot.type === "placeholder" && (
-            <div className="relative mt-2">
-              {slot.commanderName ? (
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "flex-1 h-8 text-sm rounded-md border px-2 flex items-center",
-                    "bg-accent/10 border-accent/30 text-text-1"
-                  )}>
-                    {slot.commanderName}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onChangeCommanderName("")}
-                    className="p-1 text-text-2 hover:text-loss transition-colors"
-                    title="Clear commander"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    value={commanderQuery}
-                    onChange={(e) => setCommanderQuery(e.target.value)}
-                    onFocus={() => commanderResults.length > 0 && setIsCommanderOpen(true)}
-                    onBlur={() => setTimeout(() => setIsCommanderOpen(false), 200)}
-                    placeholder="Search commander..."
-                    className="h-8 text-sm"
-                  />
-                  {isCommanderLoading && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                      <div className="h-3 w-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                    </div>
-                  )}
-                  {isCommanderOpen && commanderResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card border border-card-border shadow-xl max-h-48 overflow-y-auto">
-                      {commanderResults.map((card) => (
-                        <button
-                          key={card.id}
-                          type="button"
-                          onClick={() => handleCommanderSelect(card)}
-                          className="w-full p-2 text-left hover:bg-card-raised transition-colors text-sm text-text-1 truncate"
-                        >
-                          {card.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Deck selector for registered users */}
-          {slot.type === "registered" && availableDecks.length > 0 && (
-            <select
-              value={slot.deckId || ""}
-              onChange={(e) => onSelectDeck(e.target.value)}
-              className={cn(
-                "mt-2 w-full h-8 text-sm rounded-md border px-2",
-                slot.deckId 
-                  ? "bg-accent/10 border-accent/30 text-text-1" 
-                  : "bg-card border-card-border text-text-2"
-              )}
-            >
-              <option value="">Select commander...</option>
-              {availableDecks.map((deck) => (
-                <option key={deck.id} value={deck.id}>
-                  {deck.commanderName}{deck.deckName ? ` (${deck.deckName})` : ''}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={onToggleWinner}
-            className={cn(
-              "p-1.5 rounded transition-colors text-xs",
-              slot.isWinner
-                ? "bg-win text-text-1"
-                : "bg-card-raised text-text-2 hover:text-text-1"
-            )}
-            title={slot.isWinner ? "Remove winner" : "Mark as winner"}
-          >
-            🏆
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="p-1.5 rounded bg-card-raised text-text-2 hover:text-loss hover:bg-loss/10 transition-colors text-xs"
-            title="Clear"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { FormatSelector } from "./format-selector";
+import { PlayerSlot } from "./player-slot";
+import { PentagramLayout } from "./pentagram-layout";
+import type { ParticipantSlot, SearchResult } from "./match-form-types";
+import Link from "next/link";
 
 // ============================================
 // Main Component
@@ -480,6 +25,7 @@ interface MatchFormProps {
   formats: FormatSummary[];
   currentUserId: string;
   currentUserDecks: DeckSummary[];
+  currentUser?: SearchResult;
   className?: string;
 }
 
@@ -487,6 +33,7 @@ export function MatchForm({
   formats,
   currentUserId,
   currentUserDecks,
+  currentUser,
   className,
 }: MatchFormProps) {
   const router = useRouter();
@@ -582,23 +129,6 @@ export function MatchForm({
     },
     [participants]
   );
-
-  // Add a registered player to the first empty slot (legacy, kept for compatibility)
-  const addRegisteredPlayer = React.useCallback(
-    async (player: SearchResult) => {
-      const emptyIndex = participants.findIndex((p) => p.type === "empty");
-      if (emptyIndex === -1) return;
-      await addRegisteredPlayerAt(emptyIndex, player);
-    },
-    [participants, addRegisteredPlayerAt]
-  );
-
-  // Add a placeholder to the first empty slot (legacy, kept for compatibility)
-  const addPlaceholder = React.useCallback(() => {
-    const emptyIndex = participants.findIndex((p) => p.type === "empty");
-    if (emptyIndex === -1) return;
-    setAsGuestAt(emptyIndex);
-  }, [participants, setAsGuestAt]);
 
   // Get team assignment based on index and format
   const getTeamForIndex = (index: number): string | undefined => {
@@ -750,6 +280,14 @@ export function MatchForm({
       return "Please select at least one winner";
     }
 
+    // Check that current user (if participating) has selected a deck
+    const currentUserParticipant = participants.find(
+      (p) => p.type === "registered" && p.userId === currentUserId
+    );
+    if (currentUserParticipant && !currentUserParticipant.deckId) {
+      return "Please select a deck for yourself";
+    }
+
     // For team formats, validate winner consistency
     if (selectedFormat.hasTeams && selectedFormat.slug !== "pentagram") {
       const winnerTeams = new Set(winners.map((p) => p.team));
@@ -880,18 +418,30 @@ export function MatchForm({
     .filter((p) => p.type === "registered" && p.userId)
     .map((p) => p.userId!);
 
-  // Can add more players?
-  const canAddPlayers =
-    selectedFormat &&
-    (!selectedFormat.maxPlayers ||
-      participants.length < selectedFormat.maxPlayers);
-
   // Is FFA format with flexible player count?
   const isFlexibleFormat =
     selectedFormat?.slug === "ffa" && !selectedFormat.maxPlayers;
 
   return (
     <form onSubmit={handleSubmit} className={cn("space-y-6", className)}>
+      {/* Warning if current user has no decks */}
+      {currentUserDecks.length === 0 && (
+        <div className="p-4 rounded-lg bg-gold/10 border border-gold/50">
+          <p className="text-sm text-gold font-medium mb-1">
+            You don't have any decks yet
+          </p>
+          <p className="text-xs text-text-2 mb-2">
+            Create a deck before logging a match so you can track your commander stats.
+          </p>
+          <Link
+            href="/decks/new"
+            className="text-xs text-accent hover:underline"
+          >
+            Create your first deck →
+          </Link>
+        </div>
+      )}
+
       {/* Format Selection */}
       <Card>
         <CardHeader>
@@ -980,6 +530,7 @@ export function MatchForm({
                         isTeamFormat={false}
                         team={undefined}
                         excludeIds={excludeIds}
+                        currentUser={currentUser}
                       />
                     ))}
                 </div>
@@ -1026,12 +577,28 @@ export function MatchForm({
                         isTeamFormat={false}
                         team={undefined}
                         excludeIds={excludeIds}
+                        currentUser={currentUser}
                       />
                     ))}
                 </div>
               </div>
+            ) : selectedFormat.slug === "pentagram" ? (
+              /* Pentagram layout - pentagon with enemies shown */
+              <PentagramLayout
+                participants={participants}
+                onSelectPlayer={(index, player) => addRegisteredPlayerAt(index, player)}
+                onSetAsGuest={(index) => setAsGuestAt(index)}
+                onRemove={(index) => removeParticipant(index)}
+                onToggleWinner={(index) => toggleWinner(index)}
+                onSelectDeck={(index, deckId) => selectDeck(index, deckId)}
+                onChangePlaceholderName={(index, name) => updatePlaceholderName(index, name)}
+                onChangeCommanderName={(index, name) => updateCommanderName(index, name)}
+                userDecks={userDecks}
+                excludeIds={excludeIds}
+                currentUser={currentUser}
+              />
             ) : (
-              /* Non-team layout (FFA, Pentagram) */
+              /* Non-team layout (FFA) */
               <div className="space-y-3">
                 {participants.map((slot, index) => (
                   <PlayerSlot
@@ -1057,6 +624,7 @@ export function MatchForm({
                     isTeamFormat={false}
                     team={undefined}
                     excludeIds={excludeIds}
+                    currentUser={currentUser}
                   />
                 ))}
               </div>
