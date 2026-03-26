@@ -27,7 +27,7 @@ export default async function NewMatchPage() {
   const userDecks = decksResult.success ? decksResult.data : [];
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <PageHeader
         title="Log Match"
         description="Record a new Commander match"
