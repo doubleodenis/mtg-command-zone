@@ -59,6 +59,39 @@ function validateParticipantData(data: unknown): ParticipantData {
 }
 
 // ============================================
+// Single Match Fetch
+// ============================================
+
+/**
+ * Get a single match by ID, transformed for display.
+ */
+export async function getMatchById(
+  client: SupabaseClient<Database>,
+  matchId: string,
+  userId?: string
+): Promise<Result<MatchCardData>> {
+  const { data: match, error } = await client
+    .from('matches')
+    .select(`
+      id,
+      played_at,
+      format:formats!matches_format_id_fkey(name, slug)
+    `)
+    .eq('id', matchId)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return { success: false, error: 'Match not found' }
+    }
+    return { success: false, error: error.message }
+  }
+
+  const matchCard = await transformMatchToCardData(client, match, userId)
+  return { success: true, data: matchCard }
+}
+
+// ============================================
 // Recent Match Cards
 // ============================================
 

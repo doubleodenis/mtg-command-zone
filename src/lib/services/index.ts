@@ -18,7 +18,7 @@
  */
 
 // Match service
-export { getRecentMatchCards, getUserPendingConfirmations } from './match'
+export { getMatchById, getRecentMatchCards, getUserPendingConfirmations } from './match'
 export type { GetRecentMatchCardsOptions } from './match'
 
 // Collection service

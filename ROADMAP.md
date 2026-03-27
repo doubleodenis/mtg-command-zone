@@ -94,7 +94,7 @@
 ---
 
 ## Phase 5 — Data Layer
-> You are here.
+> Complete!
 
 - [x] Supabase query helpers in `/lib/supabase` for every domain
   - [x] Profiles / friends
@@ -105,16 +105,17 @@
   - [x] Formats
   - [x] Dashboard (combined queries for platform stats, match cards, etc.)
 - [x] Validate and cast `jsonb` fields (`match_data`, `participant_data`) at the data access boundary — components should never receive untyped json
-- [ ] Replace mock data in pages with real server-side queries, one page at a time
+- [x] Replace mock data in pages with real server-side queries, one page at a time
   - [x] Dashboard (global + personal)
   - [x] Decks page
-  - [] Collections page
+  - [x] Collections page
   - [x] Player profile page
-  - [ ] Match detail page
+  - [x] Match detail page
 
 ---
 
 ## Phase 6 — Core Features
+> You are here.
 
 - [ ] Auth flow (sign up, login, session handling, protected routes)
 - [ ] Match creation flow

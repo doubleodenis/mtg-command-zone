@@ -1,10 +1,15 @@
+import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getMatchById } from '@/lib/services'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { MatchPreviewCard } from '@/components/match/match-preview-card'
 import { Navbar } from '@/components/features/navbar'
-import { createMockMatchCardData, resetMockIds } from '@/lib/mock'
-import type { FormatSlug, MatchCardData } from '@/types'
+import type { MatchCardData } from '@/types'
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
 
 // Bracket name mapping
 const BRACKET_NAMES: Record<number, string> = {
@@ -26,45 +31,6 @@ function getAverageBracket(match: MatchCardData): number {
   return Math.round(avg)
 }
 
-// Simple hash function to get deterministic number from string
-function hashString(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32bit integer
-  }
-  return Math.abs(hash)
-}
-
-// Generate mock data for a specific match ID (deterministic)
-function getMockMatch(matchId: string): MatchCardData {
-  // Reset IDs so they're consistent
-  resetMockIds()
-  
-  const hash = hashString(matchId)
-  const formats: FormatSlug[] = ['ffa', '1v1', '2v2', 'pentagram']
-  const format = formats[hash % formats.length]
-  
-  const playerCounts: Record<FormatSlug, number> = {
-    ffa: 4,
-    '1v1': 2,
-    '2v2': 4,
-    '3v3': 6,
-    pentagram: 5,
-  }
-  
-  const count = playerCounts[format]
-  const winnerIndex = hash % count
-  
-  return createMockMatchCardData(count, {
-    id: matchId,
-    formatSlug: format,
-    formatName: format === 'ffa' ? 'Free for All' : format.toUpperCase(),
-    winnerNames: [`Player ${winnerIndex + 1}`],
-  })
-}
-
 type PageProps = {
   params: Promise<{ id: string }>
 }
@@ -72,8 +38,16 @@ type PageProps = {
 export default async function MatchDetailsPage({ params }: PageProps) {
   const { id: matchId } = await params
   
-  // For now, use mock data
-  const match = getMockMatch(matchId)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  const result = await getMatchById(supabase, matchId, user?.id)
+  
+  if (!result.success) {
+    notFound()
+  }
+  
+  const match = result.data
   const avgBracket = getAverageBracket(match)
   
   const winners = match.participants.filter((p) => p.isWinner)
