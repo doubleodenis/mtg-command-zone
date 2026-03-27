@@ -9,7 +9,7 @@ import type { Tables, Enums } from './database.types'
 import type { Bracket, ColorIdentity, ISODateString, UUID } from './common'
 import type { Profile, ProfileSummary, LeaderboardEntry } from './profile'
 import type { Deck, DeckSummary, DeckWithStats, DeckStats } from './deck'
-import type { Friendship, FriendshipStatus, Friend, FriendRequest } from './friendship'
+import type { Friendship, FriendshipStatus, Friend, FriendRequest, OutgoingFriendRequest } from './friendship'
 import type { Format, FormatSummary, FormatSlug, FormatConfig, WinConditionType } from './format'
 import type { Match, MatchParticipant, MatchWithDetails, MatchParticipantWithDetails, ClaimStatus } from './match'
 import type { Collection, CollectionMember, CollectionRole, MatchAddPermission, ApprovalStatus, CollectionSummary, CollectionMemberWithProfile } from './collection'
@@ -131,6 +131,14 @@ export function mapFriendRequest(row: FriendRow, requesterProfile: ProfileRow): 
   return {
     id: row.id,
     from: mapProfileSummary(requesterProfile),
+    createdAt: row.created_at ?? new Date().toISOString(),
+  }
+}
+
+export function mapOutgoingFriendRequest(row: FriendRow, addresseeProfile: ProfileRow): OutgoingFriendRequest {
+  return {
+    id: row.id,
+    to: mapProfileSummary(addresseeProfile),
     createdAt: row.created_at ?? new Date().toISOString(),
   }
 }

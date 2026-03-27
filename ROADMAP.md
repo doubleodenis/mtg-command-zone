@@ -115,7 +115,7 @@
 ---
 
 ## Phase 6 — Core Features
-> You are here.
+> Complete!
 
 - [x] Auth flow (sign up, login, session handling, protected routes)
   - [x] OAuth login (Google, Discord)
@@ -124,19 +124,20 @@
   - [x] Protected route redirects
   - [x] Sign out
   - [x] User settings pages (`/settings`, `/settings/profile`, `/settings/account`)
-- [ ] Match creation flow
-  - [ ] Format selection
-  - [ ] Participant selection (friends, placeholders)
-  - [ ] Deck assignment per participant (including placeholder deck fallback)
-  - [ ] Winner / winning team recording
-- [ ] Match confirmation (notification → confirm action → rating trigger)
-- [ ] Deck manager CRUD (create, edit, retire)
+- [x] Match creation flow
+  - [x] Format selection
+  - [x] Participant selection (friends, placeholders)
+  - [x] Deck assignment per participant (including placeholder deck fallback)
+  - [x] Winner / winning team recording
+- [x] Match confirmation (notification → confirm action → rating trigger)
+- [x] Deck manager CRUD (create, edit, retire)
 
 ---
 
 ## Phase 7 — Social & Collections
+> You are here.
 
-- [ ] Friend system (send request, accept, block)
+- [x] Friend system (send request, accept, block, cancel, remove)
 - [ ] Quick-add friends when logging a match
 - [ ] Collection creation and settings
   - [ ] Name, description, visibility toggle
@@ -150,10 +151,10 @@
 
 ## Phase 8 — Rating System
 
-- [ ] Wire rating calculation to match confirmation event
-- [ ] Global rating update on confirmation
+- [x] Wire rating calculation to match confirmation event
+- [x] Global rating update on confirmation
 - [ ] Collection-scoped rating update on confirmation (all collections the match belongs to)
-- [ ] Rating history logging with all snapshot fields (`player_bracket`, `opponent_avg_rating`, `opponent_avg_bracket`, `k_factor`, `algorithm_version`)
+- [x] Rating history logging with all snapshot fields (`player_bracket`, `opponent_avg_rating`, `opponent_avg_bracket`, `k_factor`, `algorithm_version`)
 - [ ] Rating recalculation as a Supabase Edge Function
   - [ ] Reset all ratings to default
   - [ ] Replay confirmed matches in chronological order

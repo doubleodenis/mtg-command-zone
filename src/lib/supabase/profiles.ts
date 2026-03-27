@@ -9,13 +9,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import type { Result } from '@/types'
 import type { Profile, ProfileSummary, LeaderboardEntry } from '@/types/profile'
-import type { Friend, FriendRequest, Friendship, FriendshipStatus } from '@/types/friendship'
+import type { Friend, FriendRequest, Friendship, FriendshipStatus, OutgoingFriendRequest } from '@/types/friendship'
 import {
   mapProfileRow,
   mapProfileSummary,
   mapFriendshipRow,
   mapFriendRow,
   mapFriendRequest,
+  mapOutgoingFriendRequest,
   mapLeaderboardEntry,
   type LeaderboardFunctionResult,
 } from '@/types/database-mappers'
@@ -171,10 +172,13 @@ export async function getIncomingFriendRequests(
 export async function getOutgoingFriendRequests(
   client: SupabaseClient<Database>,
   userId: string
-): Promise<Result<Friendship[]>> {
+): Promise<Result<OutgoingFriendRequest[]>> {
   const { data, error } = await client
     .from('friends')
-    .select('*')
+    .select(`
+      *,
+      addressee:profiles!friends_addressee_id_fkey(*)
+    `)
     .eq('requester_id', userId)
     .eq('status', 'pending')
 
@@ -182,7 +186,7 @@ export async function getOutgoingFriendRequests(
     return { success: false, error: error.message }
   }
 
-  return { success: true, data: data.map(mapFriendshipRow) }
+  return { success: true, data: data.map((f) => mapOutgoingFriendRequest(f, f.addressee)) }
 }
 
 /**

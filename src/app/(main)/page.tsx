@@ -18,6 +18,7 @@ import {
   getUserRatings,
   getRatingHistory,
   getFormats,
+  getActiveDecks,
 } from "@/lib/supabase";
 // Business logic / data transformations
 import {
@@ -197,6 +198,7 @@ async function PersonalDashboard({ userId }: { userId: string }) {
     collectionsResult,
     ratingHistoryResult,
     formatsResult,
+    userDecksResult,
   ] = await Promise.all([
     getProfileById(supabase, userId),
     getUserStats(supabase, userId),
@@ -206,6 +208,7 @@ async function PersonalDashboard({ userId }: { userId: string }) {
     getUserCollectionActivities(supabase, userId, 3),
     getRatingHistory(supabase, userId, { limit: 20 }),
     getFormats(supabase),
+    getActiveDecks(supabase, userId),
   ]);
 
   // Extract data with fallbacks
@@ -230,6 +233,10 @@ async function PersonalDashboard({ userId }: { userId: string }) {
 
   const pendingConfirmations = pendingResult.success 
     ? pendingResult.data 
+    : [];
+
+  const userDecks = userDecksResult.success
+    ? userDecksResult.data.map(d => ({ id: d.id, deckName: d.deckName, commanderName: d.commanderName }))
     : [];
 
   const collectionActivities = collectionsResult.success 
@@ -309,7 +316,11 @@ async function PersonalDashboard({ userId }: { userId: string }) {
         {pendingConfirmations.length > 0 ? (
           <div className="space-y-3">
             {pendingConfirmations.map((confirmation) => (
-              <PendingConfirmationCard key={confirmation.participantId} confirmation={confirmation} />
+              <PendingConfirmationCard 
+                key={confirmation.participantId} 
+                confirmation={confirmation}
+                userDecks={userDecks}
+              />
             ))}
           </div>
         ) : (

@@ -8,8 +8,8 @@ import { Avatar, Button } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
-import { searchProfiles, sendFriendRequest, getFriendshipStatus } from "@/lib/supabase/profiles";
-import type { ProfileSummary, FriendshipStatus } from "@/types";
+import { searchProfiles, sendFriendRequest, getFriendshipStatus, respondToFriendRequest } from "@/lib/supabase/profiles";
+import type { ProfileSummary, FriendshipStatus, Friendship } from "@/types";
 
 interface FriendSearchProps {
   currentUserId: string;
@@ -17,7 +17,9 @@ interface FriendSearchProps {
 
 type SearchResult = ProfileSummary & {
   friendshipStatus: FriendshipStatus | null;
-  isPending: boolean;
+  isOutgoing: boolean; // true if current user sent the request
+  isIncoming: boolean; // true if the other user sent the request
+  friendshipId: string | null;
 };
 
 export function FriendSearch({ currentUserId }: FriendSearchProps) {
@@ -26,6 +28,7 @@ export function FriendSearch({ currentUserId }: FriendSearchProps) {
   const [results, setResults] = React.useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
   const [sendingTo, setSendingTo] = React.useState<string | null>(null);
+  const [acceptingFrom, setAcceptingFrom] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -55,10 +58,13 @@ export function FriendSearch({ currentUserId }: FriendSearchProps) {
             currentUserId,
             profile.id
           );
+          const friendship = statusResult.success ? statusResult.data : null;
           return {
             ...profile,
-            friendshipStatus: statusResult.success ? statusResult.data?.status ?? null : null,
-            isPending: statusResult.success ? statusResult.data?.status === "pending" : false,
+            friendshipStatus: friendship?.status ?? null,
+            isOutgoing: friendship?.status === "pending" && friendship?.requesterId === currentUserId,
+            isIncoming: friendship?.status === "pending" && friendship?.addresseeId === currentUserId,
+            friendshipId: friendship?.id ?? null,
           };
         })
       );
@@ -87,7 +93,7 @@ export function FriendSearch({ currentUserId }: FriendSearchProps) {
       setResults((prev) =>
         prev.map((r) =>
           r.id === addresseeId
-            ? { ...r, friendshipStatus: "pending", isPending: true }
+            ? { ...r, friendshipStatus: "pending", isOutgoing: true, isIncoming: false }
             : r
         )
       );
@@ -97,6 +103,35 @@ export function FriendSearch({ currentUserId }: FriendSearchProps) {
       setError(err instanceof Error ? err.message : "Failed to send request");
     } finally {
       setSendingTo(null);
+    }
+  };
+
+  const handleAcceptRequest = async (profileId: string, friendshipId: string) => {
+    setAcceptingFrom(profileId);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const result = await respondToFriendRequest(supabase, friendshipId, "accepted");
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      // Update the local state to show accepted
+      setResults((prev) =>
+        prev.map((r) =>
+          r.id === profileId
+            ? { ...r, friendshipStatus: "accepted", isOutgoing: false, isIncoming: false }
+            : r
+        )
+      );
+
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to accept request");
+    } finally {
+      setAcceptingFrom(null);
     }
   };
 
@@ -154,8 +189,16 @@ export function FriendSearch({ currentUserId }: FriendSearchProps) {
                 <div className="flex items-center gap-2">
                   {result.friendshipStatus === "accepted" ? (
                     <span className="text-sm text-win font-medium">Friends</span>
-                  ) : result.isPending ? (
+                  ) : result.isOutgoing ? (
                     <span className="text-sm text-text-2">Request Sent</span>
+                  ) : result.isIncoming && result.friendshipId ? (
+                    <Button
+                      size="sm"
+                      onClick={() => handleAcceptRequest(result.id, result.friendshipId!)}
+                      disabled={acceptingFrom === result.id}
+                    >
+                      {acceptingFrom === result.id ? "Accepting..." : "Accept Request"}
+                    </Button>
                   ) : (
                     <Button
                       size="sm"

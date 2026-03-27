@@ -552,6 +552,26 @@ export async function disputeMatchParticipation(
 }
 
 /**
+ * Update a participant's deck selection
+ * Used during match confirmation if the user didn't have a deck assigned
+ */
+export async function updateParticipantDeck(
+  client: SupabaseClient<Database>,
+  participantId: string,
+  deckId: string
+): Promise<Result<null>> {
+  const { error } = await client
+    .from('match_participants')
+    .update({ deck_id: deckId })
+    .eq('id', participantId)
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: null }
+}
+/**
  * Claim a placeholder slot
  */
 export async function claimPlaceholderSlot(

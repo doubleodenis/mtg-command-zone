@@ -9,9 +9,11 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getFriends,
   getIncomingFriendRequests,
+  getOutgoingFriendRequests,
   respondToFriendRequest,
+  removeFriend,
 } from "@/lib/supabase";
-import type { Friend, FriendRequest } from "@/types";
+import type { Friend, FriendRequest, OutgoingFriendRequest } from "@/types";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -24,14 +26,16 @@ export default async function FriendsPage() {
     redirect("/login");
   }
 
-  // Fetch friends and incoming requests in parallel
-  const [friendsResult, requestsResult] = await Promise.all([
+  // Fetch friends and requests in parallel
+  const [friendsResult, incomingResult, outgoingResult] = await Promise.all([
     getFriends(supabase, user.id),
     getIncomingFriendRequests(supabase, user.id),
+    getOutgoingFriendRequests(supabase, user.id),
   ]);
 
   const friends = friendsResult.success ? friendsResult.data : [];
-  const incomingRequests = requestsResult.success ? requestsResult.data : [];
+  const incomingRequests = incomingResult.success ? incomingResult.data : [];
+  const outgoingRequests = outgoingResult.success ? outgoingResult.data : [];
 
   return (
     <div className="space-y-8">
@@ -52,6 +56,19 @@ export default async function FriendsPage() {
             <CardContent className="p-0 divide-y divide-card-border">
               {incomingRequests.map((request) => (
                 <FriendRequestRow key={request.id} request={request} />
+              ))}
+            </CardContent>
+          </Card>
+        </Section>
+      )}
+
+      {/* Sent Requests */}
+      {outgoingRequests.length > 0 && (
+        <Section title="SENT REQUESTS">
+          <Card>
+            <CardContent className="p-0 divide-y divide-card-border">
+              {outgoingRequests.map((request) => (
+                <OutgoingRequestRow key={request.id} request={request} />
               ))}
             </CardContent>
           </Card>
@@ -90,6 +107,13 @@ export default async function FriendsPage() {
 }
 
 function FriendRow({ friend }: { friend: Friend }) {
+  async function handleRemoveFriend() {
+    "use server";
+    const supabase = await createClient();
+    await removeFriend(supabase, friend.friendshipId);
+    revalidatePath("/friends");
+  }
+
   return (
     <div className="flex items-center gap-4 px-4 py-3">
       <Link href={`/player/${friend.username}`}>
@@ -118,6 +142,11 @@ function FriendRow({ friend }: { friend: Friend }) {
         <Button variant="outline" size="sm" asChild>
           <Link href={`/player/${friend.username}`}>View Profile</Link>
         </Button>
+        <form action={handleRemoveFriend}>
+          <Button type="submit" variant="ghost" size="sm" className="text-text-3 hover:text-loss">
+            Remove
+          </Button>
+        </form>
       </div>
     </div>
   );
@@ -171,6 +200,50 @@ function FriendRequestRow({ request }: { request: FriendRequest }) {
         <form action={declineRequest}>
           <Button type="submit" variant="ghost" size="sm" className="text-text-2">
             Decline
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function OutgoingRequestRow({ request }: { request: OutgoingFriendRequest }) {
+  async function cancelRequest() {
+    "use server";
+    const supabase = await createClient();
+    await removeFriend(supabase, request.id);
+    revalidatePath("/friends");
+  }
+
+  return (
+    <div className="flex items-center gap-4 px-4 py-3">
+      <Link href={`/player/${request.to.username}`}>
+        <Avatar
+          src={request.to.avatarUrl}
+          fallback={request.to.username}
+          size="md"
+        />
+      </Link>
+
+      <div className="flex-1 min-w-0">
+        <Link
+          href={`/player/${request.to.username}`}
+          className="hover:text-accent transition-colors"
+        >
+          <p className="font-medium text-text-1 truncate">
+            {request.to.username}
+          </p>
+        </Link>
+        <p className="text-sm text-text-3">
+          Sent {new Date(request.createdAt).toLocaleDateString()}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-xs">Pending</Badge>
+        <form action={cancelRequest}>
+          <Button type="submit" variant="ghost" size="sm" className="text-text-2 hover:text-loss">
+            Cancel
           </Button>
         </form>
       </div>

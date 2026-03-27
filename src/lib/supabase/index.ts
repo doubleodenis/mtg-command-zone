@@ -90,6 +90,7 @@ export {
   approveSlotClaim,
   rejectSlotClaim,
   deleteMatch,
+  updateParticipantDeck,
 } from './matches'
 
 // Ratings
