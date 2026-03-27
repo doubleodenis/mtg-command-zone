@@ -511,6 +511,7 @@ export function MatchForm({
                         key={index}
                         slot={slot}
                         index={index}
+                        currentUserId={currentUserId}
                         onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
                         onSetAsGuest={() => setAsGuestAt(index)}
                         onRemove={() => removeParticipant(index)}
@@ -558,6 +559,7 @@ export function MatchForm({
                         key={index}
                         slot={slot}
                         index={index}
+                        currentUserId={currentUserId}
                         onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
                         onSetAsGuest={() => setAsGuestAt(index)}
                         onRemove={() => removeParticipant(index)}
@@ -586,6 +588,7 @@ export function MatchForm({
               /* Pentagram layout - pentagon with enemies shown */
               <PentagramLayout
                 participants={participants}
+                currentUserId={currentUserId}
                 onSelectPlayer={(index, player) => addRegisteredPlayerAt(index, player)}
                 onSetAsGuest={(index) => setAsGuestAt(index)}
                 onRemove={(index) => removeParticipant(index)}
@@ -605,6 +608,7 @@ export function MatchForm({
                     key={index}
                     slot={slot}
                     index={index}
+                    currentUserId={currentUserId}
                     onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
                     onSetAsGuest={() => setAsGuestAt(index)}
                     onRemove={() => removeParticipant(index)}

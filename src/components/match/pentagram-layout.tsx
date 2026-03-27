@@ -3,8 +3,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
+import { getFriendshipStatus, sendFriendRequest } from "@/lib/supabase/profiles";
 import type {
   PentagonPlayerCardProps,
   PentagramLayoutProps,
@@ -33,6 +35,7 @@ const PENTAGRAM_ENEMIES: Record<number, [number, number]> = {
 function PentagonPlayerCard({
   slot,
   index,
+  currentUserId,
   onSelectPlayer,
   onSetAsGuest,
   onRemove,
@@ -48,6 +51,7 @@ function PentagonPlayerCard({
   const [results, setResults] = React.useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
+  const [sendingRequestTo, setSendingRequestTo] = React.useState<string | null>(null);
   const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Commander search for placeholders
@@ -77,14 +81,22 @@ function PentagonPlayerCard({
           .limit(5);
 
         if (data) {
-          setResults(
-            data.map((p) => ({
-              id: p.id,
-              username: p.username,
-              displayName: null,
-              avatarUrl: p.avatar_url,
-            }))
+          // Get friendship status for each result
+          const resultsWithStatus = await Promise.all(
+            data.map(async (p) => {
+              const statusResult = await getFriendshipStatus(supabase, currentUserId, p.id);
+              const friendship = statusResult.success ? statusResult.data : null;
+              return {
+                id: p.id,
+                username: p.username,
+                displayName: null,
+                avatarUrl: p.avatar_url,
+                friendshipStatus: friendship?.status ?? null,
+                isFriend: friendship?.status === "accepted",
+              };
+            })
           );
+          setResults(resultsWithStatus);
           setIsOpen(true);
         }
       } catch (error) {
@@ -97,7 +109,27 @@ function PentagonPlayerCard({
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [query, excludeIds, slot.type]);
+  }, [query, excludeIds, slot.type, currentUserId]);
+
+  const handleSendFriendRequest = async (e: React.MouseEvent, playerId: string) => {
+    e.stopPropagation();
+    setSendingRequestTo(playerId);
+    try {
+      const supabase = createClient();
+      const result = await sendFriendRequest(supabase, currentUserId, playerId);
+      if (result.success) {
+        setResults((prev) =>
+          prev.map((r) =>
+            r.id === playerId ? { ...r, friendshipStatus: "pending" } : r
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Failed to send friend request:", error);
+    } finally {
+      setSendingRequestTo(null);
+    }
+  };
 
   // Commander search effect
   React.useEffect(() => {
@@ -178,25 +210,48 @@ function PentagonPlayerCard({
                 <span className="text-text-1">Guest</span>
               </button>
               {results.map((player) => (
-                <button
+                <div
                   key={player.id}
-                  type="button"
-                  onClick={() => {
-                    onSelectPlayer(player);
-                    setQuery("");
-                    setIsOpen(false);
-                  }}
-                  className="w-full p-2 flex items-center gap-2 text-left hover:bg-card-raised"
+                  className="flex items-center gap-2 p-2 hover:bg-card-raised"
                 >
-                  {player.avatarUrl ? (
-                    <img src={player.avatarUrl} alt="" className="w-5 h-5 rounded-full" />
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-card-raised text-xs flex items-center justify-center">
-                      {player.username.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className="text-text-1 truncate">{player.username}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectPlayer(player);
+                      setQuery("");
+                      setIsOpen(false);
+                    }}
+                    className="flex-1 flex items-center gap-2 text-left min-w-0"
+                  >
+                    {player.avatarUrl ? (
+                      <img src={player.avatarUrl} alt="" className="w-5 h-5 rounded-full shrink-0" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-card-raised text-xs flex items-center justify-center shrink-0">
+                        {player.username.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-text-1 truncate">{player.username}</span>
+                  </button>
+                  {/* Friend status / Add friend button */}
+                  <div className="shrink-0">
+                    {player.isFriend ? (
+                      <span className="text-xs text-win">✓</span>
+                    ) : player.friendshipStatus === "pending" ? (
+                      <span className="text-xs text-text-3">•••</span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1.5 text-xs text-accent hover:text-accent"
+                        onClick={(e) => handleSendFriendRequest(e, player.id)}
+                        disabled={sendingRequestTo === player.id}
+                      >
+                        +
+                      </Button>
+                    )}
+                  </div>
+                </div>
               ))}
               {query.length >= 2 && results.length === 0 && !isLoading && (
                 <div className="p-2 text-center text-text-2">No results</div>
@@ -342,6 +397,7 @@ function PentagonPlayerCard({
 
 export function PentagramLayout({
   participants,
+  currentUserId,
   onSelectPlayer,
   onSetAsGuest,
   onRemove,
@@ -399,6 +455,7 @@ export function PentagramLayout({
             <PentagonPlayerCard
               slot={slot}
               index={index}
+              currentUserId={currentUserId}
               onSelectPlayer={(player) => onSelectPlayer(index, player)}
               onSetAsGuest={() => onSetAsGuest(index)}
               onRemove={() => onRemove(index)}

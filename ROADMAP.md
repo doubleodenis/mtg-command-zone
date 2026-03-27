@@ -138,7 +138,7 @@
 > You are here.
 
 - [x] Friend system (send request, accept, block, cancel, remove)
-- [ ] Quick-add friends when logging a match
+- [x] Quick-add friends when logging a match
 - [ ] Collection creation and settings
   - [ ] Name, description, visibility toggle
   - [ ] Match add permission (`owner_only`, `any_member`, `any_member_approval_required`)

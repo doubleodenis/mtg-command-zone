@@ -3,13 +3,16 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
+import { getFriendshipStatus, sendFriendRequest } from "@/lib/supabase/profiles";
 import type { PlayerSlotProps, SearchResult } from "./match-form-types";
 
 export function PlayerSlot({
   slot,
   index,
+  currentUserId,
   onSelectPlayer,
   onSetAsGuest,
   onRemove,
@@ -27,6 +30,7 @@ export function PlayerSlot({
   const [results, setResults] = React.useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
+  const [sendingRequestTo, setSendingRequestTo] = React.useState<string | null>(null);
   const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -90,14 +94,22 @@ export function PlayerSlot({
           .limit(5);
 
         if (data) {
-          setResults(
-            data.map((p) => ({
-              id: p.id,
-              username: p.username,
-              displayName: null,
-              avatarUrl: p.avatar_url,
-            }))
+          // Get friendship status for each result
+          const resultsWithStatus = await Promise.all(
+            data.map(async (p) => {
+              const statusResult = await getFriendshipStatus(supabase, currentUserId, p.id);
+              const friendship = statusResult.success ? statusResult.data : null;
+              return {
+                id: p.id,
+                username: p.username,
+                displayName: null,
+                avatarUrl: p.avatar_url,
+                friendshipStatus: friendship?.status ?? null,
+                isFriend: friendship?.status === "accepted",
+              };
+            })
           );
+          setResults(resultsWithStatus);
           setIsOpen(true);
         }
       } catch (error) {
@@ -110,13 +122,36 @@ export function PlayerSlot({
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [query, excludeIds, slot.type]);
+  }, [query, excludeIds, slot.type, currentUserId]);
 
   const handleSelect = (player: SearchResult) => {
     onSelectPlayer(player);
     setQuery("");
     setResults([]);
     setIsOpen(false);
+  };
+
+  const handleSendFriendRequest = async (e: React.MouseEvent, playerId: string) => {
+    e.stopPropagation(); // Don't trigger player selection
+    setSendingRequestTo(playerId);
+    try {
+      const supabase = createClient();
+      const result = await sendFriendRequest(supabase, currentUserId, playerId);
+      if (result.success) {
+        // Update local state to show request sent
+        setResults((prev) =>
+          prev.map((r) =>
+            r.id === playerId
+              ? { ...r, friendshipStatus: "pending" }
+              : r
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Failed to send friend request:", error);
+    } finally {
+      setSendingRequestTo(null);
+    }
   };
 
   // Empty slot - show search with integrated guest option
@@ -200,32 +235,55 @@ export function PlayerSlot({
               {results.length > 0 && (
                 <>
                   {results.map((player) => (
-                    <button
+                    <div
                       key={player.id}
-                      type="button"
-                      onClick={() => handleSelect(player)}
-                      className="w-full p-2 flex items-center gap-2 text-left hover:bg-card-raised transition-colors"
+                      className="flex items-center gap-2 p-2 hover:bg-card-raised transition-colors"
                     >
-                      {player.avatarUrl ? (
-                        <img
-                          src={player.avatarUrl}
-                          alt={player.username}
-                          className="w-8 h-8 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-card-raised flex items-center justify-center">
-                          <span className="text-text-2 text-xs font-medium">
-                            {player.username.charAt(0).toUpperCase()}
-                          </span>
+                      <button
+                        type="button"
+                        onClick={() => handleSelect(player)}
+                        className="flex-1 flex items-center gap-2 text-left"
+                      >
+                        {player.avatarUrl ? (
+                          <img
+                            src={player.avatarUrl}
+                            alt={player.username}
+                            className="w-8 h-8 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-card-raised flex items-center justify-center">
+                            <span className="text-text-2 text-xs font-medium">
+                              {player.username.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text-1 truncate">
+                            {player.displayName || player.username}
+                          </p>
+                          <p className="text-xs text-text-2">@{player.username}</p>
                         </div>
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-text-1">
-                          {player.displayName || player.username}
-                        </p>
-                        <p className="text-xs text-text-2">@{player.username}</p>
+                      </button>
+                      {/* Friend status / Add friend button */}
+                      <div className="shrink-0">
+                        {player.isFriend ? (
+                          <span className="text-xs text-win font-medium px-2">Friend</span>
+                        ) : player.friendshipStatus === "pending" ? (
+                          <span className="text-xs text-text-3 px-2">Pending</span>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-accent hover:text-accent"
+                            onClick={(e) => handleSendFriendRequest(e, player.id)}
+                            disabled={sendingRequestTo === player.id}
+                          >
+                            {sendingRequestTo === player.id ? "..." : "+ Friend"}
+                          </Button>
+                        )}
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </>
               )}

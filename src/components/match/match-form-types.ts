@@ -1,4 +1,4 @@
-import type { DeckSummary } from "@/types";
+import type { DeckSummary, FriendshipStatus } from "@/types";
 
 export type ParticipantSlot = {
   type: "empty" | "registered" | "placeholder";
@@ -19,11 +19,14 @@ export type SearchResult = {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
+  friendshipStatus?: FriendshipStatus | null;
+  isFriend?: boolean;
 };
 
 export type PlayerSlotProps = {
   slot: ParticipantSlot;
   index: number;
+  currentUserId: string;
   onSelectPlayer: (player: SearchResult) => void;
   onSetAsGuest: () => void;
   onRemove: () => void;
@@ -41,6 +44,7 @@ export type PlayerSlotProps = {
 export type PentagonPlayerCardProps = {
   slot: ParticipantSlot;
   index: number;
+  currentUserId: string;
   onSelectPlayer: (player: SearchResult) => void;
   onSetAsGuest: () => void;
   onRemove: () => void;
@@ -56,6 +60,7 @@ export type PentagonPlayerCardProps = {
 
 export type PentagramLayoutProps = {
   participants: ParticipantSlot[];
+  currentUserId: string;
   onSelectPlayer: (index: number, player: SearchResult) => void;
   onSetAsGuest: (index: number) => void;
   onRemove: (index: number) => void;
