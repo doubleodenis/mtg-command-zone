@@ -22,12 +22,16 @@ interface SidebarProps {
 export function Sidebar({ items, className }: SidebarProps) {
   const pathname = usePathname();
 
+  // Find the most specific matching item (longest href that matches)
+  const activeHref = items
+    .filter(item => pathname === item.href || pathname.startsWith(item.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
   return (
     <aside className={cn("w-56 shrink-0", className)}>
       <nav className="flex flex-col gap-1 py-4">
         {items.map((item) => {
-          const isActive = pathname === item.href || 
-            (item.href !== "/" && pathname.startsWith(item.href));
+          const isActive = item.href === activeHref;
           
           return (
             <SidebarLink
@@ -81,13 +85,17 @@ interface TabNavProps {
 export function TabNav({ items, className }: TabNavProps) {
   const pathname = usePathname();
 
+  // Find the most specific matching item (longest href that matches)
+  const activeHref = items
+    .filter(item => pathname === item.href || pathname.startsWith(item.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
   return (
-    <nav className={cn("border-b border-card-border bg-bg-surface", className)}>
+    <nav className={cn("sticky top-0 z-10 border-b border-card-border bg-bg-surface", className)}>
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex gap-6 overflow-x-auto scrollbar-hide">
           {items.map((item) => {
-            const isActive = pathname === item.href ||
-              (item.href !== "/" && pathname.startsWith(item.href));
+            const isActive = item.href === activeHref;
 
             return (
               <Link

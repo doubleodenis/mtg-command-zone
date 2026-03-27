@@ -20,9 +20,11 @@ export default async function CollectionLayout({
   ];
 
   return (
-    <div className="space-y-6">
+    <>
       <TabNav items={navItems} />
-      {children}
-    </div>
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {children}
+      </main>
+    </>
   );
 }

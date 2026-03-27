@@ -2,10 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, Badge } from "@/components/ui";
-import { PageHeader } from "@/components/layout";
+import { PageHeader, TabNav } from "@/components/layout";
 import { CollectionActivityCard } from "@/components/features/collection-activity-card";
 import { createClient } from "@/lib/supabase/server";
 import { getUserCollectionActivities } from "@/lib/services";
+import { AUTHENTICATED_NAV } from "@/lib/nav-config";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -23,8 +24,10 @@ export default async function CollectionsPage() {
   const collections = collectionsResult.success ? collectionsResult.data : [];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <>
+      <TabNav items={AUTHENTICATED_NAV} />
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+        <PageHeader
         title="My Collections"
         description="Groups of matches you're tracking"
         actions={
@@ -66,7 +69,8 @@ export default async function CollectionsPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+      </main>
+    </>
   );
 }
 
