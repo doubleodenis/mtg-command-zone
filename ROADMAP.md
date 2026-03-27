@@ -117,7 +117,13 @@
 ## Phase 6 — Core Features
 > You are here.
 
-- [ ] Auth flow (sign up, login, session handling, protected routes)
+- [x] Auth flow (sign up, login, session handling, protected routes)
+  - [x] OAuth login (Google, Discord)
+  - [x] Auth callback with automatic profile creation
+  - [x] Session handling via middleware
+  - [x] Protected route redirects
+  - [x] Sign out
+  - [x] User settings pages (`/settings`, `/settings/profile`, `/settings/account`)
 - [ ] Match creation flow
   - [ ] Format selection
   - [ ] Participant selection (friends, placeholders)
