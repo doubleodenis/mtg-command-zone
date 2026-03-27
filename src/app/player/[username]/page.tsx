@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, ColorIdentity } from "@/components/ui";
 import { Section } from "@/components/layout";
@@ -8,20 +9,42 @@ import { ColorRadarChart } from "@/components/features/color-radar-chart";
 import { PlayerComparisonCard } from "@/components/features/player-comparison-card";
 import { MatchPreviewCard } from "@/components/match/match-preview-card";
 import { TopCommandersList } from "@/components/features/top-commanders-list";
+import { createClient } from "@/lib/supabase/server";
 import {
-  createMockProfile,
-  createMockPlayerStats,
-  createMockColorStats,
-  createMockFormatStats,
-  createMockDeckWithStats,
-  createMockUserMatches,
-  createMockRatingTimeline,
+  getProfileByUsername,
+  getUserStats,
+  getUserRatings,
+  getFormatStats,
+  getUserDecksWithStats,
+} from "@/lib/supabase";
+import {
+  getRecentMatchCards,
+} from "@/lib/services";
+import {
   createMockPlayerComparison,
-  resetMockIds,
+  createMockRatingTimeline,
 } from "@/lib/mock";
-import type { FormatStatEntry } from "@/lib/mock";
+import type { FormatStats } from "@/types/profile";
 
-// Force dynamic rendering to refresh mock data
+// Type for color stats used in radar chart
+type ColorStats = {
+  W: number;
+  U: number;
+  B: number;
+  R: number;
+  G: number;
+};
+
+// Type for formatted format stats in the UI
+type FormatStatEntry = {
+  formatSlug: string;
+  formatName: string;
+  rating: number;
+  matchesPlayed: number;
+  winRate: number;
+};
+
+// Force dynamic rendering
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -30,30 +53,65 @@ interface PageProps {
 
 export default async function PlayerProfilePage({ params }: PageProps) {
   const { username } = await params;
+  const supabase = await createClient();
 
-  // Reset mock IDs for fresh data
-  resetMockIds();
+  // Get the current logged-in user
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-  // Generate mock data for this profile
-  const profile = createMockProfile({ username });
-  const stats = createMockPlayerStats({ totalMatches: 87, wins: 39 });
-  const colorStats = createMockColorStats();
-  const formatStats = createMockFormatStats();
-  const topCommanders = Array.from({ length: 5 }, (_, i) =>
-    createMockDeckWithStats({ id: `commander-${i}` })
+  // Get the profile being viewed
+  const profileResult = await getProfileByUsername(supabase, username);
+  
+  if (!profileResult.success) {
+    notFound();
+  }
+  
+  const profile = profileResult.data;
+  const isOwnProfile = currentUser?.id === profile.id;
+
+  // Fetch all user data in parallel
+  const [statsResult, ratingsResult, formatStatsResult, recentMatchesResult, userDecksResult] = await Promise.all([
+    getUserStats(supabase, profile.id),
+    getUserRatings(supabase, profile.id),
+    getFormatStats(supabase, profile.id),
+    getRecentMatchCards(supabase, { userId: profile.id, limit: 5 }),
+    getUserDecksWithStats(supabase, profile.id),
+  ]);
+
+  // Extract data with fallbacks
+  const stats = statsResult.success ? statsResult.data : {
+    totalMatches: 0,
+    wins: 0,
+    losses: 0,
+    winRate: 0,
+    currentStreak: 0,
+    longestWinStreak: 0,
+  };
+  
+  const ratings = ratingsResult.success ? ratingsResult.data : [];
+  const formatStats = formatStatsResult.success ? formatStatsResult.data : [];
+  const recentMatches = recentMatchesResult.success ? recentMatchesResult.data : [];
+  
+  // Sort decks by games played to get top commanders
+  const userDecks = userDecksResult.success ? userDecksResult.data : [];
+  const topCommanders = [...userDecks]
+    .sort((a, b) => b.stats.gamesPlayed - a.stats.gamesPlayed)
+    .slice(0, 5);
+
+  // Use mock rating timeline until we implement proper history tracking
+  // TODO: Replace with real rating history once RatingHistoryEntry data is available
+  const ratingTimeline = createMockRatingTimeline(20, ratings.length > 0 
+    ? Math.round(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length)
+    : 1000
   );
-  const recentMatches = createMockUserMatches(profile.id);
-  const ratingHistory = createMockRatingTimeline(20, 1150);
 
-  // Calculate overall rating (mock - average of format ratings)
-  const overallRating = Math.round(
-    formatStats.reduce((sum, f) => sum + f.rating, 0) / formatStats.length
-  );
+  // Calculate overall rating (average of format ratings or default)
+  const overallRating = ratings.length > 0
+    ? Math.round(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length)
+    : 1000;
 
-  // Generate comparison data (simulates viewing someone else's profile)
-  // In production, this would check if the profile is not the current user
-  const isOwnProfile = false; // Mock: always show comparison for demo
-  const comparisonData = !isOwnProfile
+  // Generate comparison data only when viewing another user's profile
+  // TODO: Replace with real head-to-head comparison when available
+  const comparisonData = !isOwnProfile && currentUser
     ? createMockPlayerComparison(
         { id: profile.id, username: profile.username, avatarUrl: profile.avatarUrl },
         stats,
@@ -61,12 +119,32 @@ export default async function PlayerProfilePage({ params }: PageProps) {
       )
     : null;
 
+  // Calculate color stats from user's decks (weighted by games played)
+  const colorStats: ColorStats = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  for (const deck of userDecks) {
+    const gamesPlayed = deck.stats.gamesPlayed;
+    if (gamesPlayed > 0 && deck.colorIdentity) {
+      for (const color of deck.colorIdentity) {
+        if (color in colorStats) {
+          colorStats[color as keyof ColorStats] += gamesPlayed;
+        }
+      }
+    }
+  }
+
+  // Transform format stats to expected format
+  const formattedFormatStats = formatStats.map((s) => ({
+    formatSlug: s.formatName.toLowerCase().replace(/ /g, '-'),
+    formatName: s.formatName,
+    rating: ratings.find(r => r.formatId === s.formatId)?.rating ?? 1000,
+    matchesPlayed: s.totalMatches,
+    winRate: s.winRate,
+  }));
+
   return (
     <div className="space-y-8">
       {/* Profile Header */}
-      <ProfileHeader
-        profile={profile}
-      />
+      <ProfileHeader profile={profile} />
 
       {/* Head-to-Head Comparison (only when viewing someone else's profile) */}
       {comparisonData && (
@@ -103,7 +181,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         <div className="lg:col-span-2 space-y-8">
           {/* Rating History */}
           <Section title="RATING HISTORY">
-            <RatingHistoryChart data={ratingHistory} height={200} />
+            <RatingHistoryChart data={ratingTimeline} height={200} />
           </Section>
 
           {/* Recent Matches */}
@@ -119,9 +197,13 @@ export default async function PlayerProfilePage({ params }: PageProps) {
             }
           >
             <div className="space-y-4">
-              {recentMatches.slice(0, 5).map((match) => (
-                <MatchPreviewCard key={match.id} match={match} showElo />
-              ))}
+              {recentMatches.length > 0 ? (
+                recentMatches.map((match) => (
+                  <MatchPreviewCard key={match.id} match={match} showElo />
+                ))
+              ) : (
+                <p className="text-text-3 text-center py-8">No matches yet</p>
+              )}
             </div>
           </Section>
         </div>
@@ -142,7 +224,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
           <Section title="FORMAT STATS">
             <Card>
               <CardContent className="p-0">
-                <FormatStatsList formatStats={formatStats} />
+                <FormatStatsList formatStats={formattedFormatStats} />
               </CardContent>
             </Card>
           </Section>

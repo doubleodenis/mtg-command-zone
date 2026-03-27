@@ -125,15 +125,15 @@ export async function getUserStats(
     return { success: false, error: error.message }
   }
 
-  // The function returns stats (cast through unknown for safety)
-  const stats = data as unknown as {
+  // The function returns a TABLE (array) - get first row
+  const rows = data as unknown as Array<{
     total_matches: number
     wins: number
     losses: number
     win_rate: number
-    current_streak: number
-    longest_win_streak: number
-  } | null
+  }> | null
+
+  const stats = rows?.[0]
 
   if (!stats) {
     return {
@@ -156,8 +156,9 @@ export async function getUserStats(
       wins: stats.wins,
       losses: stats.losses,
       winRate: stats.win_rate,
-      currentStreak: stats.current_streak,
-      longestWinStreak: stats.longest_win_streak,
+      // These aren't provided by the DB function yet - use defaults
+      currentStreak: 0,
+      longestWinStreak: 0,
     },
   }
 }
