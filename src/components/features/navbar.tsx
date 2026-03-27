@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NavbarSearch } from "./navbar-search";
+import { ProfileDropdown } from "./profile-dropdown";
 
 type NavbarProfile = {
   username: string;
@@ -55,13 +55,10 @@ export async function Navbar() {
               <Button asChild size="sm">
                 <Link href="/matches/new">New Match</Link>
               </Button>
-              <Link href={`/player/${profile.username}`} className="ml-1">
-                <Avatar
-                  src={profile.avatar_url}
-                  fallback={profile.username}
-                  size="sm"
-                />
-              </Link>
+              <ProfileDropdown
+                username={profile.username}
+                avatarUrl={profile.avatar_url}
+              />
             </>
           ) : (
             <>
