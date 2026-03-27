@@ -1,22 +1,26 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, Badge } from "@/components/ui";
 import { PageHeader } from "@/components/layout";
 import { CollectionActivityCard } from "@/components/features/collection-activity-card";
-import {
-  createMockCollectionActivities,
-  resetMockIds,
-} from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
+import { getUserCollectionActivities } from "@/lib/services";
 
-// Force dynamic rendering to refresh mock data
+// Force dynamic rendering
 export const dynamic = "force-dynamic";
 
 export default async function CollectionsPage() {
-  // Reset mock IDs for fresh data
-  resetMockIds();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // TODO: Fetch real collections for the current user
-  const collections = createMockCollectionActivities(6);
+  if (!user) {
+    redirect("/login");
+  }
+
+  // Fetch user's collections
+  const collectionsResult = await getUserCollectionActivities(supabase, user.id, 20);
+  const collections = collectionsResult.success ? collectionsResult.data : [];
 
   return (
     <div className="space-y-6">

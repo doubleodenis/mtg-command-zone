@@ -7,16 +7,17 @@ import { MatchLog } from "@/components/match";
 import { LeaderboardWithFilter } from "@/components/features/leaderboard-with-filter";
 import { TopCommandersList } from "@/components/features/top-commanders-list";
 import { DashboardStatCard } from "@/components/features/dashboard-stat-card";
+import { createClient } from "@/lib/supabase/server";
 import {
-  createMockCollectionWithMembers,
-  createMockCollectionMatches,
-  createMockLeaderboard,
-  createMockDeckWithStats,
-  resetMockIds,
-} from "@/lib/mock";
+  getCollectionWithMembers,
+  isCollectionMember,
+  getLeaderboard,
+  getFormats,
+} from "@/lib/supabase";
+import { getRecentMatchCards, getTopCommanders } from "@/lib/services";
 import type { CollectionMemberWithProfile } from "@/types";
 
-// Force dynamic rendering to refresh mock data
+// Force dynamic rendering
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -25,18 +26,53 @@ interface PageProps {
 
 export default async function CollectionPage({ params }: PageProps) {
   const { id } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // Reset mock IDs for fresh data
-  resetMockIds();
+  // Fetch collection data
+  const collectionResult = await getCollectionWithMembers(supabase, id);
 
-  // TODO: Fetch real collection data
-  // For now, use mock data
-  const collection = createMockCollectionWithMembers(6, { id });
-  const recentMatches = createMockCollectionMatches(8);
-  const leaderboard = createMockLeaderboard(5);
-  const topCommanders = Array.from({ length: 5 }, (_, i) =>
-    createMockDeckWithStats({ id: `commander-${i}` })
+  if (!collectionResult.success) {
+    notFound();
+  }
+
+  const collection = collectionResult.data;
+
+  // Check membership
+  let isMember = false;
+  if (user) {
+    const memberResult = await isCollectionMember(supabase, id, user.id);
+    isMember = memberResult.success && memberResult.data === true;
+  }
+
+  const isOwner = collection.members.some(
+    (m) => m.userId === user?.id && m.role === "owner"
   );
+
+  // If collection is private and user is not a member, return 404
+  if (!collection.isPublic && !isMember) {
+    notFound();
+  }
+
+  // Fetch additional data in parallel
+  const [formatsResult, matchesResult, commandersResult] = await Promise.all([
+    getFormats(supabase),
+    getRecentMatchCards(supabase, { limit: 8, collectionId: id }),
+    getTopCommanders(supabase, { limit: 5, collectionId: id }),
+  ]);
+
+  // Get FFA format for leaderboard (collections typically use FFA)
+  const ffaFormat = formatsResult.success
+    ? formatsResult.data.find((f) => f.slug === "ffa")
+    : null;
+
+  const leaderboardResult = ffaFormat
+    ? await getLeaderboard(supabase, ffaFormat.id, 10, id)
+    : { success: false as const, error: "No format found" };
+
+  const leaderboard = leaderboardResult.success ? leaderboardResult.data : [];
+  const recentMatches = matchesResult.success ? matchesResult.data : [];
+  const topCommanders = commandersResult.success ? commandersResult.data : [];
 
   // Get top commander by win rate
   const topCommander = topCommanders.length > 0 ? topCommanders[0] : null;
@@ -45,19 +81,6 @@ export default async function CollectionPage({ params }: PageProps) {
   const topWinRatePlayer = leaderboard.length > 0 
     ? leaderboard.reduce((best, entry) => entry.winRate > best.winRate ? entry : best, leaderboard[0])
     : null;
-
-  // Mock: check if user is a member (for showing member-only features)
-  const currentUserId = "mock-user-123";
-  const userMembership = collection.members.find(
-    (m) => m.userId === currentUserId
-  );
-  const isOwner = userMembership?.role === "owner";
-  const isMember = Boolean(userMembership);
-
-  // If collection is private and user is not a member, return 404
-  if (!collection.isPublic && !isMember) {
-    notFound();
-  }
 
   return (
     <div className="space-y-8">
@@ -199,11 +222,6 @@ function CollectionHeader({
       </div>
 
       <div className="flex items-center gap-2">
-        {isOwner && (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/collections/${collection.id}/settings`}>Settings</Link>
-          </Button>
-        )}
         {isMember ? (
           <Button size="sm" asChild>
             <Link href="/matches/new">Log Match</Link>

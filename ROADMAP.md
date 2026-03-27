@@ -107,9 +107,9 @@
 - [x] Validate and cast `jsonb` fields (`match_data`, `participant_data`) at the data access boundary — components should never receive untyped json
 - [ ] Replace mock data in pages with real server-side queries, one page at a time
   - [x] Dashboard (global + personal)
-  - [ ] Decks page
-  - [ ] Collections page
-  - [ ] Player profile page
+  - [x] Decks page
+  - [] Collections page
+  - [x] Player profile page
   - [ ] Match detail page
 
 ---

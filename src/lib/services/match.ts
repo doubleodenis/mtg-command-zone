@@ -65,6 +65,7 @@ function validateParticipantData(data: unknown): ParticipantData {
 export type GetRecentMatchCardsOptions = {
   limit?: number
   userId?: string
+  collectionId?: string
 }
 
 /**
@@ -75,7 +76,7 @@ export async function getRecentMatchCards(
   client: SupabaseClient<Database>,
   options: GetRecentMatchCardsOptions = {}
 ): Promise<Result<MatchCardData[]>> {
-  const { limit = 5, userId } = options
+  const { limit = 5, userId, collectionId } = options
 
   // Build base query
   let matchQuery = client
@@ -87,6 +88,22 @@ export async function getRecentMatchCards(
     `)
     .order('played_at', { ascending: false })
     .limit(limit)
+
+  // Filter to collection's matches if requested
+  if (collectionId) {
+    const { data: collectionMatches } = await client
+      .from('collection_matches')
+      .select('match_id')
+      .eq('collection_id', collectionId)
+      .eq('approval_status', 'approved')
+
+    if (!collectionMatches || collectionMatches.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    const matchIds = collectionMatches.map((cm) => cm.match_id)
+    matchQuery = matchQuery.in('id', matchIds)
+  }
 
   // Filter to user's matches if requested
   if (userId) {
