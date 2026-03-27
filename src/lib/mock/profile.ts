@@ -29,11 +29,11 @@ const MOCK_USERNAMES = [
 ]
 
 const MOCK_AVATARS = [
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=1',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=2',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=3',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=4',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=5',
+  'https://robohash.org/arcane_mage?set=set4&size=200x200',
+  'https://robohash.org/dragon_slayer?set=set4&size=200x200',
+  'https://robohash.org/planeswalker99?set=set4&size=200x200',
+  'https://robohash.org/mtg_master?set=set4&size=200x200',
+  'https://robohash.org/commander_chad?set=set4&size=200x200',
 ]
 
 // ============================================
