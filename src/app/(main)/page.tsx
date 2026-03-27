@@ -41,10 +41,9 @@ export default async function HomePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // TODO: Re-enable PersonalDashboard once auth is fully wired
-  // if (user) {
-  //   return <PersonalDashboard userId={user.id} />;
-  // }
+  if (user) {
+    return <PersonalDashboard userId={user.id} />;
+  }
 
   return <GlobalDashboard />;
 }

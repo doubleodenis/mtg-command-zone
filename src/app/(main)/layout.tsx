@@ -1,4 +1,4 @@
-// import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/features/navbar";
 import { TabNav, type NavItem } from "@/components/layout";
 
@@ -22,10 +22,8 @@ export default async function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // TODO: Re-enable Supabase auth when backend is configured
-  // const supabase = await createClient();
-  // const { data: { user } } = await supabase.auth.getUser();
-  const user = null as { id: string } | null;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const navItems = user ? authenticatedNav : publicNav;
 
