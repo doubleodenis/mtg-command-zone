@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { MatchPreviewCard } from '@/components/match/match-preview-card'
+import { AddToCollectionButton } from '@/components/match/add-to-collection-button'
 import { Navbar } from '@/components/features/navbar'
 import type { MatchCardData } from '@/types'
 
@@ -75,6 +76,7 @@ export default async function MatchDetailsPage({ params }: PageProps) {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {user && <AddToCollectionButton matchId={matchId} />}
               <Badge variant="accent">
                 {match.formatSlug.toUpperCase()}
               </Badge>

@@ -142,7 +142,7 @@
 - [x] Collection creation and settings
   - [x] Name, description, visibility toggle
   - [x] Match add permission (`owner_only`, `any_member`, `any_member_approval_required`)
-- [ ] Add match to collection flow
+- [x] Add match to collection flow
 - [ ] Collection match approval flow (for `any_member_approval_required`)
 - [ ] Collection member management (invite, remove)
 - [ ] Collection-scoped rating and leaderboard
