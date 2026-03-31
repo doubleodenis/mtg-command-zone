@@ -2,12 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-// import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 type SearchResult = {
   id: string;
   username: string;
-  display_name: string | null;
   avatar_url: string | null;
 };
 
@@ -27,21 +26,16 @@ export function NavbarSearch() {
         return;
       }
 
-      // TODO: Re-enable Supabase when backend is configured
-      // setIsLoading(true);
-      // const supabase = createClient();
-      // const { data } = await supabase
-      //   .from("profiles")
-      //   .select("id, username, display_name, avatar_url")
-      //   .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-      //   .limit(5);
-      // setResults((data as SearchResult[]) || []);
-      // setIsOpen(true);
-      // setIsLoading(false);
-      
-      // Return empty results for now
-      setResults([]);
-      setIsOpen(false);
+      setIsLoading(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, avatar_url")
+        .ilike("username", `%${query}%`)
+        .limit(5);
+      setResults((data as SearchResult[]) || []);
+      setIsOpen(data !== null && data.length > 0);
+      setIsLoading(false);
     };
 
     const debounce = setTimeout(searchUsers, 300);
@@ -202,7 +196,7 @@ export function NavbarSearch() {
               </div>
               <div>
                 <div style={{ fontWeight: 500, color: "#ffffff", fontSize: "0.875rem" }}>
-                  {result.display_name || result.username}
+                  {result.username}
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "#71717a" }}>
                   @{result.username}
