@@ -15,6 +15,58 @@ import {
 import type { Result, MatchAddPermission, CollectionWithMembership, ApprovalStatus } from '@/types'
 
 /**
+ * Invite a user to join a collection (owner only).
+ * Creates a collection_members entry which triggers the notification.
+ */
+export async function inviteCollectionMember(
+  collectionId: string,
+  userId: string
+): Promise<Result<null>> {
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  // Verify ownership
+  const collectionResult = await getCollectionById(supabase, collectionId)
+  if (!collectionResult.success) {
+    return { success: false, error: 'Collection not found' }
+  }
+
+  if (collectionResult.data.ownerId !== user.id) {
+    return { success: false, error: 'Only the owner can invite members' }
+  }
+
+  // Check if user is already a member
+  const memberCheck = await isCollectionMember(supabase, collectionId, userId)
+  if (memberCheck.success && memberCheck.data) {
+    return { success: false, error: 'User is already a member of this collection' }
+  }
+
+  // Add the user as a member
+  const { error } = await supabase
+    .from('collection_members')
+    .insert({
+      collection_id: collectionId,
+      user_id: userId,
+      role: 'member',
+    })
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  // Revalidate collection pages
+  revalidatePath(`/collections/${collectionId}`)
+  revalidatePath(`/collections/${collectionId}/members`)
+
+  return { success: true, data: null }
+}
+
+/**
  * Update collection settings (owner only)
  */
 export async function updateCollectionSettings(

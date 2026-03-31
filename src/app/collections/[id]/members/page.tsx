@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { PageHeader } from "@/components/layout";
+import { InviteMemberButton } from "@/components/collection";
 import { createClient } from "@/lib/supabase/server";
 import {
   getCollectionWithMembers,
@@ -47,6 +48,9 @@ export default async function CollectionMembersPage({ params }: PageProps) {
     (m) => m.userId === user?.id && m.role === "owner"
   );
 
+  // Get current member IDs for the invite modal
+  const currentMemberIds = collection.members.map(m => m.userId);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -54,7 +58,10 @@ export default async function CollectionMembersPage({ params }: PageProps) {
         description={`${collection.members.length} members in this collection`}
         actions={
           isOwner ? (
-            <Button size="sm">Invite Member</Button>
+            <InviteMemberButton 
+              collectionId={id} 
+              currentMemberIds={currentMemberIds}
+            />
           ) : null
         }
       />
