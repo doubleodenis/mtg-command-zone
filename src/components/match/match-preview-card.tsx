@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge, ColorIdentity } from "@/components/ui";
+import { Badge, ColorIdentity, RatingDelta } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { buildCommanderImageUrl } from "@/lib/scryfall/api";
 import type { FormatSlug, MatchCardData, ParticipantDataPentagram, ParticipantDisplayInfo } from "@/types";
@@ -289,17 +289,7 @@ export function MatchPreviewCard({
 
               {/* ELO delta - only on personal dashboard */}
               {showElo && userParticipant?.ratingDelta && (
-                <span
-                  className={cn(
-                    "text-lg font-display font-bold",
-                    userParticipant.ratingDelta.delta >= 0
-                      ? "text-win"
-                      : "text-loss"
-                  )}
-                >
-                  {userParticipant.ratingDelta.delta >= 0 ? "+" : ""}
-                  {userParticipant.ratingDelta.delta}
-                </span>
+                <RatingDelta delta={userParticipant.ratingDelta.delta} size="lg" />
               )}
             </div>
           </div>

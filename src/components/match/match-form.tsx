@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
+import { logMatch } from "@/app/actions/match";
 import type { FormatSummary, FormatSlug, MatchData } from "@/types/format";
 import type { DeckSummary, ParticipantInput, ColorIdentity } from "@/types";
 
@@ -313,8 +314,6 @@ export function MatchForm({
     setIsSubmitting(true);
 
     try {
-      const supabase = createClient();
-
       // Build participant inputs
       const participantInputs: ParticipantInput[] = participants
         .filter((p) => p.type !== "empty")
@@ -348,63 +347,22 @@ export function MatchForm({
         filledIndices.indexOf(wi)
       );
 
-      // Create match via API or direct Supabase call
-      const { data: match, error: matchError } = await supabase
-        .from("matches")
-        .insert({
-          created_by: currentUserId,
-          format_id: selectedFormat!.id,
-          played_at: new Date(playedAt).toISOString(),
-          notes: notes || null,
-          match_data: buildMatchData(),
-        })
-        .select()
-        .single();
-
-      if (matchError) throw matchError;
-
-      // Create participants
-      const participantInserts = participantInputs.map((p, index) => {
-        const isWinner = adjustedWinnerIndices.includes(index);
-        const baseData = {
-          match_id: match.id,
-          is_winner: isWinner,
-          team: p.team || null,
-          participant_data: { format: selectedFormat!.slug },
-        };
-
-        if (p.type === "registered") {
-          return {
-            ...baseData,
-            user_id: p.userId,
-            deck_id: p.deckId,
-            placeholder_name: null,
-            confirmed_at:
-              p.userId === currentUserId ? new Date().toISOString() : null,
-          };
-        } else {
-          return {
-            ...baseData,
-            user_id: null,
-            deck_id: null,
-            placeholder_name: p.placeholderName,
-            confirmed_at: null,
-          };
-        }
+      // Create match via server action (handles rating calculation for creator)
+      const result = await logMatch({
+        formatId: selectedFormat!.id,
+        playedAt: new Date(playedAt).toISOString(),
+        notes: notes || null,
+        matchData: buildMatchData(),
+        participants: participantInputs,
+        winnerIndices: adjustedWinnerIndices,
       });
 
-      const { error: participantsError } = await supabase
-        .from("match_participants")
-        .insert(participantInserts);
-
-      if (participantsError) {
-        // Rollback match
-        await supabase.from("matches").delete().eq("id", match.id);
-        throw participantsError;
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Navigate to the new match
-      router.push(`/match/${match.id}`);
+      router.push(`/match/${result.data.matchId}`);
     } catch (err) {
       console.error("Failed to create match:", err);
       setError(err instanceof Error ? err.message : "Failed to create match");

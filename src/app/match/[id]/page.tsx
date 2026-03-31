@@ -176,6 +176,7 @@ export default async function MatchDetailsPage({ params }: PageProps) {
                 userId: p.userId,
                 isWinner: p.isWinner,
                 isConfirmed: p.isConfirmed,
+                ratingDelta: p.ratingDelta,
                 deck: p.deck ? {
                   id: p.deck.id,
                   commanderName: p.deck.commanderName,

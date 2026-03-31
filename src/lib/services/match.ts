@@ -176,44 +176,75 @@ export async function getRecentMatchCards(
  */
 async function transformMatchToCardData(
   client: SupabaseClient<Database>,
-  match: { id: string; played_at: string; format: { name: string; slug: string } },
-  userId?: string
+  match: {
+    id: string;
+    played_at: string;
+    format: { name: string; slug: string };
+  },
+  userId?: string,
 ): Promise<MatchCardData> {
-  const { data: participants } = await client
-    .from('match_participants')
-    .select(`
-      id,
-      user_id,
-      placeholder_name,
-      is_winner,
-      confirmed_at,
-      team,
-      participant_data,
-      deck:decks!match_participants_deck_id_fkey(*),
-      profile:profiles!match_participants_user_id_fkey(*)
-    `)
-    .eq('match_id', match.id)
+  // Fetch participants and rating history in parallel
+  const [participantsResult, ratingHistoryResult] = await Promise.all([
+    client
+      .from("match_participants")
+      .select(
+        `
+        id,
+        user_id,
+        placeholder_name,
+        is_winner,
+        confirmed_at,
+        team,
+        participant_data,
+        deck:decks!match_participants_deck_id_fkey(*),
+        profile:profiles!match_participants_user_id_fkey(*)
+      `,
+      )
+      .eq("match_id", match.id),
+    client
+      .from("rating_history")
+      .select("user_id, delta, rating_before, rating_after")
+      .eq("match_id", match.id),
+  ]);
 
-  const participantInfos: ParticipantDisplayInfo[] = (participants ?? []).map((p) => ({
+  const participants = participantsResult.data ?? [];
+  const ratingHistory = ratingHistoryResult.data ?? [];
+
+  // Create lookup map for rating deltas by user_id
+  const ratingDeltaMap = new Map(
+    ratingHistory.map((rh) => [
+      rh.user_id,
+      {
+        before: rh.rating_before,
+        after: rh.rating_after,
+        delta: rh.delta,
+        isPositive: rh.delta > 0,
+      },
+    ]),
+  );
+
+  const participantInfos: ParticipantDisplayInfo[] = participants.map((p) => ({
     id: p.id,
     userId: p.user_id,
-    name: p.profile ? mapProfileSummary(p.profile).username : p.placeholder_name ?? 'Unknown',
+    name: p.profile
+      ? mapProfileSummary(p.profile).username
+      : (p.placeholder_name ?? "Unknown"),
     avatarUrl: p.profile ? mapProfileSummary(p.profile).avatarUrl : null,
     isRegistered: !!p.user_id,
     isConfirmed: !!p.confirmed_at,
     deck: p.deck ? mapDeckSummary(p.deck) : null,
     team: p.team,
     isWinner: p.is_winner,
-    ratingDelta: null,
+    ratingDelta: p.user_id ? (ratingDeltaMap.get(p.user_id) ?? null) : null,
     participantData: validateParticipantData(p.participant_data),
-  }))
+  }));
 
   const userParticipant = userId
-    ? participantInfos.find((info) => {
-        const participant = participants?.find((p) => p.id === info.id)
-        return participant?.user_id === userId
-      }) ?? null
-    : null
+    ? (participantInfos.find((info) => {
+        const participant = participants?.find((p) => p.id === info.id);
+        return participant?.user_id === userId;
+      }) ?? null)
+    : null;
 
   return {
     id: match.id,
@@ -226,7 +257,7 @@ async function transformMatchToCardData(
     isFullyConfirmed: participantInfos.every((p) => p.isConfirmed),
     participants: participantInfos,
     userParticipant,
-  }
+  };
 }
 
 // ============================================

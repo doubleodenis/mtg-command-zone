@@ -10,11 +10,172 @@ import {
   approveSlotClaim,
   rejectSlotClaim,
   searchClaimableMatches,
+  createMatch,
 } from '@/lib/supabase/matches'
 import { getRating, updateRating, recordRatingHistory, updateCollectionRatings } from '@/lib/supabase/ratings'
 import { getMatchCollections, getUserMemberCollections } from '@/lib/supabase/collections'
 import { calculateRating } from '@/lib/rating'
-import type { Result, Bracket, ClaimableMatchSlot } from '@/types'
+import type { Result, Bracket, ClaimableMatchSlot, CreateMatchPayload, MatchData, ParticipantInput } from '@/types'
+
+/**
+ * Log a new match with participants.
+ * 
+ * This action:
+ * 1. Creates the match and participant records
+ * 2. Auto-confirms the creator's participation
+ * 3. Calculates and records rating changes for the creator
+ * 
+ * Using this action ensures rating history is properly recorded
+ * when the creator auto-confirms their participation.
+ */
+export async function logMatch(payload: {
+  formatId: string
+  playedAt?: string
+  notes?: string | null
+  matchData: MatchData
+  participants: ParticipantInput[]
+  winnerIndices: number[]
+}): Promise<Result<{ matchId: string; delta: number; newRating: number }>> {
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  // Create match via the supabase helper
+  const matchResult = await createMatch(supabase, user.id, payload as CreateMatchPayload)
+  if (!matchResult.success) {
+    return { success: false, error: matchResult.error }
+  }
+
+  const match = matchResult.data
+
+  // Find the creator's participant record
+  const { data: creatorParticipant, error: participantError } = await supabase
+    .from('match_participants')
+    .select(`
+      id,
+      is_winner,
+      deck_id,
+      deck:decks!match_participants_deck_id_fkey(bracket)
+    `)
+    .eq('match_id', match.id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (participantError || !creatorParticipant) {
+    // Match was created but creator not a participant - unusual but valid
+    revalidatePath('/matches')
+    revalidatePath(`/match/${match.id}`)
+    return { success: true, data: { matchId: match.id, delta: 0, newRating: 0 } }
+  }
+
+  // Get format info
+  const { data: format, error: formatError } = await supabase
+    .from('formats')
+    .select('id')
+    .eq('id', payload.formatId)
+    .single()
+
+  if (formatError || !format) {
+    // Match created but format not found - return without rating
+    revalidatePath('/matches')
+    revalidatePath(`/match/${match.id}`)
+    return { success: true, data: { matchId: match.id, delta: 0, newRating: 0 } }
+  }
+
+  // Get creator's current rating
+  const ratingResult = await getRating(supabase, user.id, format.id)
+  if (!ratingResult.success) {
+    revalidatePath('/matches')
+    revalidatePath(`/match/${match.id}`)
+    return { success: true, data: { matchId: match.id, delta: 0, newRating: 0 } }
+  }
+
+  const currentRating = ratingResult.data
+
+  // Gather opponent data for rating calculation
+  const { data: allParticipants } = await supabase
+    .from('match_participants')
+    .select(`
+      id,
+      user_id,
+      deck:decks!match_participants_deck_id_fkey(bracket)
+    `)
+    .eq('match_id', match.id)
+    .neq('user_id', user.id)
+
+  const opponents: Array<{ rating: number; bracket: Bracket }> = []
+  
+  for (const p of allParticipants ?? []) {
+    if (p.user_id) {
+      // Get opponent's rating
+      const oppRatingResult = await getRating(supabase, p.user_id, format.id)
+      const oppRating = oppRatingResult.success ? oppRatingResult.data.rating : 1000
+      const bracket: Bracket = (p.deck?.bracket as Bracket) ?? 2
+      opponents.push({ rating: oppRating, bracket })
+    } else {
+      // Placeholder opponent - use default rating
+      opponents.push({ rating: 1000, bracket: 2 })
+    }
+  }
+
+  // Get creator's deck bracket
+  const playerBracket: Bracket = (creatorParticipant.deck?.bracket as Bracket) ?? 2
+
+  // Calculate rating change
+  const ratingCalc = calculateRating({
+    playerId: user.id,
+    playerRating: currentRating.rating,
+    playerBracket,
+    playerMatchCount: currentRating.matchesPlayed,
+    isWinner: creatorParticipant.is_winner,
+    opponents,
+    formatId: format.id,
+    collectionId: null,
+  })
+
+  // Update rating
+  const newRating = currentRating.rating + ratingCalc.delta
+  await updateRating(
+    supabase,
+    user.id,
+    format.id,
+    newRating,
+    true // increment match count
+  )
+
+  // Record rating history
+  await recordRatingHistory(supabase, {
+    userId: user.id,
+    matchId: match.id,
+    formatId: format.id,
+    ratingBefore: currentRating.rating,
+    ratingAfter: newRating,
+    delta: ratingCalc.delta,
+    playerBracket,
+    opponentAvgRating: ratingCalc.opponentAvgRating,
+    opponentAvgBracket: ratingCalc.opponentAvgBracket,
+    kFactor: ratingCalc.kFactor,
+    algorithmVersion: 1,
+  })
+
+  // Revalidate pages
+  revalidatePath('/dashboard')
+  revalidatePath('/matches')
+  revalidatePath(`/match/${match.id}`)
+
+  return {
+    success: true,
+    data: {
+      matchId: match.id,
+      delta: ratingCalc.delta,
+      newRating,
+    },
+  }
+}
 
 /**
  * Confirm a match participation and trigger rating update.
