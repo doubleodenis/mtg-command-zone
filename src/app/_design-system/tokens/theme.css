@@ -1,0 +1,168 @@
+/**
+ * CommandZone — Tailwind v4 Theme
+ *
+ * Tailwind 4 uses @theme inside CSS rather than tailwind.config.js.
+ * Place this in your app/globals.css (or a dedicated theme file
+ * imported there) after your @import "tailwindcss" directive.
+ *
+ * Usage example:
+ *   @import "tailwindcss";
+ *   @import "./theme.css";
+ */
+
+@theme {
+
+  /* ─────────────────────────────────────────
+     COLORS
+     Generates: bg-*, text-*, border-*, ring-*
+     e.g. bg-bg-base, text-accent, border-card
+  ───────────────────────────────────────── */
+
+  /* Backgrounds */
+  --color-bg-base:     #04060d;
+  --color-bg-surface:  #090c18;
+  --color-bg-raised:   #0e1222;
+  --color-bg-overlay:  #151c30;
+
+  /* Card surfaces */
+  --color-card:        #0f0f12;
+  --color-card-raised: #141417;
+  --color-card-border: #222228;
+  --color-card-border-hi: #2e2e38;
+
+  /* Accent — Phyrexian Purple */
+  --color-accent:      #aa28d8;
+  --color-accent-fill: #8818c8;
+  --color-accent-dim:  rgba(170, 40, 216, 0.13);
+  --color-accent-ring: rgba(170, 40, 216, 0.32);
+
+  /* Text */
+  --color-text-1: #dde8ff;
+  --color-text-2: #5a6270;
+  --color-text-3: #28292e;
+
+  /* Semantic */
+  --color-win:         #44c070;
+  --color-win-subtle:  rgba(68, 192, 112, 0.10);
+  --color-win-ring:    rgba(68, 192, 112, 0.25);
+
+  --color-loss:        #e05555;
+  --color-loss-subtle: rgba(224, 85, 85, 0.10);
+  --color-loss-ring:   rgba(224, 85, 85, 0.25);
+
+  --color-gold:        #d4a843;
+  --color-gold-subtle: rgba(212, 168, 67, 0.10);
+  --color-gold-ring:   rgba(212, 168, 67, 0.25);
+
+  /* Mana colors — for pip components */
+  --color-mana-w: #c8bf90;
+  --color-mana-w-border: #a09860;
+  --color-mana-u: #3060b8;
+  --color-mana-u-border: #4878d0;
+  --color-mana-b: #221830;
+  --color-mana-b-border: #3a2458;
+  --color-mana-r: #9a1a08;
+  --color-mana-r-border: #c02818;
+  --color-mana-g: #1a5018;
+  --color-mana-g-border: #227022;
+
+  /* ─────────────────────────────────────────
+     FONTS
+     Generates: font-display, font-body, font-data
+  ───────────────────────────────────────── */
+  --font-display: 'Chakra Petch', sans-serif;
+  --font-body:    'Barlow', sans-serif;
+  --font-data:    'JetBrains Mono', monospace;
+
+  /* ─────────────────────────────────────────
+     FONT SIZES
+     Generates: text-*
+  ───────────────────────────────────────── */
+  --font-size-2xs: 0.5rem;    /* 8px  — you-tag, pip labels */
+  --font-size-xs:  0.5625rem; /* 9px  — mono metadata, timestamps */
+  --font-size-sm:  0.6875rem; /* 11px — nav items, tags, badges */
+  --font-size-md:  0.75rem;   /* 12px — body small */
+  --font-size-base: 0.8125rem; /* 13px — body default */
+  --font-size-lg:  0.875rem;  /* 14px — card titles */
+  --font-size-xl:  1rem;      /* 16px — section values */
+  --font-size-2xl: 1.125rem;  /* 18px — delta numbers */
+  --font-size-3xl: 1.5rem;    /* 24px — stat card values */
+  --font-size-4xl: 2rem;      /* 32px — rank display */
+  --font-size-elo: 3.5rem;    /* 56px — ELO hero number */
+
+  /* ─────────────────────────────────────────
+     LETTER SPACING
+     Generates: tracking-*
+  ───────────────────────────────────────── */
+  --letter-spacing-tight:  -0.01em;  /* ELO hero number */
+  --letter-spacing-normal:  0em;
+  --letter-spacing-wide:    0.04em;  /* nav items, buttons */
+  --letter-spacing-wider:   0.06em;  /* wordmark */
+  --letter-spacing-widest:  0.14em;  /* section labels (mono caps) */
+
+  /* ─────────────────────────────────────────
+     SPACING — 4px base grid
+     Generates: p-*, m-*, gap-*, w-*, h-*
+  ───────────────────────────────────────── */
+  --spacing-px:  1px;
+  --spacing-0:   0px;
+  --spacing-1:   4px;
+  --spacing-2:   8px;
+  --spacing-3:   12px;
+  --spacing-4:   16px;
+  --spacing-5:   20px;
+  --spacing-6:   24px;
+  --spacing-8:   32px;
+  --spacing-10:  40px;
+  --spacing-12:  48px;
+  --spacing-16:  64px;
+
+  /* Component-specific sizes */
+  --spacing-pip:       9px;   /* mana pip diameter */
+  --spacing-topbar:    48px;  /* top navigation height */
+  --spacing-avatar:    28px;  /* user avatar */
+  --spacing-wl-badge:  26px;  /* W/L result badge */
+  --spacing-cmd-art:   56px;  /* commander block art height */
+  --spacing-cmd-block: 64px;  /* commander block width */
+
+  /* ─────────────────────────────────────────
+     BORDER RADIUS
+     Generates: rounded-*
+  ───────────────────────────────────────── */
+  --radius-none: 0px;
+  --radius-sm:   4px;   /* pips, badges, inner elements */
+  --radius-md:   6px;   /* buttons, tags, chips, nav items */
+  --radius-lg:   8px;   /* cards */
+  --radius-xl:   10px;  /* outer panels */
+  --radius-full: 9999px; /* circular elements */
+
+  /* ─────────────────────────────────────────
+     BORDER WIDTH
+  ───────────────────────────────────────── */
+  --border-width-thin:   0.5px;  /* default card/panel borders */
+  --border-width-normal: 1px;    /* semantic borders (win/loss/accent) */
+  --border-width-accent: 2px;    /* nav active underline, hero card top */
+
+  /* ─────────────────────────────────────────
+     TRANSITIONS
+     Generates: transition-*, duration-*
+  ───────────────────────────────────────── */
+  --transition-fast:   150ms ease;   /* hover states, tooltip reveal */
+  --transition-normal: 250ms ease;   /* panel transitions */
+
+  /* ─────────────────────────────────────────
+     ANIMATIONS
+     Generates: animate-*
+  ───────────────────────────────────────── */
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+}

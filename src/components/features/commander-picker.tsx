@@ -11,11 +11,13 @@ interface CommanderPickerProps {
     scryfall_id: string;
     name: string;
     image_uri: string;
+    color_identity?: string[];
   } | null;
   onChange?: (commander: {
     scryfall_id: string;
     name: string;
     image_uri: string;
+    color_identity: string[];
   } | null) => void;
   className?: string;
   placeholder?: string;
@@ -66,6 +68,7 @@ export function CommanderPicker({
       scryfall_id: card.id,
       name: card.name,
       image_uri: imageUri,
+      color_identity: card.color_identity,
     });
     setQuery("");
     setIsOpen(false);

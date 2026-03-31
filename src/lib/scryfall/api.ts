@@ -208,3 +208,29 @@ export async function getRandomCommander(): Promise<ScryfallCard | null> {
     return null;
   }
 }
+
+/**
+ * Get commander image URL directly by card name
+ * Returns the image URL or null if not found
+ */
+export async function getCommanderImageUrl(
+  commanderName: string,
+  size: "small" | "normal" | "large" | "art_crop" = "normal"
+): Promise<string | null> {
+  const card = await getCardByName(commanderName);
+  if (!card) return null;
+  return getCardImageUri(card, size);
+}
+
+/**
+ * Build Scryfall image URL without an API call
+ * Uses Scryfall's static image endpoint with the card's exact name
+ * This is useful for displaying images when you only have the card name
+ * Format: https://api.scryfall.com/cards/named?exact={name}&format=image&version={size}
+ */
+export function buildCommanderImageUrl(
+  commanderName: string,
+  size: "small" | "normal" | "large" | "art_crop" | "border_crop" = "normal"
+): string {
+  return `${SCRYFALL_BASE_URL}/cards/named?exact=${encodeURIComponent(commanderName)}&format=image&version=${size}`;
+}

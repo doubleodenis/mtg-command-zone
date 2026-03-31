@@ -1,187 +1,121 @@
+/**
+ * app/globals.css
+ *
+ * Foundation layer only. Three concerns:
+ *   1. Tailwind + theme imports
+ *   2. CSS resets
+ *   3. Token-derived typography utilities that can't be
+ *      expressed as a single Tailwind utility class
+ *
+ * Rules: NO component styles here. No .badge, .card, .btn, .pip, etc.
+ * Those live in their component files using utility classes.
+ */
+
 @import "tailwindcss";
+@import "./_design-system/tokens/theme.css";
 
-/* Define custom theme tokens for Tailwind v4 */
-@theme {
-  --color-background: #0a0a0f;
-  --color-background-secondary: #12121a;
-  --color-surface: rgba(255, 255, 255, 0.03);
-  --color-surface-hover: rgba(255, 255, 255, 0.06);
-  --color-surface-border: rgba(255, 255, 255, 0.1);
-  --color-foreground: #ffffff;
-  --color-foreground-muted: #a1a1aa;
-  --color-foreground-subtle: #71717a;
-  --color-accent: #a855f7;
-  --color-accent-cyan: #22d3ee;
-  --color-win: #22c55e;
-  --color-loss: #ef4444;
-  
-  --shadow-glow: 0 0 20px rgba(168, 85, 247, 0.3);
-  --shadow-glow-cyan: 0 0 20px rgba(34, 211, 238, 0.3);
-}
 
-:root {
-  --background: #0a0a0f;
-  --background-secondary: #12121a;
-  --foreground: #ffffff;
-  --foreground-muted: #a1a1aa;
-  --accent: #a855f7;
-  --accent-cyan: #22d3ee;
-  --win: #22c55e;
-  --loss: #ef4444;
-}
+/* ─────────────────────────────────────────
+   RESETS
+───────────────────────────────────────── */
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
-  padding: 0;
-  margin: 0;
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Inter, system-ui, sans-serif;
+/* ─────────────────────────────────────────
+   BASE
+───────────────────────────────────────── */
+
+html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Container centering fix for Tailwind v4 */
-.container {
-  width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-1);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
 }
 
-@media (min-width: 640px) {
-  .container {
-    max-width: 640px;
-  }
-  .sm-row {
-    flex-direction: row !important;
-    align-items: flex-start !important;
-  }
-  .sm-text-left {
-    text-align: left !important;
-  }
-  .sm-justify-start {
-    justify-content: flex-start !important;
-  }
-}
 
-@media (min-width: 768px) {
-  .container {
-    max-width: 768px;
-  }
-}
+/* ─────────────────────────────────────────
+   TYPOGRAPHY UTILITIES
+   These combine font-family + size + weight
+   + tracking into a single reusable class.
+   They are token primitives — no color,
+   no layout, no borders.
+───────────────────────────────────────── */
 
-@media (min-width: 1024px) {
-  .container {
-    max-width: 1024px;
-  }
-  .lg-grid-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
-  .lg-grid-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-  .hidden-sm {
-    display: block !important;
-  }
-}
-
-@media (min-width: 1280px) {
-  .container {
-    max-width: 1280px;
-  }
-}
-
-/* Grid responsive utilities */
-@media (min-width: 768px) {
-  .md\:grid-cols-3 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-/* Glassmorphic card styles */
-.glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  border-radius: 0.75rem;
-}
-
-.glass-card-hover {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  border-radius: 0.75rem;
-  transition: all 0.3s;
-}
-
-.glass-card-hover:hover {
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
-  border-color: rgba(168, 85, 247, 0.3);
-}
-
-.stat-value {
-  font-size: 2.25rem;
+/* 56px Chakra Petch — ELO hero number */
+.text-elo {
+  font-family: var(--font-display);
+  font-size: var(--font-size-elo);
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.025em;
+  line-height: 1;
+  letter-spacing: var(--letter-spacing-tight);
 }
 
-.stat-label {
-  font-size: 0.875rem;
-  color: var(--foreground-muted);
+/* 28px Chakra Petch — stat card values */
+.text-stat {
+  font-family: var(--font-display);
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 18px Chakra Petch — ELO delta numbers (+18, -12) */
+.text-delta {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 11px JetBrains Mono caps — section labels (OVERVIEW, MATCHES) */
+.text-label {
+  font-family: var(--font-data);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  letter-spacing: var(--letter-spacing-widest);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
-.gradient-text {
-  background: linear-gradient(135deg, #a855f7 0%, #22d3ee 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* 9px JetBrains Mono caps — stat sublabels (WIN RATE, ELO) */
+.text-sublabel {
+  font-family: var(--font-data);
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
 }
 
-.win-indicator {
-  color: var(--win);
+/* 9px JetBrains Mono — ELO trail (1829 → 1847), timestamps */
+.text-mono-xs {
+  font-family: var(--font-data);
+  font-size: var(--font-size-xs);
+}
+
+/* 11px JetBrains Mono — inline data values */
+.text-mono-sm {
+  font-family: var(--font-data);
+  font-size: var(--font-size-sm);
+}
+
+/* 15px Chakra Petch — wordmark */
+.text-wordmark {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+/* 11px Chakra Petch — nav items, buttons, tags */
+.text-ui {
+  font-family: var(--font-display);
+  font-size: var(--font-size-sm);
   font-weight: 600;
-}
-
-.loss-indicator {
-  color: var(--loss);
-  font-weight: 600;
-}
-
-.glow-border {
-  border: 1px solid rgba(168, 85, 247, 0.5);
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--background-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--foreground-muted);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+  letter-spacing: var(--letter-spacing-wide);
 }

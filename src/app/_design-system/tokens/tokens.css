@@ -1,0 +1,123 @@
+/**
+ * CommandZone — Design Tokens
+ * Dimir Ink palette · Phyrexian purple accent
+ *
+ * Usage: import into your global CSS (e.g. app/globals.css)
+ *   @import './tokens.css';
+ */
+
+:root {
+
+  /* ─────────────────────────────────────────
+     BACKGROUNDS
+     Four stops from deepest void to overlay.
+     All carry a subtle blue-black (Dimir Ink) hue.
+  ───────────────────────────────────────── */
+  --color-bg-base:     #04060d;   /* page background */
+  --color-bg-surface:  #090c18;   /* topbar, sidebars */
+  --color-bg-raised:   #0e1222;   /* secondary panels */
+  --color-bg-overlay:  #151c30;   /* hover states, tooltips */
+
+  /* ─────────────────────────────────────────
+     CARD SURFACES
+     Neutral gray — no blue tint.
+     Cards feel lifted from the Dimir Ink bg.
+  ───────────────────────────────────────── */
+  --color-card-bg:        #0f0f12;
+  --color-card-raised:    #141417;
+  --color-card-border:    #222228;
+  --color-card-border-hi: #2e2e38;   /* hover / emphasis borders */
+
+  /* ─────────────────────────────────────────
+     ACCENT — Phyrexian Purple
+     Two stops: text/label weight vs fill weight.
+     Use sparingly — nav active, section labels,
+     buttons, interactive states only.
+  ───────────────────────────────────────── */
+  --color-accent:         #aa28d8;   /* labels, nav text, section headers */
+  --color-accent-fill:    #8818c8;   /* button fills, bar fills, badges */
+  --color-accent-dim:     rgba(170, 40, 216, 0.13);   /* subtle bg tints */
+  --color-accent-border:  rgba(170, 40, 216, 0.32);   /* accent borders */
+
+  /* ─────────────────────────────────────────
+     TEXT
+     Three stops. Primary is blue-tinted white
+     for crispness on dark backgrounds.
+  ───────────────────────────────────────── */
+  --color-text-primary:   #dde8ff;
+  --color-text-secondary: #5a6270;
+  --color-text-muted:     #28292e;
+
+  /* ─────────────────────────────────────────
+     SEMANTIC — Win / Loss / Gold
+  ───────────────────────────────────────── */
+  --color-win:           #44c070;
+  --color-win-bg:        rgba(68, 192, 112, 0.10);
+  --color-win-border:    rgba(68, 192, 112, 0.25);
+
+  --color-loss:          #e05555;
+  --color-loss-bg:       rgba(224, 85, 85, 0.10);
+  --color-loss-border:   rgba(224, 85, 85, 0.25);
+
+  --color-gold:          #d4a843;
+  --color-gold-bg:       rgba(212, 168, 67, 0.10);
+  --color-gold-border:   rgba(212, 168, 67, 0.25);
+
+  /* ─────────────────────────────────────────
+     MANA PIPS — MTG color identity
+     Used for commander color identity display.
+     Sized at 9px × 9px circles by convention.
+  ───────────────────────────────────────── */
+  --color-mana-w:        #c8bf90;
+  --color-mana-w-border: #a09860;
+  --color-mana-u:        #3060b8;
+  --color-mana-u-border: #4878d0;
+  --color-mana-b:        #221830;
+  --color-mana-b-border: #3a2458;
+  --color-mana-r:        #9a1a08;
+  --color-mana-r-border: #c02818;
+  --color-mana-g:        #1a5018;
+  --color-mana-g-border: #227022;
+
+  /* ─────────────────────────────────────────
+     TYPOGRAPHY
+  ───────────────────────────────────────── */
+  --font-display: 'Chakra Petch', sans-serif;  /* headings, ELO, rank, labels */
+  --font-body:    'Barlow', sans-serif;         /* all UI prose, names, descriptions */
+  --font-data:    'JetBrains Mono', monospace;  /* numbers, ELO deltas, timestamps */
+
+  /* ─────────────────────────────────────────
+     SPACING — 4px base grid
+  ───────────────────────────────────────── */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+
+  /* ─────────────────────────────────────────
+     RADII
+  ───────────────────────────────────────── */
+  --radius-sm:  4px;   /* pips, badges, tiny elements */
+  --radius-md:  6px;   /* buttons, tags, chips */
+  --radius-lg:  8px;   /* cards */
+  --radius-xl:  10px;  /* panels, modals */
+
+  /* ─────────────────────────────────────────
+     BORDERS
+  ───────────────────────────────────────── */
+  --border-card:     0.5px solid var(--color-card-border);
+  --border-card-hi:  0.5px solid var(--color-card-border-hi);
+  --border-accent:   0.5px solid var(--color-accent-border);
+  --border-win:      1px solid var(--color-win-border);
+  --border-loss:     1px solid var(--color-loss-border);
+
+  /* ─────────────────────────────────────────
+     TOPBAR / NAV
+  ───────────────────────────────────────── */
+  --height-topbar: 48px;
+}

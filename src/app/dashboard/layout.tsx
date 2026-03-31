@@ -1,62 +1,41 @@
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+// import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/features/navbar";
+import { TabNav, type NavItem } from "@/components/layout";
+
+// Nav items shown when logged in (personal dashboard)
+const authenticatedNav: NavItem[] = [
+  { label: "Overview", href: "/dashboard" },
+  { label: "Matches", href: "/matches" },
+  { label: "Decks", href: "/decks" },
+  { label: "Collections", href: "/collections" },
+  { label: "Friends", href: "/friends" },
+];
+
+// Nav items shown when logged out (global dashboard)
+const publicNav: NavItem[] = [
+  { label: "Overview", href: "/dashboard" },
+  { label: "Leaderboards", href: "/leaderboards" },
+];
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // TODO: Re-enable Supabase auth when backend is configured
+  // const supabase = await createClient();
+  // const { data: { user } } = await supabase.auth.getUser();
+  const user = null as { id: string } | null;
 
-  if (!user) {
-    redirect("/login");
-  }
+  const navItems = user ? authenticatedNav : publicNav;
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#0a0a12" }}>
+    <div className="min-h-screen bg-bg-base">
       <Navbar />
-      
-      {/* Dashboard Navigation */}
-      <nav style={{ 
-        borderBottom: "1px solid rgba(255, 255, 255, 0.1)", 
-        backgroundColor: "#0f0f1a" 
-      }}>
-        <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "0 1rem" }}>
-          <div style={{ display: "flex", gap: "1.5rem", overflowX: "auto" }}>
-            <NavLink href="/dashboard">Overview</NavLink>
-            <NavLink href="/dashboard/matches/new">New Match</NavLink>
-            <NavLink href="/dashboard/commanders">Commanders</NavLink>
-            <NavLink href="/dashboard/friends">Friends</NavLink>
-            <NavLink href="/dashboard/groups">Groups</NavLink>
-            <NavLink href="/dashboard/settings">Settings</NavLink>
-          </div>
-        </div>
-      </nav>
-
-      <main style={{ maxWidth: "72rem", margin: "0 auto", padding: "2rem 1rem" }}>
+      <TabNav items={navItems} />
+      <main className="max-w-6xl mx-auto px-4 py-8">
         {children}
       </main>
     </div>
-  );
-}
-
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        padding: "0.75rem 0.25rem",
-        fontSize: "0.875rem",
-        color: "#a1a1aa",
-        borderBottom: "2px solid transparent",
-        whiteSpace: "nowrap",
-        textDecoration: "none",
-      }}
-    >
-      {children}
-    </Link>
   );
 }

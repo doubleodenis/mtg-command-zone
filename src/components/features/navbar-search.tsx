@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+// import { createClient } from "@/lib/supabase/client";
 
 type SearchResult = {
   id: string;
@@ -27,17 +27,21 @@ export function NavbarSearch() {
         return;
       }
 
-      setIsLoading(true);
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, username, display_name, avatar_url")
-        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-        .limit(5);
-
-      setResults((data as SearchResult[]) || []);
-      setIsOpen(true);
-      setIsLoading(false);
+      // TODO: Re-enable Supabase when backend is configured
+      // setIsLoading(true);
+      // const supabase = createClient();
+      // const { data } = await supabase
+      //   .from("profiles")
+      //   .select("id, username, display_name, avatar_url")
+      //   .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+      //   .limit(5);
+      // setResults((data as SearchResult[]) || []);
+      // setIsOpen(true);
+      // setIsLoading(false);
+      
+      // Return empty results for now
+      setResults([]);
+      setIsOpen(false);
     };
 
     const debounce = setTimeout(searchUsers, 300);

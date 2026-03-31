@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "api.scryfall.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
         hostname: "*.supabase.co",
         pathname: "/**",
       },
@@ -25,7 +30,12 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "example.com",
+        hostname: "api.dicebear.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "robohash.org",
         pathname: "/**",
       },
     ],

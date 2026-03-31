@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { cn, formatRelativeTime, formatDuration } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { buildCommanderImageUrl } from "@/lib/scryfall/api";
 import type { Match, MatchParticipant, GuestParticipant, Profile } from "@/types/database.types";
 
 interface Participant {
@@ -81,59 +82,73 @@ export function MatchCard({
           </span>
         </div>
 
-        {/* Participants grid */}
+        {/* Participants grid - Commander cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          {participants.slice(0, 4).map((participant) => (
-            <div
-              key={participant.id + (participant.is_guest ? "-guest" : "")}
-              className={cn(
-                "relative flex flex-col items-center p-2 rounded-lg",
-                participant.is_winner && "bg-win/10 ring-1 ring-win/30"
-              )}
-            >
-              {/* Avatar */}
-              <div className="relative h-10 w-10 rounded-full bg-surface overflow-hidden mb-1">
-                {participant.avatar_url ? (
-                  <Image
-                    src={participant.avatar_url}
-                    alt={participant.name}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center text-foreground-muted text-sm font-medium">
-                    {participant.name.slice(0, 2).toUpperCase()}
+          {participants.slice(0, 4).map((participant) => {
+            const commanderImageUrl = participant.commander_name
+              ? participant.commander_image_uri || buildCommanderImageUrl(participant.commander_name, "art_crop")
+              : null;
+
+            return (
+              <div
+                key={participant.id + (participant.is_guest ? "-guest" : "")}
+                className={cn(
+                  "relative flex flex-col items-center p-2 rounded-lg",
+                  participant.is_winner && "bg-win/10 ring-1 ring-win/30"
+                )}
+              >
+                {/* Commander card image or fallback avatar */}
+                <div className="relative w-14 h-14 rounded-lg bg-surface overflow-hidden mb-1">
+                  {commanderImageUrl ? (
+                    <Image
+                      src={commanderImageUrl}
+                      alt={participant.commander_name || "Commander"}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : participant.avatar_url ? (
+                    <Image
+                      src={participant.avatar_url}
+                      alt={participant.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-foreground-muted text-sm font-medium">
+                      {participant.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Name */}
+                <div className="text-sm font-medium text-foreground truncate max-w-full">
+                  {participant.name}
+                </div>
+
+                {/* Commander */}
+                {participant.commander_name && (
+                  <div className="text-xs text-foreground-muted truncate max-w-full">
+                    {participant.commander_name}
                   </div>
                 )}
+
+                {/* Winner crown */}
+                {participant.is_winner && (
+                  <div className="absolute -top-1 -right-1 text-yellow-500">
+                    👑
+                  </div>
+                )}
+
+                {/* Guest badge */}
+                {participant.is_guest && (
+                  <Badge variant="outline" className="mt-1 text-[10px]">
+                    Guest
+                  </Badge>
+                )}
               </div>
-
-              {/* Name */}
-              <div className="text-sm font-medium text-foreground truncate max-w-full">
-                {participant.name}
-              </div>
-
-              {/* Commander */}
-              {participant.commander_name && (
-                <div className="text-xs text-foreground-muted truncate max-w-full">
-                  {participant.commander_name}
-                </div>
-              )}
-
-              {/* Winner crown */}
-              {participant.is_winner && (
-                <div className="absolute -top-1 -right-1 text-yellow-500">
-                  👑
-                </div>
-              )}
-
-              {/* Guest badge */}
-              {participant.is_guest && (
-                <Badge variant="outline" className="mt-1 text-[10px]">
-                  Guest
-                </Badge>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Footer */}

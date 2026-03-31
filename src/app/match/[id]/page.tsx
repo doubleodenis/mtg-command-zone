@@ -1,402 +1,204 @@
-import { notFound } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { Navbar } from "@/components/features/navbar";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
-import { formatRelativeTime, formatDuration } from "@/lib/utils";
+import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getMatchById } from '@/lib/services'
+import { getActiveDecks } from '@/lib/supabase'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { MatchPreviewCard } from '@/components/match/match-preview-card'
+import { AddToCollectionButton } from '@/components/match/add-to-collection-button'
+import { Navbar } from '@/components/features/navbar'
+import { ParticipantList } from './participant-list'
+import type { MatchCardData, DeckSummary } from '@/types'
 
-// Type definitions
-type MatchRow = {
-  id: string;
-  format: string;
-  date_played: string;
-  duration_minutes: number | null;
-  notes: string | null;
-  group_id: string | null;
-  created_by: string;
-  groups: { name: string; description: string | null } | null;
-  created_by_profile: {
-    username: string;
-    display_name: string | null;
-    avatar_url: string | null;
-  } | null;
-};
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
 
-type RegisteredParticipantRow = {
-  user_id: string;
-  commander_name: string | null;
-  commander_image_uri: string | null;
-  team: number | null;
-  placement: number | null;
-  is_winner: boolean;
-  profiles: {
-    id: string;
-    username: string;
-    display_name: string | null;
-    avatar_url: string | null;
-  } | null;
-};
-
-type GuestParticipantRow = {
-  id: string;
-  guest_name: string;
-  commander_name: string | null;
-  commander_image_uri: string | null;
-  team: number | null;
-  placement: number | null;
-  is_winner: boolean;
-};
-
-interface PageProps {
-  params: Promise<{ id: string }>;
+// Bracket name mapping
+const BRACKET_NAMES: Record<number, string> = {
+  1: 'Beginner',
+  2: 'Casual',
+  3: 'Upgraded',
+  4: 'cEDH',
 }
 
-async function getMatch(id: string) {
-  const supabase = await createClient();
-
-  const { data: match } = await supabase
-    .from("matches")
-    .select(`
-      *,
-      groups:group_id (name, description),
-      created_by_profile:created_by (username, display_name, avatar_url)
-    `)
-    .eq("id", id)
-    .single();
-
-  return match as MatchRow | null;
-}
-
-async function getParticipants(matchId: string) {
-  const supabase = await createClient();
-
-  const { data: registered } = await supabase
-    .from("match_participants")
-    .select(`
-      *,
-      profiles:user_id (id, username, display_name, avatar_url)
-    `)
-    .eq("match_id", matchId);
-
-  const { data: guests } = await supabase
-    .from("guest_participants")
-    .select("*")
-    .eq("match_id", matchId);
-
-  const typedRegistered = (registered || []) as unknown as RegisteredParticipantRow[];
-  const typedGuests = (guests || []) as unknown as GuestParticipantRow[];
-
-  // Fetch commander images from user_commanders for registered users
-  const userIds = typedRegistered.map((p) => p.user_id);
-  const { data: userCommanders } = await supabase
-    .from("user_commanders")
-    .select("user_id, card_name, card_image_uri")
-    .in("user_id", userIds);
-
-  // Create a map of user_id + commander_name -> image
-  const commanderImageMap = new Map<string, string | null>();
-  (userCommanders || []).forEach((uc: { user_id: string; card_name: string; card_image_uri: string | null }) => {
-    commanderImageMap.set(`${uc.user_id}:${uc.card_name}`, uc.card_image_uri);
-  });
-
-  const participants: Array<{
-    id: string;
-    name: string;
-    username?: string;
-    avatar_url: string | null;
-    commander_name: string | null;
-    commander_image_uri: string | null;
-    team: number | null;
-    placement: number | null;
-    is_winner: boolean;
-    is_guest: boolean;
-  }> = [];
-
-  typedRegistered.forEach((p) => {
-    const profile = p.profiles;
-    // Look up commander image from user_commanders
-    const commanderImage = p.commander_name 
-      ? commanderImageMap.get(`${p.user_id}:${p.commander_name}`) || p.commander_image_uri
-      : p.commander_image_uri;
-
-    participants.push({
-      id: p.user_id,
-      name: profile?.display_name || profile?.username || "Unknown",
-      username: profile?.username,
-      avatar_url: profile?.avatar_url || null,
-      commander_name: p.commander_name,
-      commander_image_uri: commanderImage,
-      team: p.team,
-      placement: p.placement,
-      is_winner: p.is_winner,
-      is_guest: false,
-    });
-  });
-
-  typedGuests.forEach((g) => {
-    participants.push({
-      id: g.id,
-      name: g.guest_name,
-      avatar_url: null,
-      commander_name: g.commander_name,
-      commander_image_uri: g.commander_image_uri,
-      team: g.team,
-      placement: g.placement,
-      is_winner: g.is_winner,
-      is_guest: true,
-    });
-  });
-
-  // Sort by placement if available, winners first
-  participants.sort((a, b) => {
-    if (a.is_winner && !b.is_winner) return -1;
-    if (!a.is_winner && b.is_winner) return 1;
-    if (a.placement && b.placement) return a.placement - b.placement;
-    return 0;
-  });
-
-  return participants;
-}
-
-export default async function MatchDetailPage({ params }: PageProps) {
-  const { id } = await params;
-  const match = await getMatch(id);
-
-  if (!match) {
-    notFound();
+function getAverageBracket(match: MatchCardData): number {
+  const brackets: number[] = []
+  for (const p of match.participants) {
+    if (p.deck?.bracket != null) {
+      brackets.push(p.deck.bracket)
+    }
   }
+  if (brackets.length === 0) return 2
+  const avg = brackets.reduce((a, b) => a + b, 0) / brackets.length
+  return Math.round(avg)
+}
 
-  const participants = await getParticipants(id);
-  const winner = participants.find((p) => p.is_winner);
-  const group = match.groups as { name: string; description: string | null } | null;
-  const createdBy = match.created_by_profile as {
-    username: string;
-    display_name: string | null;
-    avatar_url: string | null;
-  } | null;
+type PageProps = {
+  params: Promise<{ id: string }>
+}
 
-  const formatLabel =
-    match.format === "1v1"
-      ? "1v1 Commander"
-      : match.format === "2v2"
-      ? "2v2 Commander"
-      : `${participants.length}-Player Commander`;
-
-  // Group participants by team for 2v2
-  const teams = match.format === "2v2"
-    ? [
-        participants.filter((p) => p.team === 1),
-        participants.filter((p) => p.team === 2),
-      ]
-    : null;
+export default async function MatchDetailsPage({ params }: PageProps) {
+  const { id: matchId } = await params
+  
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  // Fetch match and user's decks in parallel
+  const [matchResult, userDecksResult] = await Promise.all([
+    getMatchById(supabase, matchId, user?.id),
+    user ? getActiveDecks(supabase, user.id) : Promise.resolve({ success: true as const, data: [] }),
+  ])
+  
+  if (!matchResult.success) {
+    notFound()
+  }
+  
+  const match = matchResult.data
+  const userDecks: DeckSummary[] = userDecksResult.success 
+    ? userDecksResult.data.map(d => ({
+        id: d.id,
+        commanderName: d.commanderName,
+        partnerName: d.partnerName,
+        deckName: d.deckName,
+        colorIdentity: d.colorIdentity,
+        bracket: d.bracket,
+      }))
+    : []
+    
+  const avgBracket = getAverageBracket(match)
+  
+  const winners = match.participants.filter((p) => p.isWinner)
+  const confirmedCount = match.participants.filter((p) => p.isConfirmed).length
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-
-      <main className="container mx-auto max-w-4xl py-8 px-4">
-        {/* Match Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold">{formatLabel}</h1>
-            {group && (
-              <Badge variant="outline">{group.name}</Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-4 text-foreground-muted text-sm">
-            <span>{new Date(match.date_played).toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}</span>
-            {match.duration_minutes && (
-              <span>• {formatDuration(match.duration_minutes)}</span>
-            )}
-            {createdBy && (
-              <span>
-                • Recorded by{" "}
-                <Link href={`/player/${createdBy.username}`} className="text-accent hover:underline">
-                  @{createdBy.username}
-                </Link>
-              </span>
-            )}
+      
+      {/* Header */}
+      <div className="border-b border-card-border bg-card">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-display font-bold text-text-1">
+                Match Details
+              </h1>
+              <p className="text-sm text-text-3 mt-1">
+                {new Date(match.playedAt).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {user && <AddToCollectionButton matchId={matchId} />}
+              <Badge variant="accent">
+                {match.formatSlug.toUpperCase()}
+              </Badge>
+              <Badge variant="outline">
+                {match.participantCount} Players
+              </Badge>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Winner Banner */}
-        {winner && (
-          <Card className="mb-8 overflow-hidden">
-            <div className="h-2 bg-gradient-accent" />
-            <CardContent className="py-6">
-              <div className="flex items-center justify-center gap-4">
-                <span className="text-4xl">👑</span>
-                <div className="text-center">
-                  <div className="text-sm text-foreground-muted uppercase tracking-wider mb-1">
-                    Winner
+      {/* Main content */}
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        {/* Match Preview Card - larger display */}
+        <div className="pointer-events-none">
+          <MatchPreviewCard match={match} showElo className="h-56" />
+        </div>
+
+        {/* Match Info Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Winner(s) */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-text-3">Winner</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                {winners.map((winner) => (
+                  <div key={winner.id} className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-win" />
+                    <span className="font-medium text-text-1">{winner.name}</span>
                   </div>
-                  <div className="text-2xl font-bold">
-                    {winner.username ? (
-                      <Link href={`/player/${winner.username}`} className="hover:text-accent transition-colors">
-                        {winner.name}
-                      </Link>
-                    ) : (
-                      winner.name
-                    )}
-                  </div>
-                  {winner.commander_name && (
-                    <div className="text-foreground-muted mt-1">
-                      playing {winner.commander_name}
-                    </div>
-                  )}
-                </div>
-                {winner.commander_image_uri && (
-                  <div className="relative h-24 w-18 rounded-lg overflow-hidden hidden sm:block">
-                    <Image
-                      src={winner.commander_image_uri}
-                      alt={winner.commander_name || "Commander"}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Power Level */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-text-3">Power Level</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <span className="text-xl font-bold text-text-1">
+                {BRACKET_NAMES[avgBracket] || `Bracket ${avgBracket}`}
+              </span>
+            </CardContent>
+          </Card>
+
+          {/* Confirmation Status */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-text-3">Confirmations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-bold text-text-1">
+                  {confirmedCount}/{match.participantCount}
+                </span>
+                {match.isFullyConfirmed ? (
+                  <Badge variant="win" className="text-xs">Verified</Badge>
+                ) : (
+                  <Badge variant="default" className="text-xs">Pending</Badge>
                 )}
               </div>
             </CardContent>
           </Card>
-        )}
+        </div>
 
-        {/* Participants */}
-        <Card className="mb-8">
+        {/* Participants Detail */}
+        <Card>
           <CardHeader>
             <CardTitle>Participants</CardTitle>
           </CardHeader>
           <CardContent>
-            {teams ? (
-              // 2v2 layout
-              <div className="grid md:grid-cols-2 gap-6">
-                {teams.map((team, teamIndex) => (
-                  <div key={teamIndex}>
-                    <div className="text-sm font-medium text-foreground-muted mb-3">
-                      Team {teamIndex + 1}
-                      {team.some((p) => p.is_winner) && (
-                        <Badge variant="win" className="ml-2">Winners</Badge>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      {team.map((participant) => (
-                        <ParticipantCard key={participant.id} participant={participant} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              // FFA layout
-              <div className="grid sm:grid-cols-2 gap-4">
-                {participants.map((participant) => (
-                  <ParticipantCard key={participant.id} participant={participant} />
-                ))}
-              </div>
-            )}
+            <ParticipantList
+              participants={match.participants.map((p) => ({
+                id: p.id,
+                name: p.name,
+                avatarUrl: p.avatarUrl,
+                userId: p.userId,
+                isWinner: p.isWinner,
+                isConfirmed: p.isConfirmed,
+                deck: p.deck ? {
+                  id: p.deck.id,
+                  commanderName: p.deck.commanderName,
+                  deckName: p.deck.deckName,
+                  bracket: p.deck.bracket,
+                } : null,
+              }))}
+              currentUserId={user?.id ?? null}
+              userDecks={userDecks}
+            />
           </CardContent>
         </Card>
 
-        {/* Notes */}
-        {match.notes && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-foreground-muted whitespace-pre-wrap">{match.notes}</p>
-            </CardContent>
-          </Card>
-        )}
-      </main>
-    </div>
-  );
-}
-
-function ParticipantCard({
-  participant,
-}: {
-  participant: {
-    id: string;
-    name: string;
-    username?: string;
-    avatar_url: string | null;
-    commander_name: string | null;
-    commander_image_uri: string | null;
-    placement: number | null;
-    is_winner: boolean;
-    is_guest: boolean;
-  };
-}) {
-  return (
-    <div
-      className={`flex items-center gap-4 p-4 rounded-lg transition-colors ${
-        participant.is_winner
-          ? "bg-win/10 ring-1 ring-win/30"
-          : "bg-surface hover:bg-surface-hover"
-      }`}
-    >
-      {/* Commander Image */}
-      {participant.commander_image_uri ? (
-        <div className="relative h-16 w-12 rounded overflow-hidden flex-shrink-0">
-          <Image
-            src={participant.commander_image_uri}
-            alt={participant.commander_name || "Commander"}
-            fill
-            className="object-cover"
-          />
-        </div>
-      ) : (
-        <div className="h-16 w-12 rounded bg-surface-hover flex items-center justify-center text-foreground-muted text-xs">
-          ?
-        </div>
-      )}
-
-      {/* Player Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {participant.username ? (
-            <Link
-              href={`/player/${participant.username}`}
-              className="font-medium hover:text-accent transition-colors truncate"
-            >
-              {participant.name}
-            </Link>
-          ) : (
-            <span className="font-medium truncate">{participant.name}</span>
-          )}
-          {participant.is_winner && (
-            <span className="text-yellow-500">👑</span>
-          )}
-          {participant.is_guest && (
-            <Badge variant="outline" className="text-[10px]">Guest</Badge>
-          )}
-        </div>
-        {participant.commander_name && (
-          <div className="text-sm text-foreground-muted truncate">
-            {participant.commander_name}
-          </div>
-        )}
-        {participant.placement && !participant.is_winner && (
-          <div className="text-xs text-foreground-subtle">
-            #{participant.placement} place
-          </div>
-        )}
+        {/* Match Notes (placeholder) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-text-3 italic">No notes for this match.</p>
+          </CardContent>
+        </Card>
       </div>
-
-      {/* Avatar */}
-      <Avatar
-        src={participant.avatar_url}
-        fallback={participant.name}
-        size="md"
-      />
     </div>
-  );
+  )
 }

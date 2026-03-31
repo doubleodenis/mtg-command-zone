@@ -4,14 +4,13 @@ import { NextResponse } from "next/server";
 type ProfileInsert = {
   id: string;
   username: string;
-  display_name: string | null;
   avatar_url: string | null;
 };
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = searchParams.get("next") ?? "/";
 
   if (code) {
     const supabase = await createClient();
@@ -41,10 +40,6 @@ export async function GET(request: Request) {
           const newProfile: ProfileInsert = {
             id: user.id,
             username: username.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
-            display_name:
-              user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              username,
             avatar_url: user.user_metadata?.avatar_url || null,
           };
 
