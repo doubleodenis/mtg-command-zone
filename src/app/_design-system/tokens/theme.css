@@ -38,8 +38,8 @@
 
   /* Text */
   --color-text-1: #dde8ff;
-  --color-text-2: #5a6270;
-  --color-text-3: #28292e;
+  --color-text-2: #8b909c;  /* Bumped from #5a6270 for WCAG AA (~4.7:1 on card) */
+  --color-text-3: #4a4d55;
 
   /* Semantic */
   --color-win:         #44c070;
@@ -78,12 +78,12 @@
      FONT SIZES
      Generates: text-*
   ───────────────────────────────────────── */
-  --font-size-2xs: 0.5rem;    /* 8px  — you-tag, pip labels */
-  --font-size-xs:  0.5625rem; /* 9px  — mono metadata, timestamps */
-  --font-size-sm:  0.6875rem; /* 11px — nav items, tags, badges */
-  --font-size-md:  0.75rem;   /* 12px — body small */
-  --font-size-base: 0.8125rem; /* 13px — body default */
-  --font-size-lg:  0.875rem;  /* 14px — card titles */
+  --font-size-2xs: 0.625rem;  /* 10px — you-tag, pip labels */
+  --font-size-xs:  0.6875rem; /* 11px — mono metadata, timestamps */
+  --font-size-sm:  0.8125rem; /* 13px — nav items, tags, badges, sublabels */
+  --font-size-md:  0.875rem;  /* 14px — body small */
+  --font-size-base: 0.875rem; /* 14px — body default */
+  --font-size-lg:  0.9375rem; /* 15px — card titles */
   --font-size-xl:  1rem;      /* 16px — section values */
   --font-size-2xl: 1.125rem;  /* 18px — delta numbers */
   --font-size-3xl: 1.5rem;    /* 24px — stat card values */
