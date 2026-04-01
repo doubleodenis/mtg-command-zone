@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { approveClaimRequest, rejectClaimRequest } from "@/app/actions/match";
-import type { NotificationWithActor, NotificationType, ClaimAvailableData } from "@/types/notification";
+import { acceptFriendRequest, rejectFriendRequest } from "@/app/actions/friend";
+import type { NotificationWithActor, NotificationType, ClaimAvailableData, FriendRequestData } from "@/types/notification";
 import { getNotificationTitle, getNotificationUrl } from "@/types/notification";
 
 interface NotificationListProps {
@@ -29,6 +30,7 @@ export function NotificationList({
   const [filter, setFilter] = React.useState<FilterType>("all");
   const [isMarkingAllRead, setIsMarkingAllRead] = React.useState(false);
   const [claimActionLoading, setClaimActionLoading] = React.useState<string | null>(null);
+  const [friendActionLoading, setFriendActionLoading] = React.useState<string | null>(null);
   const router = useRouter();
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
@@ -147,6 +149,48 @@ export function NotificationList({
     router.refresh();
   };
 
+  // Handle friend request acceptance
+  const handleFriendAccept = async (notification: NotificationWithActor) => {
+    const data = notification.data as FriendRequestData;
+    setFriendActionLoading(notification.id);
+
+    const result = await acceptFriendRequest(data.friendship_id);
+    
+    if (result.success) {
+      // Remove notification and dismiss
+      setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+      const supabase = createClient();
+      await supabase
+        .from("notifications")
+        .update({ dismissed_at: new Date().toISOString() })
+        .eq("id", notification.id);
+    }
+    
+    setFriendActionLoading(null);
+    router.refresh();
+  };
+
+  // Handle friend request rejection
+  const handleFriendReject = async (notification: NotificationWithActor) => {
+    const data = notification.data as FriendRequestData;
+    setFriendActionLoading(notification.id);
+
+    const result = await rejectFriendRequest(data.friendship_id);
+    
+    if (result.success) {
+      // Remove notification and dismiss
+      setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+      const supabase = createClient();
+      await supabase
+        .from("notifications")
+        .update({ dismissed_at: new Date().toISOString() })
+        .eq("id", notification.id);
+    }
+    
+    setFriendActionLoading(null);
+    router.refresh();
+  };
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -220,6 +264,9 @@ export function NotificationList({
                 onClaimApprove={() => handleClaimApprove(notification)}
                 onClaimReject={() => handleClaimReject(notification)}
                 isClaimActionLoading={claimActionLoading === notification.id}
+                onFriendAccept={() => handleFriendAccept(notification)}
+                onFriendReject={() => handleFriendReject(notification)}
+                isFriendActionLoading={friendActionLoading === notification.id}
               />
             ))}
           </div>
@@ -267,6 +314,9 @@ interface NotificationRowProps {
   onClaimApprove: () => void;
   onClaimReject: () => void;
   isClaimActionLoading: boolean;
+  onFriendAccept: () => void;
+  onFriendReject: () => void;
+  isFriendActionLoading: boolean;
 }
 
 function NotificationRow({ 
@@ -276,18 +326,23 @@ function NotificationRow({
   onClaimApprove,
   onClaimReject,
   isClaimActionLoading,
+  onFriendAccept,
+  onFriendReject,
+  isFriendActionLoading,
 }: NotificationRowProps) {
   const isUnread = !notification.readAt;
   const isClaimNotification = notification.type === "claim_available";
+  const isFriendRequestNotification = notification.type === "friend_request";
+  const hasInlineActions = isClaimNotification || isFriendRequestNotification;
 
   return (
     <div
       className={cn(
         "relative flex items-start gap-4 p-4 transition-colors",
-        !isClaimNotification && "hover:bg-surface/50 cursor-pointer",
+        !hasInlineActions && "hover:bg-surface/50 cursor-pointer",
         isUnread && "bg-surface/30"
       )}
-      onClick={isClaimNotification ? undefined : onClick}
+      onClick={hasInlineActions ? undefined : onClick}
     >
       {/* Unread indicator */}
       {isUnread && (
@@ -344,6 +399,33 @@ function NotificationRow({
               disabled={isClaimActionLoading}
             >
               Reject
+            </Button>
+          </div>
+        )}
+
+        {/* Friend request action buttons */}
+        {isFriendRequestNotification && (
+          <div className="flex items-center gap-2 mt-3">
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFriendAccept();
+              }}
+              disabled={isFriendActionLoading}
+            >
+              {isFriendActionLoading ? "..." : "Accept"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFriendReject();
+              }}
+              disabled={isFriendActionLoading}
+            >
+              Ignore
             </Button>
           </div>
         )}

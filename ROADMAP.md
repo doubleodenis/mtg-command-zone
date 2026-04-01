@@ -135,7 +135,7 @@
 ---
 
 ## Phase 7 — Social & Collections
-> You are here.
+> Complete!
 
 - [x] Friend system (send request, accept, block, cancel, remove)
 - [x] Quick-add friends when logging a match
@@ -144,12 +144,13 @@
   - [x] Match add permission (`owner_only`, `any_member`, `any_member_approval_required`)
 - [x] Add match to collection flow
 - [x] Collection match approval flow (for `any_member_approval_required`)
-- [ ] Collection member management (invite, remove)
-- [ ] Collection-scoped rating and leaderboard
+- [x] Collection member management (invite, remove)
+- [x] Collection-scoped rating and leaderboard
 
 ---
 
 ## Phase 8 — Rating System
+> You are here.
 
 - [x] Wire rating calculation to match confirmation event
 - [x] Global rating update on confirmation

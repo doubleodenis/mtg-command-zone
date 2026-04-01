@@ -212,6 +212,8 @@ export type PendingConfirmation = {
   participantId: UUID
   match: MatchSummary
   createdAt: ISODateString
+  /** Whether this participant already has a deck assigned */
+  hasDeckAssigned: boolean
 }
 
 /**

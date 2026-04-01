@@ -176,44 +176,75 @@ export async function getRecentMatchCards(
  */
 async function transformMatchToCardData(
   client: SupabaseClient<Database>,
-  match: { id: string; played_at: string; format: { name: string; slug: string } },
-  userId?: string
+  match: {
+    id: string;
+    played_at: string;
+    format: { name: string; slug: string };
+  },
+  userId?: string,
 ): Promise<MatchCardData> {
-  const { data: participants } = await client
-    .from('match_participants')
-    .select(`
-      id,
-      user_id,
-      placeholder_name,
-      is_winner,
-      confirmed_at,
-      team,
-      participant_data,
-      deck:decks!match_participants_deck_id_fkey(*),
-      profile:profiles!match_participants_user_id_fkey(*)
-    `)
-    .eq('match_id', match.id)
+  // Fetch participants and rating history in parallel
+  const [participantsResult, ratingHistoryResult] = await Promise.all([
+    client
+      .from("match_participants")
+      .select(
+        `
+        id,
+        user_id,
+        placeholder_name,
+        is_winner,
+        confirmed_at,
+        team,
+        participant_data,
+        deck:decks!match_participants_deck_id_fkey(*),
+        profile:profiles!match_participants_user_id_fkey(*)
+      `,
+      )
+      .eq("match_id", match.id),
+    client
+      .from("rating_history")
+      .select("user_id, delta, rating_before, rating_after")
+      .eq("match_id", match.id),
+  ]);
 
-  const participantInfos: ParticipantDisplayInfo[] = (participants ?? []).map((p) => ({
+  const participants = participantsResult.data ?? [];
+  const ratingHistory = ratingHistoryResult.data ?? [];
+
+  // Create lookup map for rating deltas by user_id
+  const ratingDeltaMap = new Map(
+    ratingHistory.map((rh) => [
+      rh.user_id,
+      {
+        before: rh.rating_before,
+        after: rh.rating_after,
+        delta: rh.delta,
+        isPositive: rh.delta > 0,
+      },
+    ]),
+  );
+
+  const participantInfos: ParticipantDisplayInfo[] = participants.map((p) => ({
     id: p.id,
     userId: p.user_id,
-    name: p.profile ? mapProfileSummary(p.profile).username : p.placeholder_name ?? 'Unknown',
+    name: p.profile
+      ? mapProfileSummary(p.profile).username
+      : (p.placeholder_name ?? "Unknown"),
     avatarUrl: p.profile ? mapProfileSummary(p.profile).avatarUrl : null,
     isRegistered: !!p.user_id,
     isConfirmed: !!p.confirmed_at,
     deck: p.deck ? mapDeckSummary(p.deck) : null,
     team: p.team,
     isWinner: p.is_winner,
-    ratingDelta: null,
+    ratingDelta: p.user_id ? (ratingDeltaMap.get(p.user_id) ?? null) : null,
     participantData: validateParticipantData(p.participant_data),
-  }))
+  }));
 
   const userParticipant = userId
-    ? participantInfos.find((info) => {
-        const participant = participants?.find((p) => p.id === info.id)
-        return participant?.user_id === userId
-      }) ?? null
-    : null
+    ? (participantInfos.find((info) => {
+        const participant = participants?.find((p) => p.id === info.id);
+        return participant?.user_id === userId;
+      }) ?? null)
+    : null;
 
   return {
     id: match.id,
@@ -226,7 +257,7 @@ async function transformMatchToCardData(
     isFullyConfirmed: participantInfos.every((p) => p.isConfirmed),
     participants: participantInfos,
     userParticipant,
-  }
+  };
 }
 
 // ============================================
@@ -240,18 +271,10 @@ export async function getUserPendingConfirmations(
   client: SupabaseClient<Database>,
   userId: string
 ): Promise<Result<PendingConfirmation[]>> {
+  // Query participations without nested join to avoid PostgREST coercion issues
   const { data: participations, error } = await client
     .from('match_participants')
-    .select(`
-      id,
-      match_id,
-      created_at,
-      match:matches!match_participants_match_id_fkey(
-        id,
-        played_at,
-        format:formats!matches_format_id_fkey(name, slug)
-      )
-    `)
+    .select('id, match_id, deck_id, created_at')
     .eq('user_id', userId)
     .is('confirmed_at', null)
 
@@ -263,7 +286,7 @@ export async function getUserPendingConfirmations(
     return { success: true, data: [] }
   }
 
-  // Enrich each participation with match participant counts
+  // Enrich each participation with match details
   const confirmations = await Promise.all(
     participations.map((p) => transformToPendingConfirmation(client, p))
   )
@@ -279,10 +302,26 @@ async function transformToPendingConfirmation(
   participation: {
     id: string
     match_id: string
+    deck_id: string | null
     created_at: string | null
-    match: { id: string; played_at: string; format: { name: string; slug: string } }
   }
 ): Promise<PendingConfirmation> {
+  // Fetch match with format separately to avoid nested join issues
+  const { data: match } = await client
+    .from('matches')
+    .select('id, played_at, format_id')
+    .eq('id', participation.match_id)
+    .single()
+
+  // Fetch format info
+  const { data: format } = match
+    ? await client
+        .from('formats')
+        .select('name, slug')
+        .eq('id', match.format_id)
+        .single()
+    : { data: null }
+
   const { data: allParticipants } = await client
     .from('match_participants')
     .select('id, is_winner, confirmed_at, placeholder_name')
@@ -298,15 +337,16 @@ async function transformToPendingConfirmation(
     matchId: participation.match_id,
     participantId: participation.id,
     match: {
-      id: participation.match.id,
-      formatName: participation.match.format.name,
-      formatSlug: participation.match.format.slug as FormatSlug,
-      playedAt: participation.match.played_at,
+      id: match?.id ?? participation.match_id,
+      formatName: format?.name ?? 'Unknown',
+      formatSlug: (format?.slug ?? 'ffa') as FormatSlug,
+      playedAt: match?.played_at ?? new Date().toISOString(),
       participantCount,
       confirmedCount,
       winnerNames,
       isFullyConfirmed: false,
     },
     createdAt: participation.created_at ?? new Date().toISOString(),
+    hasDeckAssigned: participation.deck_id !== null,
   }
 }

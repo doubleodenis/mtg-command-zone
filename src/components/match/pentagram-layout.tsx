@@ -46,6 +46,8 @@ function PentagonPlayerCard({
   availableDecks,
   excludeIds,
   currentUser,
+  isEnemyHighlighted,
+  onFocusChange,
 }: PentagonPlayerCardProps) {
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<SearchResult[]>([]);
@@ -160,16 +162,32 @@ function PentagonPlayerCard({
   // Empty slot
   if (slot.type === "empty") {
     return (
-      <div className="w-full p-3 rounded-lg border border-dashed border-card-border bg-card-raised/30">
-        <div className="text-sm text-text-2 mb-2 text-center font-medium">
-          Seat {index + 1}
+      <div 
+        className={cn(
+          "w-full p-3 rounded-lg border border-dashed bg-card-raised/30 transition-colors",
+          isEnemyHighlighted ? "border-loss/70 bg-loss/5" : "border-card-border"
+        )}
+        onFocus={() => onFocusChange?.(true)}
+        onBlur={() => onFocusChange?.(false)}
+      >
+        <div className={cn(
+          "text-sm mb-2 text-center font-medium",
+          isEnemyHighlighted ? "text-loss" : "text-text-2"
+        )}>
+          Seat {index + 1}{isEnemyHighlighted && " — Enemy"}
         </div>
         <div className="relative">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setIsOpen(true)}
-            onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+            onFocus={() => {
+              setIsOpen(true);
+              onFocusChange?.(true);
+            }}
+            onBlur={() => {
+              setTimeout(() => setIsOpen(false), 200);
+              onFocusChange?.(false);
+            }}
             placeholder="Add player..."
             className="h-9 text-sm"
           />
@@ -272,9 +290,19 @@ function PentagonPlayerCard({
     <div
       className={cn(
         "w-full p-3 rounded-lg border transition-all",
-        slot.isWinner ? "bg-win/10 border-win/50" : "bg-card border-card-border"
+        isEnemyHighlighted 
+          ? "bg-loss/10 border-loss/50" 
+          : slot.isWinner 
+            ? "bg-win/10 border-win/50" 
+            : "bg-card border-card-border"
       )}
+      onFocus={() => onFocusChange?.(true)}
+      onBlur={() => onFocusChange?.(false)}
     >
+      {/* Enemy indicator for mobile */}
+      {isEnemyHighlighted && (
+        <div className="text-xs text-loss font-medium mb-2 text-center">⚔️ Enemy</div>
+      )}
       {/* Top row: avatar and actions */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -409,72 +437,112 @@ export function PentagramLayout({
   excludeIds,
   currentUser,
 }: PentagramLayoutProps) {
+  // Track which card is focused on mobile to highlight enemies
+  const [focusedIndex, setFocusedIndex] = React.useState<number | null>(null);
+
+  // Compute which indices are enemies of the focused card
+  const enemyIndices = focusedIndex !== null ? PENTAGRAM_ENEMIES[focusedIndex] : null;
+
   return (
-    <div className="relative w-full aspect-square max-w-xl mx-auto">
-      {/* SVG for pentagram lines */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100">
-        {/* Pentagon outline */}
-        <polygon
-          points={PENTAGON_POSITIONS.map(p => `${p.x},${p.y}`).join(" ")}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="0.5"
-          className="text-card-border"
-        />
-        {/* Star lines (connecting enemies) - the pentagram */}
-        {[0, 1, 2, 3, 4].map((i) => {
-          const from = PENTAGON_POSITIONS[i];
-          const to1 = PENTAGON_POSITIONS[PENTAGRAM_ENEMIES[i][0]];
+    <>
+      {/* Desktop: Pentagram visual layout */}
+      <div className="hidden md:block relative w-full aspect-square max-w-xl mx-auto">
+        {/* SVG for pentagram lines */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100">
+          {/* Pentagon outline */}
+          <polygon
+            points={PENTAGON_POSITIONS.map(p => `${p.x},${p.y}`).join(" ")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="0.5"
+            className="text-card-border"
+          />
+          {/* Star lines (connecting enemies) - the pentagram */}
+          {[0, 1, 2, 3, 4].map((i) => {
+            const from = PENTAGON_POSITIONS[i];
+            const to1 = PENTAGON_POSITIONS[PENTAGRAM_ENEMIES[i][0]];
+            return (
+              <g key={i}>
+                <line
+                  x1={from.x} y1={from.y}
+                  x2={to1.x} y2={to1.y}
+                  stroke="currentColor"
+                  strokeWidth="0.3"
+                  strokeDasharray="2,2"
+                  className="text-loss/50"
+                />
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Player cards at each vertex */}
+        {participants.slice(0, 5).map((slot, index) => {
+          const pos = PENTAGON_POSITIONS[index];
           return (
-            <g key={i}>
-              <line
-                x1={from.x} y1={from.y}
-                x2={to1.x} y2={to1.y}
-                stroke="currentColor"
-                strokeWidth="0.3"
-                strokeDasharray="2,2"
-                className="text-loss/50"
+            <div
+              key={index}
+              className="absolute w-40 lg:w-52 -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
+              }}
+            >
+              <PentagonPlayerCard
+                slot={slot}
+                index={index}
+                currentUserId={currentUserId}
+                onSelectPlayer={(player) => onSelectPlayer(index, player)}
+                onSetAsGuest={() => onSetAsGuest(index)}
+                onRemove={() => onRemove(index)}
+                onToggleWinner={() => onToggleWinner(index)}
+                onSelectDeck={(deckId) => onSelectDeck(index, deckId)}
+                onChangePlaceholderName={(name) => onChangePlaceholderName(index, name)}
+                onChangeCommanderName={(name) => onChangeCommanderName(index, name)}
+                availableDecks={
+                  slot.type === "registered" && slot.userId
+                    ? userDecks[slot.userId] || []
+                    : []
+                }
+                excludeIds={excludeIds}
+                enemies={PENTAGRAM_ENEMIES[index]}
+                currentUser={currentUser}
+                isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
+                onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
               />
-            </g>
+            </div>
           );
         })}
-      </svg>
+      </div>
 
-      {/* Player cards at each vertex */}
-      {participants.slice(0, 5).map((slot, index) => {
-        const pos = PENTAGON_POSITIONS[index];
-        return (
-          <div
+      {/* Mobile: Stacked list layout */}
+      <div className="md:hidden space-y-3">
+        {participants.slice(0, 5).map((slot, index) => (
+          <PentagonPlayerCard
             key={index}
-            className="absolute w-52 -translate-x-1/2 -translate-y-1/2"
-            style={{
-              left: `${pos.x}%`,
-              top: `${pos.y}%`,
-            }}
-          >
-            <PentagonPlayerCard
-              slot={slot}
-              index={index}
-              currentUserId={currentUserId}
-              onSelectPlayer={(player) => onSelectPlayer(index, player)}
-              onSetAsGuest={() => onSetAsGuest(index)}
-              onRemove={() => onRemove(index)}
-              onToggleWinner={() => onToggleWinner(index)}
-              onSelectDeck={(deckId) => onSelectDeck(index, deckId)}
-              onChangePlaceholderName={(name) => onChangePlaceholderName(index, name)}
-              onChangeCommanderName={(name) => onChangeCommanderName(index, name)}
-              availableDecks={
-                slot.type === "registered" && slot.userId
-                  ? userDecks[slot.userId] || []
-                  : []
-              }
-              excludeIds={excludeIds}
-              enemies={PENTAGRAM_ENEMIES[index]}
-              currentUser={currentUser}
-            />
-          </div>
-        );
-      })}
-    </div>
+            slot={slot}
+            index={index}
+            currentUserId={currentUserId}
+            onSelectPlayer={(player) => onSelectPlayer(index, player)}
+            onSetAsGuest={() => onSetAsGuest(index)}
+            onRemove={() => onRemove(index)}
+            onToggleWinner={() => onToggleWinner(index)}
+            onSelectDeck={(deckId) => onSelectDeck(index, deckId)}
+            onChangePlaceholderName={(name) => onChangePlaceholderName(index, name)}
+            onChangeCommanderName={(name) => onChangeCommanderName(index, name)}
+            availableDecks={
+              slot.type === "registered" && slot.userId
+                ? userDecks[slot.userId] || []
+                : []
+            }
+            excludeIds={excludeIds}
+            enemies={PENTAGRAM_ENEMIES[index]}
+            currentUser={currentUser}
+            isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
+            onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
+          />
+        ))}
+      </div>
+    </>
   );
 }

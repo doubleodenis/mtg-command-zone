@@ -49,9 +49,8 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
   }
 
   const onConfirmClick = () => {
-    // If user has decks and needs to select one, show selector
-    // For now, just confirm directly (deck selection can be added)
-    if (userDecks.length > 0 && !selectedDeck) {
+    // Only show deck selector if user has no deck assigned AND has decks to choose from
+    if (!confirmation.hasDeckAssigned && userDecks.length > 0 && !selectedDeck) {
       setShowDeckSelect(true)
     } else {
       handleConfirm(selectedDeck || undefined)

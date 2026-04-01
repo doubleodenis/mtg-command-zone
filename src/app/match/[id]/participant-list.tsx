@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RatingDelta } from "@/components/ui";
 import { UpdateDeckModal } from "@/components/match/update-deck-modal";
 import { isPlaceholderDeck, PLACEHOLDER_DECK_NAME } from "@/types/deck";
-import type { DeckSummary } from "@/types";
+import type { DeckSummary, RatingDelta as RatingDeltaType } from "@/types";
 
 type ParticipantInfo = {
   id: string;
@@ -16,6 +17,7 @@ type ParticipantInfo = {
   userId: string | null;
   isWinner: boolean;
   isConfirmed: boolean;
+  ratingDelta: RatingDeltaType | null;
   deck: {
     id: string;
     commanderName: string | null;
@@ -90,6 +92,11 @@ export function ParticipantList({
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Rating delta for confirmed participants */}
+                {participant.ratingDelta && (
+                  <RatingDelta delta={participant.ratingDelta.delta} size="md" />
+                )}
+
                 {/* Update deck button for user's own slot */}
                 {canUpdateDeck && (
                   <Button

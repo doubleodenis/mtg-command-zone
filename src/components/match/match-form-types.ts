@@ -56,6 +56,8 @@ export type PentagonPlayerCardProps = {
   excludeIds: string[];
   enemies: [number, number];
   currentUser?: SearchResult;
+  isEnemyHighlighted?: boolean;
+  onFocusChange?: (focused: boolean) => void;
 };
 
 export type PentagramLayoutProps = {

@@ -524,6 +524,7 @@ export function createMockPendingConfirmation(
     participantId: generateMockId(),
     match: createMockMatchSummary({ isFullyConfirmed: false }),
     createdAt: generateMockDate(1),
+    hasDeckAssigned: true,
     ...overrides,
   }
 }

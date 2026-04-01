@@ -34,8 +34,8 @@ export const colors = {
 
   /* Text */
   text1: '#dde8ff',
-  text2: '#5a6270',
-  text3: '#28292e',
+  text2: '#8b909c',
+  text3: '#4a4d55',
 
   /* Semantic */
   win:       '#44c070',
