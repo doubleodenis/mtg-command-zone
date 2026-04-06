@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
 import { getFriendshipStatus, sendFriendRequest } from "@/lib/supabase/profiles";
@@ -182,7 +183,7 @@ export function PlayerSlot({
 
           {/* Dropdown with search results and guest option */}
           {isOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card border border-card-border shadow-xl">
+            <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl">
               {/* Add yourself option */}
               {currentUser && !excludeIds.includes(currentUser.id) && (
                 <button
@@ -237,7 +238,7 @@ export function PlayerSlot({
                   {results.map((player) => (
                     <div
                       key={player.id}
-                      className="flex items-center gap-2 p-2 hover:bg-card-raised transition-colors"
+                      className="flex items-center gap-2 p-2 hover:bg-accent/10 transition-colors"
                     >
                       <button
                         type="button"
@@ -393,13 +394,13 @@ export function PlayerSlot({
                     </div>
                   )}
                   {isCommanderOpen && commanderResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card border border-card-border shadow-xl max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl max-h-48 overflow-y-auto">
                       {commanderResults.map((card) => (
                         <button
                           key={card.id}
                           type="button"
                           onClick={() => handleCommanderSelect(card)}
-                          className="w-full p-2 text-left hover:bg-card-raised transition-colors text-sm text-text-1 truncate"
+                          className="w-full p-2 text-left hover:bg-accent/10 transition-colors text-sm text-text-1 truncate"
                         >
                           {card.name}
                         </button>
@@ -413,23 +414,16 @@ export function PlayerSlot({
 
           {/* Deck selector for registered users */}
           {slot.type === "registered" && availableDecks.length > 0 && (
-            <select
+            <Select
               value={slot.deckId || ""}
-              onChange={(e) => onSelectDeck(e.target.value)}
-              className={cn(
-                "mt-2 w-full h-8 text-sm rounded-md border px-2",
-                slot.deckId 
-                  ? "bg-accent/10 border-accent/30 text-text-1" 
-                  : "bg-card border-card-border text-text-2"
-              )}
-            >
-              <option value="">Select commander...</option>
-              {availableDecks.map((deck) => (
-                <option key={deck.id} value={deck.id}>
-                  {deck.commanderName}{deck.deckName ? ` (${deck.deckName})` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => onSelectDeck(value)}
+              placeholder="Select commander..."
+              options={availableDecks.map((deck) => ({
+                value: deck.id,
+                label: `${deck.commanderName}${deck.deckName ? ` (${deck.deckName})` : ''}`,
+              }))}
+              className="mt-2"
+            />
           )}
 
           {/* No decks message for registered users */}

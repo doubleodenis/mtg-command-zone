@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { FormatBadge, ConfirmationStatus } from '@/components/ui'
+import { FormatBadge, ConfirmationStatus, Select } from '@/components/ui'
 import { formatRelativeTime } from '@/lib/utils'
 import { confirmMatch } from '@/app/actions/match'
 import type { PendingConfirmation } from '@/types'
@@ -89,18 +89,15 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
       <Card className="border-accent/30 bg-accent/5">
         <CardContent className="p-4 space-y-3">
           <p className="text-sm font-medium text-text-1">Select your deck for this match:</p>
-          <select
+          <Select
             value={selectedDeck}
-            onChange={(e) => setSelectedDeck(e.target.value)}
-            className="w-full h-9 rounded-md border border-card-border bg-card px-3 text-sm text-text-1"
-          >
-            <option value="">Choose a deck...</option>
-            {userDecks.map((deck) => (
-              <option key={deck.id} value={deck.id}>
-                {deck.commanderName} {deck.deckName ? `(${deck.deckName})` : ''}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => setSelectedDeck(value)}
+            placeholder="Choose a deck..."
+            options={userDecks.map((deck) => ({
+              value: deck.id,
+              label: `${deck.commanderName}${deck.deckName ? ` (${deck.deckName})` : ''}`,
+            }))}
+          />
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="secondary" onClick={() => setShowDeckSelect(false)}>
               Cancel

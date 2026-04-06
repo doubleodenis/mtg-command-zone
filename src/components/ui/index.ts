@@ -1,6 +1,7 @@
 // Primitives
 export { Button, type ButtonVariant, type ButtonSize } from "./button";
 export { Input } from "./input";
+export { Select, type SelectOption, type SelectProps } from "./select";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
 export { Badge, type BadgeVariant } from "./badge";
 export { Avatar, type AvatarSize } from "./avatar";
