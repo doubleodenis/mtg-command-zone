@@ -313,7 +313,7 @@ export function PlayerSlot({
   return (
     <div
       className={cn(
-        "p-3 rounded-lg border transition-all",
+        "w-full min-w-0 max-w-full p-3 rounded-lg border transition-all",
         slot.isWinner
           ? "bg-win/10 border-win/50"
           : "bg-card border-card-border"
@@ -437,7 +437,7 @@ export function PlayerSlot({
         </div>
 
         {/* Actions */}
-        <div className="flex flex-col gap-1">
+        <div className="shrink-0 flex flex-col gap-1">
           <button
             type="button"
             onClick={onToggleWinner}

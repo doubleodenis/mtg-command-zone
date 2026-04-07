@@ -245,3 +245,57 @@ export type ClaimableMatchSlot = {
     otherParticipants: string[] // Names of other players in the match
   }
 }
+
+// ============================================
+// Match Invite Token Types
+// ============================================
+
+/**
+ * Match invite token record (maps to match_invite_tokens table)
+ */
+export type MatchInviteToken = {
+  id: UUID
+  matchId: UUID
+  participantId: UUID | null // Optional: link to specific placeholder
+  token: string
+  createdBy: UUID
+  createdAt: ISODateString
+  expiresAt: ISODateString
+  usedAt: ISODateString | null
+  usedBy: UUID | null
+}
+
+/**
+ * Invite token with match details for display
+ */
+export type MatchInviteTokenWithDetails = MatchInviteToken & {
+  match: MatchSummary
+  placeholderSlots: Array<{
+    participantId: UUID
+    placeholderName: string
+    claimStatus: ClaimStatus
+  }>
+}
+
+/**
+ * Payload for creating an invite token
+ */
+export type CreateInviteTokenPayload = {
+  matchId: UUID
+  participantId?: UUID // Optional: link to specific participant
+}
+
+/**
+ * Result of validating an invite token
+ */
+export type ValidateInviteTokenResult = {
+  isValid: boolean
+  isExpired: boolean
+  isUsed: boolean
+  match: MatchSummary | null
+  placeholderSlots: Array<{
+    participantId: UUID
+    placeholderName: string
+    claimStatus: ClaimStatus
+  }>
+}

@@ -298,6 +298,71 @@ export type Database = {
         }
         Relationships: []
       }
+      match_invite_tokens: {
+        Row: {
+          id: string
+          match_id: string
+          participant_id: string | null
+          token: string
+          created_by: string
+          created_at: string
+          expires_at: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          id?: string
+          match_id: string
+          participant_id?: string | null
+          token: string
+          created_by: string
+          created_at?: string
+          expires_at?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          id?: string
+          match_id?: string
+          participant_id?: string | null
+          token?: string
+          created_by?: string
+          created_at?: string
+          expires_at?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_invite_tokens_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_invite_tokens_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "match_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_invite_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_invite_tokens_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_participants: {
         Row: {
           claim_status: Database["public"]["Enums"]["claim_status"]

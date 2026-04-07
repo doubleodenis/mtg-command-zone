@@ -486,8 +486,8 @@ export function MatchForm({
                             ? userDecks[slot.userId] || []
                             : []
                         }
-                        isTeamFormat={false}
-                        team={undefined}
+                        isTeamFormat={true}
+                        team="A"
                         excludeIds={excludeIds}
                         currentUser={currentUser}
                       />
@@ -534,8 +534,8 @@ export function MatchForm({
                             ? userDecks[slot.userId] || []
                             : []
                         }
-                        isTeamFormat={false}
-                        team={undefined}
+                        isTeamFormat={true}
+                        team="B"
                         excludeIds={excludeIds}
                         currentUser={currentUser}
                       />

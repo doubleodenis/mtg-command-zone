@@ -97,14 +97,14 @@ export function Select({
   };
 
   return (
-    <div className={cn("relative", className)} ref={containerRef}>
+    <div className={cn("relative w-full min-w-0 max-w-full", className)} ref={containerRef}>
       {/* Trigger */}
       <button
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          "w-full h-8 text-sm rounded-md border px-2 text-left",
+          "w-full max-w-full h-8 text-sm rounded-md border px-2 text-left",
           "flex items-center justify-between gap-2",
           "transition-colors duration-150",
           selectedOption
@@ -116,7 +116,7 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <span className="truncate">
+        <span className="flex-1 min-w-0 truncate">
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDownIcon
@@ -144,7 +144,7 @@ export function Select({
             type="button"
             onClick={() => handleSelect("")}
             className={cn(
-              "w-full px-3 py-2 text-sm text-left",
+              "w-full px-3 py-2 text-sm text-left truncate",
               "transition-colors",
               !value
                 ? "bg-accent/15 text-text-1"
@@ -163,7 +163,7 @@ export function Select({
               type="button"
               onClick={() => handleSelect(option.value)}
               className={cn(
-                "w-full px-3 py-2 text-sm text-left",
+                "w-full px-3 py-2 text-sm text-left truncate",
                 "transition-colors",
                 value === option.value
                   ? "bg-accent/20 text-text-1"
