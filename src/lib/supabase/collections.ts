@@ -250,6 +250,7 @@ export async function createCollection(
       description: payload.description ?? null,
       is_public: payload.isPublic ?? false,
       match_add_permission: payload.matchAddPermission ?? 'owner_only',
+      ...(payload.autoApproveMembers !== undefined && { auto_approve_members: payload.autoApproveMembers }),
     })
     .select()
     .single()
@@ -290,6 +291,7 @@ export async function updateCollection(
   if (payload.description !== undefined) updates.description = payload.description
   if (payload.isPublic !== undefined) updates.is_public = payload.isPublic
   if (payload.matchAddPermission !== undefined) updates.match_add_permission = payload.matchAddPermission
+  if (payload.autoApproveMembers !== undefined) updates.auto_approve_members = payload.autoApproveMembers
 
   const { data, error } = await client
     .from('collections')
@@ -676,4 +678,68 @@ export async function getUserMemberCollections(
     success: true,
     data: data.map((cm) => cm.collection_id),
   }
+}
+
+/**
+ * Auto-confirm all unconfirmed participants in a match who are members of a collection.
+ * Used when a collection has auto_approve_members enabled.
+ * Sets confirmed_at for each qualifying participant.
+ * Returns the user IDs that were auto-confirmed.
+ */
+export async function autoConfirmCollectionMembers(
+  client: SupabaseClient<Database>,
+  matchId: string,
+  collectionId: string
+): Promise<Result<string[]>> {
+  // Get all unconfirmed registered participants for this match
+  const { data: participants, error: participantsError } = await client
+    .from('match_participants')
+    .select('id, user_id')
+    .eq('match_id', matchId)
+    .not('user_id', 'is', null)
+    .is('confirmed_at', null)
+
+  if (participantsError) {
+    return { success: false, error: participantsError.message }
+  }
+
+  if (!participants || participants.length === 0) {
+    return { success: true, data: [] }
+  }
+
+  // Get collection members that overlap with unconfirmed participants
+  const userIds = participants.map((p) => p.user_id!)
+  const { data: members, error: membersError } = await client
+    .from('collection_members')
+    .select('user_id')
+    .eq('collection_id', collectionId)
+    .in('user_id', userIds)
+
+  if (membersError) {
+    return { success: false, error: membersError.message }
+  }
+
+  if (!members || members.length === 0) {
+    return { success: true, data: [] }
+  }
+
+  const memberIds = new Set(members.map((m) => m.user_id))
+  const toConfirm = participants.filter((p) => memberIds.has(p.user_id!))
+
+  if (toConfirm.length === 0) {
+    return { success: true, data: [] }
+  }
+
+  const participantIds = toConfirm.map((p) => p.id)
+
+  const { error: updateError } = await client
+    .from('match_participants')
+    .update({ confirmed_at: new Date().toISOString() })
+    .in('id', participantIds)
+
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+
+  return { success: true, data: toConfirm.map((p) => p.user_id!) }
 }

@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge, ColorIdentity, RatingDelta } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { buildCommanderImageUrl } from "@/lib/scryfall/api";
-import type { FormatSlug, MatchCardData, ParticipantDataPentagram, ParticipantDisplayInfo } from "@/types";
+import type { ClaimStatus, FormatSlug, MatchCardData, ParticipantDataPentagram, ParticipantDisplayInfo } from "@/types";
 
 // Bracket name mapping
 const BRACKET_NAMES: Record<number, string> = {
@@ -89,23 +89,28 @@ interface ParticipantSlotProps {
   userParticipantId?: string | null;
   /** Pentagram relationship indicator */
   relationship?: 'self' | 'ally' | 'enemy' | null;
+  /** Whether to show claim badge for guests */
+  showClaimBadge?: boolean;
 }
 
 /**
  * Single participant slot with commander image background
  */
-function ParticipantSlot({ participant, userParticipantId, relationship }: ParticipantSlotProps) {
+function ParticipantSlot({ participant, userParticipantId, relationship, showClaimBadge = false }: ParticipantSlotProps) {
   const commanderName = participant.deck?.commanderName;
   const commanderImageUrl = commanderName
     ? buildCommanderImageUrl(commanderName, "art_crop")
     : null;
   const isCurrentUser = userParticipantId === participant.id;
+  const isGuest = !participant.isRegistered;
+  const isClaimable = isGuest && participant.claimStatus === 'none';
 
   // Determine ring style based on winner status and pentagram relationship
   const getRingStyle = () => {
     if (participant.isWinner) return "ring-2 ring-win";
     if (relationship === 'enemy') return "ring-2 ring-loss/70";
-    // if (relationship === 'ally') return "ring-2 ring-accent/50";
+    // Highlight claimable slots with a dashed border
+    if (isClaimable && showClaimBadge) return "ring-2 ring-dashed ring-accent/70";
     return "ring-1 ring-card-border";
   };
 
@@ -147,6 +152,18 @@ function ParticipantSlot({ participant, userParticipantId, relationship }: Parti
         </span>
       )}
 
+      {/* GUEST badge with claim indicator - top left (only if not current user) */}
+      {!isCurrentUser && isGuest && showClaimBadge && (
+        <span className={cn(
+          "absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded",
+          isClaimable 
+            ? "text-white bg-accent/90" 
+            : "text-white/80 bg-black/50"
+        )}>
+          {isClaimable ? "CLAIM" : "GUEST"}
+        </span>
+      )}
+
       {/* Player name - bottom, overlaid */}
       <div className="absolute bottom-0 left-0 right-0 p-1.5">
         <p className="text-xs font-medium text-white truncate text-center drop-shadow-md">
@@ -180,12 +197,15 @@ function VsDivider() {
 interface MatchPreviewCardProps {
   match: MatchCardData;
   showElo?: boolean;
+  /** Show claim badges on guest participant slots */
+  showClaimBadges?: boolean;
   className?: string;
 }
 
 export function MatchPreviewCard({
   match,
   showElo = false,
+  showClaimBadges = false,
   className,
 }: MatchPreviewCardProps) {
   const userParticipant = match.userParticipant;
@@ -193,6 +213,14 @@ export function MatchPreviewCard({
   const avgBracket = getAverageBracket(match.participants);
   const hasTeams = isTeamFormat(match.formatSlug);
   const isPentagram = match.formatSlug === 'pentagram';
+
+  // Count claimable slots
+  const claimableSlots = match.participants.filter(
+    p => !p.isRegistered && p.claimStatus === 'none'
+  ).length;
+
+  // Don't show claim badges if the viewer is already participating in this match
+  const effectiveShowClaimBadges = showClaimBadges && !userParticipant;
 
   // Group participants by team for team formats
   const { teamA, teamB } = hasTeams
@@ -220,6 +248,7 @@ export function MatchPreviewCard({
                         key={participant.id}
                         participant={participant}
                         userParticipantId={userParticipant?.id}
+                        showClaimBadge={effectiveShowClaimBadges}
                       />
                     ))}
                   </div>
@@ -234,6 +263,7 @@ export function MatchPreviewCard({
                         key={participant.id}
                         participant={participant}
                         userParticipantId={userParticipant?.id}
+                        showClaimBadge={effectiveShowClaimBadges}
                       />
                     ))}
                   </div>
@@ -246,6 +276,7 @@ export function MatchPreviewCard({
                     participant={participant}
                     userParticipantId={userParticipant?.id}
                     relationship={getPentagramRelationship(participant, userParticipant)}
+                    showClaimBadge={effectiveShowClaimBadges}
                   />
                 ))
               ) : (
@@ -255,6 +286,7 @@ export function MatchPreviewCard({
                     key={participant.id}
                     participant={participant}
                     userParticipantId={userParticipant?.id}
+                    showClaimBadge={effectiveShowClaimBadges}
                   />
                 ))
               )}
@@ -269,6 +301,13 @@ export function MatchPreviewCard({
                   className="text-xs font-bold"
                 >
                   {isUserWinner ? "VICTORY" : "DEFEAT"}
+                </Badge>
+              )}
+
+              {/* Claimable slots indicator */}
+              {effectiveShowClaimBadges && claimableSlots > 0 && (
+                <Badge variant="accent" className="text-xs">
+                  {claimableSlots} open {claimableSlots === 1 ? 'slot' : 'slots'}
                 </Badge>
               )}
 

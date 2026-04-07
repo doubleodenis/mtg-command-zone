@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
 import { getFriendshipStatus, sendFriendRequest } from "@/lib/supabase/profiles";
@@ -192,7 +193,7 @@ function PentagonPlayerCard({
             className="h-9 text-sm"
           />
           {isOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card border border-card-border shadow-xl text-sm">
+            <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl text-sm">
               {/* Add yourself option */}
               {currentUser && !excludeIds.includes(currentUser.id) && (
                 <button
@@ -202,7 +203,7 @@ function PentagonPlayerCard({
                     setQuery("");
                     setIsOpen(false);
                   }}
-                  className="w-full p-2 flex items-center gap-2 text-left hover:bg-accent/10 border-b border-card-border"
+                  className="w-full p-2 flex items-center gap-2 text-left hover:bg-accent/10 transition-colors border-b border-card-border"
                 >
                   {currentUser.avatarUrl ? (
                     <img src={currentUser.avatarUrl} alt="" className="w-5 h-5 rounded-full" />
@@ -222,7 +223,7 @@ function PentagonPlayerCard({
                   setQuery("");
                   setIsOpen(false);
                 }}
-                className="w-full p-2 flex items-center gap-2 text-left hover:bg-accent/10 border-b border-card-border"
+                className="w-full p-2 flex items-center gap-2 text-left hover:bg-accent/10 transition-colors border-b border-card-border"
               >
                 <span>👤</span>
                 <span className="text-text-1">Guest</span>
@@ -230,7 +231,7 @@ function PentagonPlayerCard({
               {results.map((player) => (
                 <div
                   key={player.id}
-                  className="flex items-center gap-2 p-2 hover:bg-card-raised"
+                  className="flex items-center gap-2 p-2 hover:bg-accent/10 transition-colors"
                 >
                   <button
                     type="button"
@@ -350,19 +351,15 @@ function PentagonPlayerCard({
 
       {/* Deck/Commander selection */}
       {slot.type === "registered" && availableDecks.length > 0 && (
-        <select
+        <Select
           value={slot.deckId || ""}
-          onChange={(e) => onSelectDeck(e.target.value)}
-          className={cn(
-            "w-full h-8 text-sm rounded border px-2",
-            slot.deckId ? "bg-accent/10 border-accent/30 text-text-1" : "bg-card border-card-border text-text-2"
-          )}
-        >
-          <option value="">Commander...</option>
-          {availableDecks.map((deck) => (
-            <option key={deck.id} value={deck.id}>{deck.commanderName}</option>
-          ))}
-        </select>
+          onChange={(value) => onSelectDeck(value)}
+          placeholder="Commander..."
+          options={availableDecks.map((deck) => ({
+            value: deck.id,
+            label: deck.commanderName,
+          }))}
+        />
       )}
 
       {/* No decks message for registered users */}
@@ -398,7 +395,7 @@ function PentagonPlayerCard({
                 className="h-8 text-sm px-2"
               />
               {isCommanderOpen && commanderResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card border border-card-border shadow-xl max-h-40 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl max-h-40 overflow-y-auto">
                   {commanderResults.map((card) => (
                     <button
                       key={card.id}
@@ -408,7 +405,7 @@ function PentagonPlayerCard({
                         setCommanderQuery("");
                         setIsCommanderOpen(false);
                       }}
-                      className="w-full p-2 text-left hover:bg-card-raised text-sm text-text-1 truncate"
+                      className="w-full p-2 text-left hover:bg-accent/10 transition-colors text-sm text-text-1 truncate"
                     >
                       {card.name}
                     </button>

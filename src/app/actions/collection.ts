@@ -12,7 +12,9 @@ import {
   isCollectionMember,
   getUserCollections,
   updateMatchApprovalStatus,
+  autoConfirmCollectionMembers,
 } from '@/lib/supabase/collections'
+import { applyMatchCollectionRatings } from '@/lib/supabase/ratings'
 import type { Result, MatchAddPermission, CollectionWithMembership, ApprovalStatus } from '@/types'
 
 /**
@@ -122,6 +124,7 @@ export async function updateCollectionSettings(
     description?: string | null
     isPublic?: boolean
     matchAddPermission?: MatchAddPermission
+    autoApproveMembers?: boolean
   }
 ): Promise<Result<null>> {
   const supabase = await createClient()
@@ -153,6 +156,7 @@ export async function updateCollectionSettings(
     description: data.description,
     isPublic: data.isPublic,
     matchAddPermission: data.matchAddPermission,
+    autoApproveMembers: data.autoApproveMembers,
   })
 
   if (!updateResult.success) {
@@ -340,6 +344,20 @@ export async function addMatchToCollection(
     return { success: false, error: addResult.error }
   }
 
+  // If the match was directly approved, apply collection-scoped ratings immediately
+  if (approvalStatus === 'approved') {
+    // Auto-confirm collection members who are unconfirmed participants
+    if (collection.autoApproveMembers) {
+      await autoConfirmCollectionMembers(supabase, matchId, collectionId)
+    }
+
+    await applyMatchCollectionRatings(supabase, {
+      matchId,
+      collectionId,
+      algorithmVersion: 1,
+    })
+  }
+
   // Revalidate paths
   revalidatePath(`/match/${matchId}`)
   revalidatePath(`/collections/${collectionId}`)
@@ -418,6 +436,26 @@ export async function approveCollectionMatch(
 
   if (!updateResult.success) {
     return { success: false, error: updateResult.error }
+  }
+
+  // Now that the match is approved, fetch its match_id and apply collection ratings
+  const { data: collectionMatch, error: cmError } = await supabase
+    .from('collection_matches')
+    .select('match_id')
+    .eq('id', collectionMatchId)
+    .single()
+
+  if (!cmError && collectionMatch) {
+    // Auto-confirm collection members who are unconfirmed participants
+    if (collectionResult.data.autoApproveMembers) {
+      await autoConfirmCollectionMembers(supabase, collectionMatch.match_id, collectionId)
+    }
+
+    await applyMatchCollectionRatings(supabase, {
+      matchId: collectionMatch.match_id,
+      collectionId,
+      algorithmVersion: 1,
+    })
   }
 
   // Revalidate paths

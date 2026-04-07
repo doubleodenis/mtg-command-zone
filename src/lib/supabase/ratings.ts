@@ -3,6 +3,11 @@
  *
  * All queries for ratings, rating history, and user statistics.
  * Uses the get_or_create_rating and get_user_stats database functions.
+ *
+ * Write operations use apply_rating_change — a SECURITY DEFINER SQL function
+ * that atomically updates `ratings` and inserts into `rating_history`.
+ * Both tables have no direct-user-write RLS policies (system-managed only),
+ * so all mutations must go through this function.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -480,6 +485,89 @@ export async function recordRatingHistory(
 }
 
 // ============================================
+// Atomic Rating Write (SECURITY DEFINER RPC)
+// ============================================
+
+/**
+ * Type for apply_rating_change RPC args.
+ * Defined manually here because database.types.ts is generated and should not
+ * be edited by hand — regenerate with `supabase gen types typescript` after
+ * deploying migration 006_rating_write_functions.sql.
+ */
+type ApplyRatingChangeArgs = {
+  p_user_id: string
+  p_match_id: string
+  p_format_id: string
+  p_collection_id: string | null
+  p_new_rating: number
+  p_delta: number
+  p_is_win: boolean
+  p_player_bracket: number
+  p_opponent_avg_rating: number
+  p_opponent_avg_bracket: number
+  p_k_factor: number
+  p_algorithm_version: number
+}
+
+/**
+ * Atomically update a user's rating and record the history entry.
+ *
+ * Calls the `apply_rating_change` SECURITY DEFINER Postgres function, which
+ * bypasses the system-managed-only RLS on `ratings` and `rating_history`.
+ * Also correctly increments `wins` and sets `is_win` on the history row.
+ */
+export async function applyRatingChange(
+  client: SupabaseClient<Database>,
+  params: {
+    userId: string
+    matchId: string
+    formatId: string
+    collectionId?: string
+    newRating: number
+    delta: number
+    isWin: boolean
+    playerBracket: Bracket
+    opponentAvgRating: number
+    opponentAvgBracket: number
+    kFactor: number
+    algorithmVersion: number
+  }
+): Promise<Result<null>> {
+  // apply_rating_change is not yet in the generated Database types.
+  // Cast through unknown (not any) to an explicit typed shim.
+  type RpcShim = {
+    rpc(
+      fn: 'apply_rating_change',
+      args: ApplyRatingChangeArgs
+    ): Promise<{ error: { message: string } | null }>
+  }
+
+  const { error } = await (client as unknown as RpcShim).rpc(
+    'apply_rating_change',
+    {
+      p_user_id: params.userId,
+      p_match_id: params.matchId,
+      p_format_id: params.formatId,
+      p_collection_id: params.collectionId ?? null,
+      p_new_rating: params.newRating,
+      p_delta: params.delta,
+      p_is_win: params.isWin,
+      p_player_bracket: params.playerBracket,
+      p_opponent_avg_rating: params.opponentAvgRating,
+      p_opponent_avg_bracket: params.opponentAvgBracket,
+      p_k_factor: params.kFactor,
+      p_algorithm_version: params.algorithmVersion,
+    }
+  )
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: null }
+}
+
+// ============================================
 // Collection-Scoped Rating Updates
 // ============================================
 
@@ -533,37 +621,27 @@ export async function updateCollectionRatings(
       collectionId,
     })
 
-    // Update collection-scoped rating
+    // Atomically update rating + record history via SECURITY DEFINER RPC
     const newRating = collectionRating.rating + ratingCalc.delta
-    const updateResult = await updateRating(
-      client,
-      params.userId,
-      params.formatId,
-      newRating,
-      true, // increment match count
-      collectionId
-    )
-
-    if (!updateResult.success) {
-      console.error(`Failed to update collection rating for ${collectionId}:`, updateResult.error)
-      continue
-    }
-
-    // Record collection-scoped rating history
-    await recordRatingHistory(client, {
+    const applyResult = await applyRatingChange(client, {
       userId: params.userId,
       matchId: params.matchId,
       formatId: params.formatId,
       collectionId,
-      ratingBefore: collectionRating.rating,
-      ratingAfter: newRating,
+      newRating,
       delta: ratingCalc.delta,
+      isWin: params.isWinner,
       playerBracket: params.playerBracket,
       opponentAvgRating: ratingCalc.opponentAvgRating,
       opponentAvgBracket: ratingCalc.opponentAvgBracket,
       kFactor: ratingCalc.kFactor,
       algorithmVersion: params.algorithmVersion,
     })
+
+    if (!applyResult.success) {
+      console.error(`Failed to apply collection rating change for ${collectionId}:`, applyResult.error)
+      continue
+    }
 
     results.push({
       collectionId,
@@ -573,4 +651,134 @@ export async function updateCollectionRatings(
   }
 
   return { success: true, data: results }
+}
+
+/**
+ * Apply collection-scoped rating changes for all confirmed participants of a match.
+ *
+ * Called when a match is added/approved to a collection. Iterates every confirmed
+ * real participant, checks if they're a member of the collection, and applies their
+ * rating change using collection-scoped ratings for both the player and opponents.
+ */
+export async function applyMatchCollectionRatings(
+  client: SupabaseClient<Database>,
+  params: {
+    matchId: string
+    collectionId: string
+    algorithmVersion: number
+  }
+): Promise<Result<null>> {
+  const { calculateRating } = await import('@/lib/rating')
+
+  // Load match format + all confirmed participants with deck info
+  const { data: match, error: matchError } = await client
+    .from('matches')
+    .select(`
+      format_id,
+      match_participants (
+        id,
+        user_id,
+        is_winner,
+        confirmed_at,
+        deck:decks!match_participants_deck_id_fkey ( bracket )
+      )
+    `)
+    .eq('id', params.matchId)
+    .single()
+
+  if (matchError || !match) {
+    return { success: false, error: matchError?.message ?? 'Match not found' }
+  }
+
+  const confirmed = match.match_participants.filter((p) => p.user_id && p.confirmed_at)
+  if (confirmed.length === 0) return { success: true, data: null }
+
+  // Load collection members so we only rate participants who belong to this collection
+  const { data: members, error: membersError } = await client
+    .from('collection_members')
+    .select('user_id')
+    .eq('collection_id', params.collectionId)
+
+  if (membersError) {
+    return { success: false, error: membersError.message }
+  }
+
+  const memberIds = new Set((members ?? []).map((m) => m.user_id))
+
+  // Participants who are both confirmed and members of this collection
+  const ratedParticipants = confirmed.filter((p) => memberIds.has(p.user_id!))
+  if (ratedParticipants.length === 0) return { success: true, data: null }
+
+  // Pre-fetch collection-scoped ratings for all rated participants (and use as opponents)
+  const ratingSnapshots = new Map<string, number>()
+  for (const p of ratedParticipants) {
+    const r = await getRating(client, p.user_id!, match.format_id, params.collectionId)
+    ratingSnapshots.set(p.user_id!, r.success ? r.data.rating : RATING_CONFIG.defaultRating)
+  }
+
+  for (const participant of ratedParticipants) {
+    const collRatingResult = await getRating(
+      client,
+      participant.user_id!,
+      match.format_id,
+      params.collectionId
+    )
+    if (!collRatingResult.success) continue
+
+    const collRating = collRatingResult.data
+
+    // Opponents = other confirmed member participants using their snapshotted collection rating.
+    // Fall back to all confirmed participants (global ratings) if no other members present.
+    const memberOpponents = ratedParticipants
+      .filter((p) => p.user_id !== participant.user_id)
+      .map((p) => ({
+        rating: ratingSnapshots.get(p.user_id!) ?? RATING_CONFIG.defaultRating,
+        bracket: (p.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      }))
+
+    const allOpponents = confirmed
+      .filter((p) => p.user_id !== participant.user_id)
+      .map((p) => ({
+        rating: RATING_CONFIG.defaultRating,
+        bracket: (p.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      }))
+
+    const opponents = memberOpponents.length > 0 ? memberOpponents : allOpponents
+
+    const ratingCalc = calculateRating({
+      playerId: participant.user_id!,
+      playerRating: collRating.rating,
+      playerBracket: (participant.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      playerMatchCount: collRating.matchesPlayed,
+      isWinner: participant.is_winner,
+      opponents,
+      formatId: match.format_id,
+      collectionId: params.collectionId,
+    })
+
+    const newRating = collRating.rating + ratingCalc.delta
+    const applyResult = await applyRatingChange(client, {
+      userId: participant.user_id!,
+      matchId: params.matchId,
+      formatId: match.format_id,
+      collectionId: params.collectionId,
+      newRating,
+      delta: ratingCalc.delta,
+      isWin: participant.is_winner,
+      playerBracket: (participant.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      opponentAvgRating: ratingCalc.opponentAvgRating,
+      opponentAvgBracket: ratingCalc.opponentAvgBracket,
+      kFactor: ratingCalc.kFactor,
+      algorithmVersion: params.algorithmVersion,
+    })
+
+    if (!applyResult.success) {
+      console.error(
+        `applyMatchCollectionRatings: failed for user ${participant.user_id} in collection ${params.collectionId}:`,
+        applyResult.error
+      )
+    }
+  }
+
+  return { success: true, data: null }
 }

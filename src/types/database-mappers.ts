@@ -243,6 +243,7 @@ export function mapCollectionRow(row: CollectionRow): Collection {
     description: row.description,
     isPublic: row.is_public,
     matchAddPermission: row.match_add_permission as MatchAddPermission,
+    autoApproveMembers: row.auto_approve_members,
     createdAt: row.created_at ?? new Date().toISOString(),
   }
 }

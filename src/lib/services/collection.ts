@@ -113,63 +113,89 @@ async function calculateUserCollectionStats(
   winRate: number
   rating: number
   ratingDelta: number
+  unconfirmedMatchCount: number
+  pendingApprovalCount: number
 }> {
-  // Get rating record
-  const { data: rating } = await client
-    .from('ratings')
-    .select('rating')
-    .eq('user_id', userId)
-    .eq('collection_id', collectionId)
-    .single()
+  // Run initial queries in parallel
+  const [ratingResult, approvedMatchesResult, pendingMatchesResult] = await Promise.all([
+    client
+      .from('ratings')
+      .select('rating')
+      .eq('user_id', userId)
+      .eq('collection_id', collectionId)
+      .single(),
+    client
+      .from('collection_matches')
+      .select('match_id')
+      .eq('collection_id', collectionId)
+      .eq('approval_status', 'approved'),
+    client
+      .from('collection_matches')
+      .select('match_id')
+      .eq('collection_id', collectionId)
+      .eq('approval_status', 'pending'),
+  ])
 
-  // Get match participations in collection
-  const { data: collectionMatches } = await client
-    .from('collection_matches')
-    .select('match_id')
-    .eq('collection_id', collectionId)
+  const approvedMatchIds = approvedMatchesResult.data?.map((cm) => cm.match_id) ?? []
+  const pendingMatchIds = pendingMatchesResult.data?.map((cm) => cm.match_id) ?? []
 
-  const matchIds = collectionMatches?.map((cm) => cm.match_id) ?? []
+  // Run participant queries in parallel
+  const [confirmedResult, unconfirmedResult, pendingParticipantResult, historyResult] =
+    await Promise.all([
+      // Confirmed participations (count toward gamesPlayed/wins)
+      approvedMatchIds.length > 0
+        ? client
+            .from('match_participants')
+            .select('is_winner')
+            .eq('user_id', userId)
+            .in('match_id', approvedMatchIds)
+            .not('confirmed_at', 'is', null)
+        : Promise.resolve({ data: [] }),
+      // Approved matches user hasn't confirmed yet
+      approvedMatchIds.length > 0
+        ? client
+            .from('match_participants')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .in('match_id', approvedMatchIds)
+            .is('confirmed_at', null)
+        : Promise.resolve({ count: 0 }),
+      // Pending collection-approval matches user is a participant in
+      pendingMatchIds.length > 0
+        ? client
+            .from('match_participants')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .in('match_id', pendingMatchIds)
+        : Promise.resolve({ count: 0 }),
+      // Most recent rating history entry for delta
+      client
+        .from('rating_history')
+        .select('rating_after, rating_before')
+        .eq('user_id', userId)
+        .eq('collection_id', collectionId)
+        .order('created_at', { ascending: false })
+        .limit(1),
+    ])
 
-  if (matchIds.length === 0) {
-    return {
-      gamesPlayed: 0,
-      wins: 0,
-      winRate: 0,
-      rating: rating?.rating ?? 1000,
-      ratingDelta: 0,
-    }
-  }
-
-  const { data: participations } = await client
-    .from('match_participants')
-    .select('is_winner')
-    .eq('user_id', userId)
-    .in('match_id', matchIds)
-
-  const wins = participations?.filter((p) => p.is_winner).length ?? 0
-  const gamesPlayed = participations?.length ?? 0
+  const participations = confirmedResult.data ?? []
+  const wins = participations.filter((p) => p.is_winner).length
+  const gamesPlayed = participations.length
   const winRate = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : 0
 
-  // Calculate recent rating delta
-  const { data: recentHistory } = await client
-    .from('rating_history')
-    .select('rating_after, rating_before')
-    .eq('user_id', userId)
-    .eq('collection_id', collectionId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-
   const ratingDelta =
-    recentHistory?.[0]
-      ? recentHistory[0].rating_after - recentHistory[0].rating_before
+    historyResult.data?.[0]
+      ? historyResult.data[0].rating_after - historyResult.data[0].rating_before
       : 0
 
   return {
     gamesPlayed,
     wins,
     winRate,
-    rating: rating?.rating ?? 1000,
+    rating: ratingResult.data?.rating ?? 1000,
     ratingDelta,
+    unconfirmedMatchCount: unconfirmedResult.count ?? 0,
+    pendingApprovalCount: pendingParticipantResult.count ?? 0,
   }
 }
 
@@ -193,11 +219,12 @@ async function getCollectionTopPlayer(
     return undefined
   }
 
-  // Get match participations in collection
+  // Get approved match participations in collection
   const { data: collectionMatches } = await client
     .from('collection_matches')
     .select('match_id')
     .eq('collection_id', collectionId)
+    .eq('approval_status', 'approved')
 
   const matchIds = collectionMatches?.map((cm) => cm.match_id) ?? []
 
@@ -213,6 +240,7 @@ async function getCollectionTopPlayer(
         .select('is_winner')
         .eq('user_id', member.user_id)
         .in('match_id', matchIds)
+        .not('confirmed_at', 'is', null)
 
       const gamesPlayed = participations?.length ?? 0
       const wins = participations?.filter((p) => p.is_winner).length ?? 0

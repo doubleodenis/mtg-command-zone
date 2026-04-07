@@ -12,10 +12,10 @@ import {
   searchClaimableMatches,
   createMatch,
 } from '@/lib/supabase/matches'
-import { getRating, updateRating, recordRatingHistory, updateCollectionRatings } from '@/lib/supabase/ratings'
+import { getRating, applyRatingChange, updateCollectionRatings } from '@/lib/supabase/ratings'
 import { getMatchCollections, getUserMemberCollections } from '@/lib/supabase/collections'
 import { calculateRating } from '@/lib/rating'
-import type { Result, Bracket, ClaimableMatchSlot, CreateMatchPayload, MatchData, ParticipantInput } from '@/types'
+import type { Result, Bracket, ClaimableMatchSlot, ClaimStatus, CreateMatchPayload, MatchData, ParticipantInput } from '@/types'
 
 /**
  * Log a new match with participants.
@@ -137,30 +137,50 @@ export async function logMatch(payload: {
     collectionId: null,
   })
 
-  // Update rating
+  // Atomically update global rating + record history via SECURITY DEFINER RPC
   const newRating = currentRating.rating + ratingCalc.delta
-  await updateRating(
-    supabase,
-    user.id,
-    format.id,
-    newRating,
-    true // increment match count
-  )
-
-  // Record rating history
-  await recordRatingHistory(supabase, {
+  const applyResult = await applyRatingChange(supabase, {
     userId: user.id,
     matchId: match.id,
     formatId: format.id,
-    ratingBefore: currentRating.rating,
-    ratingAfter: newRating,
+    newRating,
     delta: ratingCalc.delta,
+    isWin: creatorParticipant.is_winner,
     playerBracket,
     opponentAvgRating: ratingCalc.opponentAvgRating,
     opponentAvgBracket: ratingCalc.opponentAvgBracket,
     kFactor: ratingCalc.kFactor,
     algorithmVersion: 1,
   })
+
+  if (!applyResult.success) {
+    return { success: false, error: `Failed to save rating: ${applyResult.error}` }
+  }
+
+  // Update collection-scoped ratings (creator is auto-confirmed so this runs now)
+  const matchCollectionsResult = await getMatchCollections(supabase, match.id)
+  if (matchCollectionsResult.success && matchCollectionsResult.data.length > 0) {
+    const userMemberCollectionsResult = await getUserMemberCollections(
+      supabase,
+      user.id,
+      matchCollectionsResult.data
+    )
+    if (userMemberCollectionsResult.success && userMemberCollectionsResult.data.length > 0) {
+      await updateCollectionRatings(supabase, {
+        userId: user.id,
+        matchId: match.id,
+        formatId: format.id,
+        playerBracket,
+        isWinner: creatorParticipant.is_winner,
+        opponents,
+        collectionIds: userMemberCollectionsResult.data,
+        algorithmVersion: 1,
+      })
+      for (const collectionId of userMemberCollectionsResult.data) {
+        revalidatePath(`/collections/${collectionId}`)
+      }
+    }
+  }
 
   // Revalidate pages
   revalidatePath('/dashboard')
@@ -316,34 +336,25 @@ export async function confirmMatch(
     return { success: false, error: confirmResult.error }
   }
 
-  // Update rating
+  // Atomically update global rating + record history via SECURITY DEFINER RPC
   const newRating = currentRating.rating + ratingCalc.delta
-  const updateResult = await updateRating(
-    supabase,
-    user.id,
-    format.id,
-    newRating,
-    true // increment match count
-  )
-
-  if (!updateResult.success) {
-    return { success: false, error: updateResult.error }
-  }
-
-  // Record rating history
-  await recordRatingHistory(supabase, {
+  const applyResult = await applyRatingChange(supabase, {
     userId: user.id,
     matchId: participant.match_id,
     formatId: format.id,
-    ratingBefore: currentRating.rating,
-    ratingAfter: newRating,
+    newRating,
     delta: ratingCalc.delta,
+    isWin: participant.is_winner,
     playerBracket,
     opponentAvgRating: ratingCalc.opponentAvgRating,
     opponentAvgBracket: ratingCalc.opponentAvgBracket,
     kFactor: ratingCalc.kFactor,
     algorithmVersion: 1,
   })
+
+  if (!applyResult.success) {
+    return { success: false, error: `Failed to save rating: ${applyResult.error}` }
+  }
 
   // Update collection-scoped ratings
   // Get all collections this match belongs to
@@ -618,9 +629,9 @@ export async function updateMatchParticipantDeck(
     return { success: false, error: 'You can only update your own deck' }
   }
 
-  if (participant.confirmed_at) {
-    return { success: false, error: 'Cannot update deck after confirmation' }
-  }
+  // Note: deck updates are allowed even after confirmation — updating your deck after
+  // a match has been confirmed (e.g. via auto-approve) only affects commander stats,
+  // not the historical rating that was already calculated.
 
   // Verify the deck belongs to the user
   const { data: deck, error: deckError } = await supabase
@@ -649,4 +660,275 @@ export async function updateMatchParticipantDeck(
   revalidatePath('/matches')
 
   return { success: true, data: null }
+}
+
+// ============================================
+// Invite Token Actions
+// ============================================
+
+/**
+ * Generate a token string (12 chars, URL-safe, no ambiguous characters)
+ */
+function generateToken(length: number = 12): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+
+/**
+ * Create an invite token for a match.
+ * Only the match creator can generate invite tokens.
+ */
+export async function createMatchInviteToken(
+  matchId: string
+): Promise<Result<{ token: string; inviteUrl: string }>> {
+  const supabase = await createClient()
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  // Verify user is the match creator
+  const { data: match, error: matchError } = await supabase
+    .from('matches')
+    .select('id, created_by')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !match) {
+    return { success: false, error: 'Match not found' }
+  }
+
+  if (match.created_by !== user.id) {
+    return { success: false, error: 'Only the match creator can generate invite links' }
+  }
+
+  // Check if there are any unclaimed placeholder slots
+  const { data: placeholderSlots } = await supabase
+    .from('match_participants')
+    .select('id')
+    .eq('match_id', matchId)
+    .is('user_id', null)
+    .eq('claim_status', 'none')
+
+  if (!placeholderSlots || placeholderSlots.length === 0) {
+    return { success: false, error: 'No unclaimed placeholder slots in this match' }
+  }
+
+  // Generate a unique token
+  let token = generateToken()
+  let attempts = 0
+  const maxAttempts = 5
+
+  // Check for collisions (extremely rare but possible)
+  while (attempts < maxAttempts) {
+    const { data: existing } = await supabase
+      .from('match_invite_tokens')
+      .select('id')
+      .eq('token', token)
+      .single()
+
+    if (!existing) break
+    token = generateToken()
+    attempts++
+  }
+
+  if (attempts >= maxAttempts) {
+    return { success: false, error: 'Failed to generate unique token. Please try again.' }
+  }
+
+  // Create the token record
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 30) // 30 days expiry
+
+  const { error: insertError } = await supabase
+    .from('match_invite_tokens')
+    .insert({
+      match_id: matchId,
+      token,
+      created_by: user.id,
+      expires_at: expiresAt.toISOString(),
+    })
+
+  if (insertError) {
+    console.error('Failed to create invite token:', insertError)
+    return { success: false, error: `Failed to create invite token: ${insertError.message}` }
+  }
+
+  return {
+    success: true,
+    data: {
+      token,
+      inviteUrl: `/claim/${token}`,
+    },
+  }
+}
+
+/**
+ * Get match details by invite token.
+ * Used to display the claim page when a guest clicks an invite link.
+ */
+export async function getMatchByInviteToken(
+  token: string
+): Promise<Result<{
+  match: {
+    id: string
+    formatName: string
+    formatSlug: string
+    playedAt: string
+    creatorUsername: string
+    participantCount: number
+  }
+  placeholderSlots: Array<{
+    participantId: string
+    placeholderName: string
+    claimStatus: ClaimStatus
+    hasPendingClaim: boolean
+  }>
+  isExpired: boolean
+  isUsed: boolean
+}>> {
+  const supabase = await createClient()
+
+  // Get the token record
+  const { data: tokenRecord, error: tokenError } = await supabase
+    .from('match_invite_tokens')
+    .select(`
+      id,
+      match_id,
+      expires_at,
+      used_at,
+      used_by
+    `)
+    .eq('token', token)
+    .single()
+
+  if (tokenError || !tokenRecord) {
+    return { success: false, error: 'Invalid invite token' }
+  }
+
+  const isExpired = new Date(tokenRecord.expires_at) < new Date()
+  const isUsed = tokenRecord.used_at !== null
+
+  // Get match details
+  const { data: match, error: matchError } = await supabase
+    .from('matches')
+    .select(`
+      id,
+      played_at,
+      format:formats!inner (
+        name,
+        slug
+      ),
+      creator:profiles!inner (
+        username
+      )
+    `)
+    .eq('id', tokenRecord.match_id)
+    .single()
+
+  if (matchError || !match) {
+    return { success: false, error: 'Match not found' }
+  }
+
+  // Get placeholder slots
+  const { data: participants } = await supabase
+    .from('match_participants')
+    .select(`
+      id,
+      placeholder_name,
+      user_id,
+      claim_status,
+      claimed_by
+    `)
+    .eq('match_id', tokenRecord.match_id)
+
+  // Get count of all participants
+  const participantCount = participants?.length ?? 0
+
+  // Filter to just placeholder slots
+  const placeholderSlots = (participants ?? [])
+    .filter(p => p.user_id === null)
+    .map(p => ({
+      participantId: p.id,
+      placeholderName: p.placeholder_name ?? 'Unknown',
+      claimStatus: p.claim_status as ClaimStatus,
+      hasPendingClaim: p.claim_status === 'pending' && p.claimed_by !== null,
+    }))
+
+  return {
+    success: true,
+    data: {
+      match: {
+        id: match.id,
+        formatName: (match.format as { name: string }).name,
+        formatSlug: (match.format as { slug: string }).slug,
+        playedAt: match.played_at,
+        creatorUsername: (match.creator as { username: string }).username,
+        participantCount,
+      },
+      placeholderSlots,
+      isExpired,
+      isUsed,
+    },
+  }
+}
+
+/**
+ * Check if a match has any existing invite tokens.
+ * Returns the most recent active token if one exists.
+ */
+export async function getExistingInviteToken(
+  matchId: string
+): Promise<Result<{ token: string; inviteUrl: string } | null>> {
+  const supabase = await createClient()
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  // Verify user is the match creator
+  const { data: match, error: matchError } = await supabase
+    .from('matches')
+    .select('id, created_by')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !match) {
+    return { success: false, error: 'Match not found' }
+  }
+
+  if (match.created_by !== user.id) {
+    return { success: false, error: 'Only the match creator can view invite links' }
+  }
+
+  // Get the most recent non-expired token
+  const { data: tokenRecord } = await supabase
+    .from('match_invite_tokens')
+    .select('token, expires_at')
+    .eq('match_id', matchId)
+    .is('used_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (!tokenRecord) {
+    return { success: true, data: null }
+  }
+
+  return {
+    success: true,
+    data: {
+      token: tokenRecord.token,
+      inviteUrl: `/claim/${tokenRecord.token}`,
+    },
+  }
 }

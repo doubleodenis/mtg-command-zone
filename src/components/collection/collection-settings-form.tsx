@@ -55,6 +55,9 @@ export function CollectionSettingsForm({
   const [matchAddPermission, setMatchAddPermission] = React.useState<MatchAddPermission>(
     collection.matchAddPermission
   );
+  const [autoApproveMembers, setAutoApproveMembers] = React.useState(
+    collection.autoApproveMembers
+  );
   
   // UI state
   const [isSaving, setIsSaving] = React.useState(false);
@@ -68,7 +71,8 @@ export function CollectionSettingsForm({
     name !== collection.name ||
     description !== (collection.description ?? "") ||
     isPublic !== collection.isPublic ||
-    matchAddPermission !== collection.matchAddPermission;
+    matchAddPermission !== collection.matchAddPermission ||
+    autoApproveMembers !== collection.autoApproveMembers;
 
   const canSave = name.trim().length > 0 && hasChanges;
 
@@ -85,6 +89,7 @@ export function CollectionSettingsForm({
         description: description.trim() || null,
         isPublic,
         matchAddPermission,
+        autoApproveMembers,
       });
 
       if (!result.success) {
@@ -198,6 +203,44 @@ export function CollectionSettingsForm({
               <p className="text-text-2 text-sm mt-0.5">
                 Public collections appear in search results and anyone can view
                 the leaderboard. Private collections are only visible to members.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Participation */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Participation</CardTitle>
+          <CardDescription>Control how members interact with match results</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="auto-approve-members"
+              checked={autoApproveMembers}
+              onChange={(e) => setAutoApproveMembers(e.target.checked)}
+              className={cn(
+                "mt-1 h-5 w-5 rounded",
+                "border-2 border-card-border bg-card",
+                "checked:bg-accent-fill checked:border-accent",
+                "focus:outline-none focus:border-accent",
+                "cursor-pointer transition-colors"
+              )}
+            />
+            <div>
+              <label
+                htmlFor="auto-approve-members"
+                className="text-text-1 font-medium cursor-pointer"
+              >
+                Auto-confirm members
+              </label>
+              <p className="text-text-2 text-sm mt-0.5">
+                When enabled, collection members are automatically confirmed for matches
+                added to this collection — no manual approval needed. Members can still
+                update their deck afterward to keep commander stats accurate.
               </p>
             </div>
           </div>

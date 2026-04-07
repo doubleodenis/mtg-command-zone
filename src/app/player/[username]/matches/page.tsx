@@ -1,13 +1,11 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { MatchLog } from "@/components/match";
-import { Section } from "@/components/layout";
-import {
-  createMockProfile,
-  createMockUserMatches,
-  resetMockIds,
-} from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
+import { getProfileByUsername } from "@/lib/supabase";
+import { getRecentMatchCards } from "@/lib/services";
 
-// Force dynamic rendering to refresh mock data
+// Force dynamic rendering
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -16,13 +14,29 @@ interface PageProps {
 
 export default async function PlayerMatchHistoryPage({ params }: PageProps) {
   const { username } = await params;
+  const supabase = await createClient();
 
-  // Reset mock IDs for fresh data
-  resetMockIds();
+  // Get current user for claim display
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-  // Generate mock data
-  const profile = createMockProfile({ username });
-  const matches = createMockUserMatches(profile.id); // Full match history
+  // Get the profile being viewed
+  const profileResult = await getProfileByUsername(supabase, username);
+  
+  if (!profileResult.success) {
+    notFound();
+  }
+  
+  const profile = profileResult.data;
+  const isOwnProfile = currentUser?.id === profile.id;
+
+  // Fetch matches for this user
+  const matchesResult = await getRecentMatchCards(supabase, {
+    userId: profile.id,
+    viewerUserId: currentUser?.id,
+    limit: 100, // Show more matches on dedicated page
+  });
+
+  const matches = matchesResult.success ? matchesResult.data : [];
 
   return (
     <div className="space-y-6">
@@ -41,9 +55,11 @@ export default async function PlayerMatchHistoryPage({ params }: PageProps) {
       {/* Match History with Filters */}
       <MatchLog
         matches={matches}
-        showElo
+        showElo={isOwnProfile}
+        showClaimBadges={!isOwnProfile && !!currentUser}
         showFilters
         currentUserId={profile.id}
+        viewingUserId={currentUser?.id}
         groupByDate
         title="Match History"
         emptyTitle="No matches yet"

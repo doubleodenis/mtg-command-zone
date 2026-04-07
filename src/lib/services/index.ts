@@ -29,5 +29,5 @@ export { getTopCommanders } from './deck'
 export type { GetTopCommandersOptions } from './deck'
 
 // Stats service
-export { getPlatformStats, getUserStats } from './stats'
-export type { PlatformStats, UserStats, GetUserStatsOptions } from './stats'
+export { getPlatformStats, getUserStats, getHeadToHeadComparison } from './stats'
+export type { PlatformStats, UserStats, GetUserStatsOptions, HeadToHeadComparison } from './stats'

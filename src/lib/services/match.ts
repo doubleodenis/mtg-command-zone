@@ -97,7 +97,10 @@ export async function getMatchById(
 
 export type GetRecentMatchCardsOptions = {
   limit?: number
+  /** The user whose matches to fetch (used as filter) */
   userId?: string
+  /** The logged-in viewer's ID — used to highlight their slot as "YOU" and suppress claim badges when they're already in a match */
+  viewerUserId?: string
   collectionId?: string
 }
 
@@ -109,7 +112,7 @@ export async function getRecentMatchCards(
   client: SupabaseClient<Database>,
   options: GetRecentMatchCardsOptions = {}
 ): Promise<Result<MatchCardData[]>> {
-  const { limit = 5, userId, collectionId } = options
+  const { limit = 5, userId, viewerUserId, collectionId } = options
 
   // Build base query
   let matchQuery = client
@@ -164,8 +167,10 @@ export async function getRecentMatchCards(
   }
 
   // Transform matches to card data with participant details
+  // Use viewerUserId (if provided) to correctly identify the logged-in user's slot,
+  // even when filtering matches by a different user's profile.
   const matchCards = await Promise.all(
-    matches.map((match) => transformMatchToCardData(client, match, userId))
+    matches.map((match) => transformMatchToCardData(client, match, viewerUserId ?? userId, collectionId))
   )
 
   return { success: true, data: matchCards }
@@ -182,6 +187,7 @@ async function transformMatchToCardData(
     format: { name: string; slug: string };
   },
   userId?: string,
+  collectionId?: string,
 ): Promise<MatchCardData> {
   // Fetch participants and rating history in parallel
   const [participantsResult, ratingHistoryResult] = await Promise.all([
@@ -196,15 +202,23 @@ async function transformMatchToCardData(
         confirmed_at,
         team,
         participant_data,
+        claim_status,
         deck:decks!match_participants_deck_id_fkey(*),
         profile:profiles!match_participants_user_id_fkey(*)
       `,
       )
       .eq("match_id", match.id),
-    client
-      .from("rating_history")
-      .select("user_id, delta, rating_before, rating_after")
-      .eq("match_id", match.id),
+    collectionId
+      ? client
+          .from("rating_history")
+          .select("user_id, delta, rating_before, rating_after")
+          .eq("match_id", match.id)
+          .eq("collection_id", collectionId)
+      : client
+          .from("rating_history")
+          .select("user_id, delta, rating_before, rating_after")
+          .eq("match_id", match.id)
+          .is("collection_id", null),
   ]);
 
   const participants = participantsResult.data ?? [];
@@ -237,6 +251,7 @@ async function transformMatchToCardData(
     isWinner: p.is_winner,
     ratingDelta: p.user_id ? (ratingDeltaMap.get(p.user_id) ?? null) : null,
     participantData: validateParticipantData(p.participant_data),
+    claimStatus: p.claim_status,
   }));
 
   const userParticipant = userId

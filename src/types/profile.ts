@@ -63,4 +63,5 @@ export type LeaderboardEntry = ProfileSummary & {
   wins: number
   winRate: number
   rank: number
+  formatSlug?: string // Optional format identifier for filtering
 }

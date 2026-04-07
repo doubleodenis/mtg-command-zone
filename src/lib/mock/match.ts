@@ -149,6 +149,7 @@ export function createMockParticipantDisplayInfo(
     isWinner: false,
     ratingDelta: { before: 1000, after: 1012, delta: 12, isPositive: true },
     participantData: null,
+    claimStatus: 'none',
     ...overrides,
   }
 }

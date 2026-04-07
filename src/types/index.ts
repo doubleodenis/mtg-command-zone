@@ -105,10 +105,13 @@ export type {
   ClaimResponsePayload,
   ClaimStatus,
   ConfirmMatchPayload,
+  CreateInviteTokenPayload,
   CreateMatchPayload,
   Match,
   MatchCardData,
   MatchFilters,
+  MatchInviteToken,
+  MatchInviteTokenWithDetails,
   MatchParticipant,
   MatchParticipantWithDetails,
   MatchSortField,
@@ -122,6 +125,7 @@ export type {
   PlaceholderParticipantInput,
   RegisteredParticipantInput,
   UpdateParticipantDeckPayload,
+  ValidateInviteTokenResult,
 } from './match'
 
 // Rating types

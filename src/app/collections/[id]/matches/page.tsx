@@ -47,6 +47,7 @@ export default async function CollectionMatchesPage({ params }: PageProps) {
   const matchesResult = await getRecentMatchCards(supabase, {
     limit: 100,
     collectionId: id,
+    viewerUserId: user?.id,
   });
   
   const matches = matchesResult.success ? matchesResult.data : [];
@@ -68,6 +69,7 @@ export default async function CollectionMatchesPage({ params }: PageProps) {
       <MatchLog
         matches={matches}
         groupByDate
+        showElo={isMember}
         emptyTitle="No matches yet"
         emptyDescription="Be the first to log a match in this collection"
         emptyAction={

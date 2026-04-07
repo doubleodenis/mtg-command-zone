@@ -3,6 +3,7 @@ import { Barlow, Chakra_Petch, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { createClient } from "@/lib/supabase/server";
+import { Footer } from "@/components/layout/footer";
 
 const chakraPetch = Chakra_Petch({
   subsets: ['latin'],
@@ -44,6 +45,7 @@ export default async function RootLayout({
       <body className={`${barlow.variable} ${chakraPetch.variable} ${jetbrainsMono.variable} font-body antialiased bg-bg-base text-text-1 min-h-screen`}>
         <Providers userId={user?.id}>
           {children}
+          <Footer />
         </Providers>
       </body>
     </html>

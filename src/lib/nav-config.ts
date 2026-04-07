@@ -9,6 +9,7 @@ export const AUTHENTICATED_NAV: NavItem[] = [
   { label: "Decks", href: "/decks" },
   { label: "Collections", href: "/collections" },
   { label: "Friends", href: "/friends" },
+  { label: "FAQ", href: "/faq" },
 ];
 
 /**
@@ -17,4 +18,5 @@ export const AUTHENTICATED_NAV: NavItem[] = [
 export const PUBLIC_NAV: NavItem[] = [
   { label: "Overview", href: "/" },
   { label: "Leaderboards", href: "/leaderboards" },
+  { label: "FAQ", href: "/faq" },
 ];

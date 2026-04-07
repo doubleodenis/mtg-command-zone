@@ -4,7 +4,7 @@ import { getMatchById } from '@/lib/services'
 import { getActiveDecks } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { MatchPreviewCard } from '@/components/match/match-preview-card'
+import { MatchPreviewCard, InviteLinkButton } from '@/components/match'
 import { AddToCollectionButton } from '@/components/match/add-to-collection-button'
 import { Navbar } from '@/components/features/navbar'
 import { ParticipantList } from './participant-list'
@@ -43,10 +43,11 @@ export default async function MatchDetailsPage({ params }: PageProps) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
-  // Fetch match and user's decks in parallel
-  const [matchResult, userDecksResult] = await Promise.all([
+  // Fetch match, user's decks, and match creator info in parallel
+  const [matchResult, userDecksResult, matchCreatorResult] = await Promise.all([
     getMatchById(supabase, matchId, user?.id),
     user ? getActiveDecks(supabase, user.id) : Promise.resolve({ success: true as const, data: [] }),
+    supabase.from('matches').select('created_by').eq('id', matchId).single(),
   ])
   
   if (!matchResult.success) {
@@ -64,6 +65,10 @@ export default async function MatchDetailsPage({ params }: PageProps) {
         bracket: d.bracket,
       }))
     : []
+  
+  // Determine if user is creator and if there are placeholder slots
+  const isCreator = user && matchCreatorResult.data?.created_by === user.id
+  const hasPlaceholderSlots = match.participants.some(p => p.userId === null)
     
   const avgBracket = getAverageBracket(match)
   
@@ -93,6 +98,12 @@ export default async function MatchDetailsPage({ params }: PageProps) {
             </div>
             <div className="flex items-center gap-2">
               {user && <AddToCollectionButton matchId={matchId} />}
+              {isCreator && (
+                <InviteLinkButton 
+                  matchId={matchId} 
+                  hasPlaceholderSlots={hasPlaceholderSlots} 
+                />
+              )}
               <Badge variant="accent">
                 {match.formatSlug.toUpperCase()}
               </Badge>
