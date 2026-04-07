@@ -104,6 +104,7 @@ export type Database = {
       }
       collections: {
         Row: {
+          auto_approve_members: boolean
           created_at: string | null
           description: string | null
           id: string
@@ -113,6 +114,7 @@ export type Database = {
           owner_id: string
         }
         Insert: {
+          auto_approve_members?: boolean
           created_at?: string | null
           description?: string | null
           id?: string
@@ -122,6 +124,7 @@ export type Database = {
           owner_id: string
         }
         Update: {
+          auto_approve_members?: boolean
           created_at?: string | null
           description?: string | null
           id?: string

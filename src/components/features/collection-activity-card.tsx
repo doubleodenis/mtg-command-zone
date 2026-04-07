@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
-import { Avatar, Badge, RatingDelta } from '@/components/ui'
+import { Avatar, RatingDelta } from '@/components/ui'
 import type { CollectionActivity } from '@/types'
 
 type CollectionActivityCardProps = {
@@ -13,7 +13,8 @@ type CollectionActivityCardProps = {
  */
 export function CollectionActivityCard({ activity }: CollectionActivityCardProps) {
   const { collection, userStats, topPlayer } = activity
-  
+  const hasPending = userStats.unconfirmedMatchCount > 0 || userStats.pendingApprovalCount > 0
+
   return (
     <Link href={`/collections/${collection.id}`}>
       <Card className="h-full hover:border-card-border-hover transition-colors">
@@ -44,6 +45,32 @@ export function CollectionActivityCard({ activity }: CollectionActivityCardProps
               <span className="font-display text-lg font-bold text-text-1">{userStats.gamesPlayed}</span>
             </div>
           </div>
+
+          {/* Pending notices */}
+          {hasPending && (
+            <div className="space-y-1.5">
+              {userStats.unconfirmedMatchCount > 0 && (
+                <div className="flex items-center gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                  <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                  <p className="text-xs text-amber-300 leading-tight">
+                    {userStats.unconfirmedMatchCount === 1
+                      ? '1 match awaiting your confirmation'
+                      : `${userStats.unconfirmedMatchCount} matches awaiting your confirmation`}
+                  </p>
+                </div>
+              )}
+              {userStats.pendingApprovalCount > 0 && (
+                <div className="flex items-center gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                  <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                  <p className="text-xs text-amber-300 leading-tight">
+                    {userStats.pendingApprovalCount === 1
+                      ? '1 match pending collection approval'
+                      : `${userStats.pendingApprovalCount} matches pending collection approval`}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Top player */}
           {topPlayer && (

@@ -105,6 +105,7 @@ export {
   getRatingHistoryEntry,
   applyRatingChange,
   updateCollectionRatings,
+  applyMatchCollectionRatings,
 } from './ratings'
 
 // Formats

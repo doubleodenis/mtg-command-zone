@@ -652,3 +652,133 @@ export async function updateCollectionRatings(
 
   return { success: true, data: results }
 }
+
+/**
+ * Apply collection-scoped rating changes for all confirmed participants of a match.
+ *
+ * Called when a match is added/approved to a collection. Iterates every confirmed
+ * real participant, checks if they're a member of the collection, and applies their
+ * rating change using collection-scoped ratings for both the player and opponents.
+ */
+export async function applyMatchCollectionRatings(
+  client: SupabaseClient<Database>,
+  params: {
+    matchId: string
+    collectionId: string
+    algorithmVersion: number
+  }
+): Promise<Result<null>> {
+  const { calculateRating } = await import('@/lib/rating')
+
+  // Load match format + all confirmed participants with deck info
+  const { data: match, error: matchError } = await client
+    .from('matches')
+    .select(`
+      format_id,
+      match_participants (
+        id,
+        user_id,
+        is_winner,
+        confirmed_at,
+        deck:decks!match_participants_deck_id_fkey ( bracket )
+      )
+    `)
+    .eq('id', params.matchId)
+    .single()
+
+  if (matchError || !match) {
+    return { success: false, error: matchError?.message ?? 'Match not found' }
+  }
+
+  const confirmed = match.match_participants.filter((p) => p.user_id && p.confirmed_at)
+  if (confirmed.length === 0) return { success: true, data: null }
+
+  // Load collection members so we only rate participants who belong to this collection
+  const { data: members, error: membersError } = await client
+    .from('collection_members')
+    .select('user_id')
+    .eq('collection_id', params.collectionId)
+
+  if (membersError) {
+    return { success: false, error: membersError.message }
+  }
+
+  const memberIds = new Set((members ?? []).map((m) => m.user_id))
+
+  // Participants who are both confirmed and members of this collection
+  const ratedParticipants = confirmed.filter((p) => memberIds.has(p.user_id!))
+  if (ratedParticipants.length === 0) return { success: true, data: null }
+
+  // Pre-fetch collection-scoped ratings for all rated participants (and use as opponents)
+  const ratingSnapshots = new Map<string, number>()
+  for (const p of ratedParticipants) {
+    const r = await getRating(client, p.user_id!, match.format_id, params.collectionId)
+    ratingSnapshots.set(p.user_id!, r.success ? r.data.rating : RATING_CONFIG.defaultRating)
+  }
+
+  for (const participant of ratedParticipants) {
+    const collRatingResult = await getRating(
+      client,
+      participant.user_id!,
+      match.format_id,
+      params.collectionId
+    )
+    if (!collRatingResult.success) continue
+
+    const collRating = collRatingResult.data
+
+    // Opponents = other confirmed member participants using their snapshotted collection rating.
+    // Fall back to all confirmed participants (global ratings) if no other members present.
+    const memberOpponents = ratedParticipants
+      .filter((p) => p.user_id !== participant.user_id)
+      .map((p) => ({
+        rating: ratingSnapshots.get(p.user_id!) ?? RATING_CONFIG.defaultRating,
+        bracket: (p.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      }))
+
+    const allOpponents = confirmed
+      .filter((p) => p.user_id !== participant.user_id)
+      .map((p) => ({
+        rating: RATING_CONFIG.defaultRating,
+        bracket: (p.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      }))
+
+    const opponents = memberOpponents.length > 0 ? memberOpponents : allOpponents
+
+    const ratingCalc = calculateRating({
+      playerId: participant.user_id!,
+      playerRating: collRating.rating,
+      playerBracket: (participant.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      playerMatchCount: collRating.matchesPlayed,
+      isWinner: participant.is_winner,
+      opponents,
+      formatId: match.format_id,
+      collectionId: params.collectionId,
+    })
+
+    const newRating = collRating.rating + ratingCalc.delta
+    const applyResult = await applyRatingChange(client, {
+      userId: participant.user_id!,
+      matchId: params.matchId,
+      formatId: match.format_id,
+      collectionId: params.collectionId,
+      newRating,
+      delta: ratingCalc.delta,
+      isWin: participant.is_winner,
+      playerBracket: (participant.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+      opponentAvgRating: ratingCalc.opponentAvgRating,
+      opponentAvgBracket: ratingCalc.opponentAvgBracket,
+      kFactor: ratingCalc.kFactor,
+      algorithmVersion: params.algorithmVersion,
+    })
+
+    if (!applyResult.success) {
+      console.error(
+        `applyMatchCollectionRatings: failed for user ${participant.user_id} in collection ${params.collectionId}:`,
+        applyResult.error
+      )
+    }
+  }
+
+  return { success: true, data: null }
+}

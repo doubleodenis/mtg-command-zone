@@ -629,9 +629,9 @@ export async function updateMatchParticipantDeck(
     return { success: false, error: 'You can only update your own deck' }
   }
 
-  if (participant.confirmed_at) {
-    return { success: false, error: 'Cannot update deck after confirmation' }
-  }
+  // Note: deck updates are allowed even after confirmation — updating your deck after
+  // a match has been confirmed (e.g. via auto-approve) only affects commander stats,
+  // not the historical rating that was already calculated.
 
   // Verify the deck belongs to the user
   const { data: deck, error: deckError } = await supabase

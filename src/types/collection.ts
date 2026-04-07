@@ -30,6 +30,8 @@ export type Collection = {
   description: string | null
   isPublic: boolean
   matchAddPermission: MatchAddPermission
+  /** When true, collection members are auto-confirmed for matches added to this collection */
+  autoApproveMembers: boolean
   createdAt: ISODateString
 }
 
@@ -103,6 +105,7 @@ export type CreateCollectionPayload = {
   description?: string | null
   isPublic?: boolean
   matchAddPermission?: MatchAddPermission
+  autoApproveMembers?: boolean
 }
 
 /**
@@ -113,6 +116,7 @@ export type UpdateCollectionPayload = {
   description?: string | null
   isPublic?: boolean
   matchAddPermission?: MatchAddPermission
+  autoApproveMembers?: boolean
 }
 
 /**
@@ -164,6 +168,10 @@ export type CollectionActivity = {
     winRate: number
     rating: number
     ratingDelta: number
+    /** Matches in this collection where the user is a participant but hasn't confirmed yet */
+    unconfirmedMatchCount: number
+    /** Matches the user submitted to this collection that are awaiting owner approval */
+    pendingApprovalCount: number
   }
   topPlayer?: {
     profile: ProfileSummary
