@@ -26,9 +26,18 @@ type LeaderboardWithFilterProps = {
 export function LeaderboardWithFilter({ entries }: LeaderboardWithFilterProps) {
   const [selectedFormat, setSelectedFormat] = useState<FormatSlug | 'all'>('all')
 
-  // In real implementation, filtering would happen server-side or entries would have format data
-  // For now, we just display all entries regardless of filter (mock data limitation)
-  const filteredEntries = entries
+  // Filter entries based on selected format
+  // - 'all': show entries without formatSlug (aggregated entries)
+  // - specific format: show entries with matching formatSlug
+  const filteredEntries = selectedFormat === 'all'
+    ? entries.filter(e => !e.formatSlug)
+    : entries.filter(e => e.formatSlug === selectedFormat)
+
+  // Re-rank filtered entries
+  const rankedEntries = filteredEntries
+    .sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.rating - a.rating)
+    .slice(0, 10)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }))
 
   return (
     <div>
@@ -52,43 +61,55 @@ export function LeaderboardWithFilter({ entries }: LeaderboardWithFilterProps) {
 
       {/* Leaderboard entries */}
       <div className="divide-y divide-card-border">
-        {filteredEntries.map((entry) => (
-          <Link
-            key={entry.id}
-            href={`/player/${entry.username}`}
-            className="flex items-center gap-4 px-4 py-3 hover:bg-bg-raised/50 transition-colors"
-          >
-            {/* Rank */}
-            <span
-              className={cn(
-                'w-6 text-center font-display font-bold',
-                entry.rank === 1 && 'text-gold',
-                entry.rank === 2 && 'text-text-2',
-                entry.rank === 3 && 'text-[#cd7f32]', // bronze
-                entry.rank > 3 && 'text-text-3'
-              )}
+        {rankedEntries.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <p className="text-text-3 text-sm">
+              {selectedFormat === 'all' 
+                ? 'No players ranked yet' 
+                : `No players ranked in ${FORMAT_OPTIONS.find(o => o.value === selectedFormat)?.label || selectedFormat}`
+              }
+            </p>
+            <p className="text-text-3 text-xs mt-1">Play some matches to see the leaderboard</p>
+          </div>
+        ) : (
+          rankedEntries.map((entry) => (
+            <Link
+              key={`${entry.id}-${entry.formatSlug ?? 'all'}`}
+              href={`/player/${entry.username}`}
+              className="flex items-center gap-4 px-4 py-3 hover:bg-bg-raised/50 transition-colors"
             >
-              {entry.rank}
-            </span>
+              {/* Rank */}
+              <span
+                className={cn(
+                  'w-6 text-center font-display font-bold',
+                  entry.rank === 1 && 'text-gold',
+                  entry.rank === 2 && 'text-text-2',
+                  entry.rank === 3 && 'text-[#cd7f32]', // bronze
+                  entry.rank > 3 && 'text-text-3'
+                )}
+              >
+                {entry.rank}
+              </span>
 
-            {/* Avatar */}
-            <Avatar src={entry.avatarUrl} fallback={entry.username} size="sm" />
+              {/* Avatar */}
+              <Avatar src={entry.avatarUrl} fallback={entry.username} size="sm" />
 
-            {/* Name & Stats */}
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-text-1 truncate">{entry.username}</p>
-              <p className="text-mono-xs text-text-2">{entry.matchesPlayed} matches</p>
-            </div>
+              {/* Name & Stats */}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-text-1 truncate">{entry.username}</p>
+                <p className="text-mono-xs text-text-2">{entry.matchesPlayed} matches</p>
+              </div>
 
-            {/* Win Rate */}
-            <span className="text-sm font-medium text-text-2 w-14 text-right">
-              {entry.winRate}% WR
-            </span>
+              {/* Win Rate */}
+              <span className="text-sm font-medium text-text-2 w-32 text-right">
+                {entry.winRate}% WR
+              </span>
 
-            {/* Rating */}
-            <RatingDisplay rating={entry.rating} />
-          </Link>
-        ))}
+              {/* Rating */}
+              <RatingDisplay rating={entry.rating} />
+            </Link>
+          ))
+        )}
       </div>
     </div>
   )

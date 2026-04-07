@@ -43,7 +43,7 @@ export function LeaderboardPreview({ entries }: LeaderboardPreviewProps) {
           </div>
 
           {/* Win Rate */}
-          <span className="text-sm font-medium text-text-2 w-14 text-right">
+          <span className="text-sm font-medium text-text-2 w-32 text-right">
             {entry.winRate}% WR
           </span>
 

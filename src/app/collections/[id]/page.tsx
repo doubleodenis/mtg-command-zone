@@ -17,7 +17,7 @@ import {
   getPendingMatchApprovalsWithDetails,
 } from "@/lib/supabase";
 import { getRecentMatchCards, getTopCommanders } from "@/lib/services";
-import type { CollectionMemberWithProfile, PendingMatchApproval } from "@/types";
+import type { CollectionMemberWithProfile, PendingMatchApproval, LeaderboardEntry } from "@/types";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -63,16 +63,49 @@ export default async function CollectionPage({ params }: PageProps) {
     getTopCommanders(supabase, { limit: 5, collectionId: id }),
   ]);
 
-  // Get FFA format for leaderboard (collections typically use FFA)
-  const ffaFormat = formatsResult.success
-    ? formatsResult.data.find((f) => f.slug === "ffa")
-    : null;
+  // Fetch leaderboards for all formats
+  const formats = formatsResult.success ? formatsResult.data : [];
+  const leaderboardPromises = formats.map((f) => 
+    getLeaderboard(supabase, f.id, 50, id).then(result => ({ format: f, result }))
+  );
+  const leaderboardResults = await Promise.all(leaderboardPromises);
 
-  const leaderboardResult = ffaFormat
-    ? await getLeaderboard(supabase, ffaFormat.id, 10, id)
-    : { success: false as const, error: "No format found" };
+  // Build entries with format slugs for filtering
+  const allEntries: LeaderboardEntry[] = [];
+  for (const { format, result } of leaderboardResults) {
+    if (!result.success) continue;
+    for (const entry of result.data) {
+      allEntries.push({ ...entry, formatSlug: format.slug });
+    }
+  }
 
-  const leaderboard = leaderboardResult.success ? leaderboardResult.data : [];
+  // Aggregate for "All Formats" view and compute rankings
+  const userMap = new Map<string, LeaderboardEntry>();
+  for (const entry of allEntries) {
+    const existing = userMap.get(entry.id);
+    if (existing) {
+      // Combine stats - keep highest rating, sum matches/wins
+      existing.matchesPlayed += entry.matchesPlayed;
+      existing.wins += entry.wins;
+      existing.rating = Math.max(existing.rating, entry.rating);
+      existing.winRate = existing.matchesPlayed > 0
+        ? Math.round((existing.wins / existing.matchesPlayed) * 100)
+        : 0;
+    } else {
+      // "all" entries have no formatSlug
+      userMap.set(entry.id, { ...entry, formatSlug: undefined });
+    }
+  }
+
+  // Build final leaderboard with both aggregated and per-format entries
+  const aggregatedEntries = Array.from(userMap.values())
+    .sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.rating - a.rating)
+    .slice(0, 10)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  // Combine: aggregated (for "All") + individual format entries (for filtering)
+  const leaderboard = [...aggregatedEntries, ...allEntries];
+
   const recentMatches = matchesResult.success ? matchesResult.data : [];
   const topCommanders = commandersResult.success ? commandersResult.data : [];
 
@@ -90,9 +123,9 @@ export default async function CollectionPage({ params }: PageProps) {
   // Get top commander by win rate
   const topCommander = topCommanders.length > 0 ? topCommanders[0] : null;
   
-  // Get highest win rate player from leaderboard
-  const topWinRatePlayer = leaderboard.length > 0 
-    ? leaderboard.reduce((best, entry) => entry.winRate > best.winRate ? entry : best, leaderboard[0])
+  // Get highest win rate player from aggregated leaderboard
+  const topWinRatePlayer = aggregatedEntries.length > 0 
+    ? aggregatedEntries.reduce((best, entry) => entry.winRate > best.winRate ? entry : best, aggregatedEntries[0])
     : null;
 
   return (

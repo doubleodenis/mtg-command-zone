@@ -28,7 +28,7 @@ import {
   getUserCollectionActivities,
   getTopCommanders,
 } from "@/lib/services";
-import type { RatingHistoryEntry } from "@/types";
+import type { RatingHistoryEntry, LeaderboardEntry } from "@/types";
 import {
   createMockPlayerStats,
   createMockUserMatches,
@@ -64,23 +64,50 @@ async function GlobalDashboard() {
     getTopCommanders(supabase, { limit: 5 }),
   ]);
 
-  // Get leaderboard for first format (FFA typically)
-  const ffaFormat = formatsResult.success 
-    ? formatsResult.data.find(f => f.slug === 'ffa') 
-    : null;
-  
-  const leaderboardResult = ffaFormat 
-    ? await getLeaderboard(supabase, ffaFormat.id, 5)
-    : { success: false as const, error: 'No format found' };
+  // Fetch leaderboards for all formats
+  const formats = formatsResult.success ? formatsResult.data : [];
+  const leaderboardPromises = formats.map((f) => 
+    getLeaderboard(supabase, f.id, 20).then(result => ({ format: f, result }))
+  );
+  const leaderboardResults = await Promise.all(leaderboardPromises);
+
+  // Build entries with format slugs for filtering
+  const allEntries: LeaderboardEntry[] = [];
+  for (const { format, result } of leaderboardResults) {
+    if (!result.success) continue;
+    for (const entry of result.data) {
+      allEntries.push({ ...entry, formatSlug: format.slug });
+    }
+  }
+
+  // Aggregate for "All Formats" view
+  const userMap = new Map<string, LeaderboardEntry>();
+  for (const entry of allEntries) {
+    const existing = userMap.get(entry.id);
+    if (existing) {
+      existing.matchesPlayed += entry.matchesPlayed;
+      existing.wins += entry.wins;
+      existing.rating = Math.max(existing.rating, entry.rating);
+      existing.winRate = existing.matchesPlayed > 0
+        ? Math.round((existing.wins / existing.matchesPlayed) * 100)
+        : 0;
+    } else {
+      userMap.set(entry.id, { ...entry, formatSlug: undefined });
+    }
+  }
+
+  const aggregatedEntries = Array.from(userMap.values())
+    .sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.rating - a.rating)
+    .slice(0, 5)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  // Combine: aggregated (for "All") + individual format entries (for filtering)
+  const leaderboard = [...aggregatedEntries, ...allEntries];
 
   // Use real data with empty state fallbacks
   const platformStats = platformStatsResult.success 
     ? platformStatsResult.data 
     : { totalMatches: 0, totalPlayers: 0, totalDecks: 0, totalCollections: 0 };
-
-  const leaderboard = leaderboardResult.success 
-    ? leaderboardResult.data 
-    : [];
 
   const recentMatches = recentMatchesResult.success 
     ? recentMatchesResult.data 

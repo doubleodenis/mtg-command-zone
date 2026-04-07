@@ -366,7 +366,7 @@ function ColorBreakdown({
 
   return (
     <div className="mt-4 pt-4 border-t border-card-border space-y-2">
-      {colors.slice(0, 3).map((color) => (
+      {colors.map((color) => (
         <div key={color.key} className="flex items-center gap-3">
           <ColorIdentity
             colors={[color.key as "W" | "U" | "B" | "R" | "G"]}
