@@ -91,6 +91,22 @@ export default async function PlayerProfilePage({ params }: PageProps) {
   const formatStats = formatStatsResult.success ? formatStatsResult.data : [];
   const recentMatches = recentMatchesResult.success ? recentMatchesResult.data : [];
   
+  // Count matches with claimable slots (for non-own profiles)
+  // Only count matches where:
+  // 1. There are guest slots that can be claimed (claimStatus === 'none')
+  // 2. The current user is NOT already a participant in the match
+  const claimableMatchCount = !isOwnProfile && currentUser
+    ? recentMatches.filter(match => {
+        const hasClaimableSlots = match.participants.some(
+          p => !p.isRegistered && p.claimStatus === 'none'
+        );
+        const isCurrentUserParticipant = match.participants.some(
+          p => p.userId === currentUser.id
+        );
+        return hasClaimableSlots && !isCurrentUserParticipant;
+      }).length
+    : 0;
+  
   // Sort decks by games played to get top commanders
   const userDecks = userDecksResult.success ? userDecksResult.data : [];
   const topCommanders = [...userDecks]
@@ -148,6 +164,49 @@ export default async function PlayerProfilePage({ params }: PageProps) {
       {/* Profile Header */}
       <ProfileHeader profile={profile} />
 
+      {/* Claim Your Spot Banner - shown when viewing other profiles with claimable matches */}
+      {claimableMatchCount > 0 && (
+        <div className="rounded-lg bg-accent/10 border border-accent/30 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-accent"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="19" x2="19" y1="8" y2="14" />
+                  <line x1="22" x2="16" y1="11" y2="11" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-text-1">
+                  {claimableMatchCount} {claimableMatchCount === 1 ? 'match has' : 'matches have'} open slots
+                </p>
+                <p className="text-sm text-text-2">
+                  Were you in one of {username}'s games? Claim your spot!
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/player/${username}/matches`}
+              className="shrink-0 px-4 py-2 rounded-md bg-accent text-white font-medium text-sm hover:bg-accent-fill transition-colors"
+            >
+              View Matches
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Head-to-Head Comparison (only when viewing someone else's profile) */}
       {comparisonData && (
         <Section title="COMPARED TO YOU">
@@ -201,7 +260,12 @@ export default async function PlayerProfilePage({ params }: PageProps) {
             <div className="space-y-4">
               {recentMatches.length > 0 ? (
                 recentMatches.map((match) => (
-                  <MatchPreviewCard key={match.id} match={match} showElo />
+                  <MatchPreviewCard 
+                    key={match.id} 
+                    match={match} 
+                    showElo={isOwnProfile}
+                    showClaimBadges={!isOwnProfile && !!currentUser}
+                  />
                 ))
               ) : (
                 <p className="text-text-3 text-center py-8">No matches yet</p>

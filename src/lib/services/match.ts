@@ -196,6 +196,7 @@ async function transformMatchToCardData(
         confirmed_at,
         team,
         participant_data,
+        claim_status,
         deck:decks!match_participants_deck_id_fkey(*),
         profile:profiles!match_participants_user_id_fkey(*)
       `,
@@ -237,6 +238,7 @@ async function transformMatchToCardData(
     isWinner: p.is_winner,
     ratingDelta: p.user_id ? (ratingDeltaMap.get(p.user_id) ?? null) : null,
     participantData: validateParticipantData(p.participant_data),
+    claimStatus: p.claim_status,
   }));
 
   const userParticipant = userId

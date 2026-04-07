@@ -76,6 +76,7 @@ export type ParticipantDisplayInfo = {
   isWinner: boolean
   ratingDelta: RatingDelta | null // null if not confirmed
   participantData: ParticipantData | null // format-specific metadata
+  claimStatus: ClaimStatus // 'none' | 'pending' | 'approved' | 'rejected'
 }
 
 /**

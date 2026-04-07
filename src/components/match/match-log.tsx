@@ -82,10 +82,12 @@ function MatchIcon({ className }: { className?: string }) {
 // ============================================
 
 type ResultFilter = "all" | "wins" | "losses";
+type ClaimFilter = "all" | "claimable";
 
 type MatchFilters = {
   format: FormatSlug | "all";
   result: ResultFilter;
+  claim: ClaimFilter;
 };
 
 const FORMAT_OPTIONS: { value: FormatSlug | "all"; label: string }[] = [
@@ -103,19 +105,50 @@ const RESULT_OPTIONS: { value: ResultFilter; label: string }[] = [
   { value: "losses", label: "Losses" },
 ];
 
+const CLAIM_OPTIONS: { value: ClaimFilter; label: string }[] = [
+  { value: "all", label: "All Matches" },
+  { value: "claimable", label: "Open Slots" },
+];
+
 type MatchLogFiltersProps = {
   filters: MatchFilters;
   onFiltersChange: (filters: MatchFilters) => void;
+  showClaimFilter?: boolean;
   className?: string;
 };
 
 function MatchLogFilters({
   filters,
   onFiltersChange,
+  showClaimFilter = false,
   className,
 }: MatchLogFiltersProps) {
   return (
     <div className={cn("flex flex-wrap gap-2 mb-4", className)}>
+      {/* Claim Filter - Only shown when viewing other profiles */}
+      {showClaimFilter && (
+        <div className="flex gap-1 bg-surface rounded-lg p-1">
+          {CLAIM_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              variant={filters.claim === option.value ? "primary" : "ghost"}
+              size="sm"
+              onClick={() =>
+                onFiltersChange({ ...filters, claim: option.value })
+              }
+              className={cn(
+                "text-xs px-2.5 py-1 h-auto",
+                filters.claim === option.value
+                  ? ""
+                  : "text-text-2 hover:text-text-1"
+              )}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {/* Format Filter */}
       <div className="flex gap-1 bg-surface rounded-lg p-1">
         {FORMAT_OPTIONS.map((option) => (
@@ -166,12 +199,30 @@ function MatchLogFilters({
 function applyFilters(
   matches: MatchCardData[],
   filters: MatchFilters,
-  currentUserId?: string
+  currentUserId?: string,
+  viewingUserId?: string
 ): MatchCardData[] {
   return matches.filter((match) => {
     // Format filter
     if (filters.format !== "all" && match.formatSlug !== filters.format) {
       return false;
+    }
+
+    // Claim filter - show only matches with claimable slots
+    // Also filter out matches where the viewing user is already a participant
+    if (filters.claim === "claimable") {
+      const hasClaimableSlots = match.participants.some(
+        p => !p.isRegistered && p.claimStatus === "none"
+      );
+      if (!hasClaimableSlots) return false;
+      
+      // If viewing user is already in this match, they can't claim another slot
+      if (viewingUserId) {
+        const isViewerParticipant = match.participants.some(
+          p => p.userId === viewingUserId
+        );
+        if (isViewerParticipant) return false;
+      }
     }
 
     // Result filter (requires knowing the current user)
@@ -198,6 +249,8 @@ type MatchLogProps = {
   matches: MatchCardData[];
   /** Whether to show ELO deltas on match cards */
   showElo?: boolean;
+  /** Whether to show claim badges on guest participant slots */
+  showClaimBadges?: boolean;
   /** Whether data is loading */
   isLoading?: boolean;
   /** Number of skeleton cards to show when loading */
@@ -218,8 +271,10 @@ type MatchLogProps = {
   headerAction?: React.ReactNode;
   /** Whether to show filter controls */
   showFilters?: boolean;
-  /** Current user ID for result filtering (wins/losses) */
+  /** Profile owner's user ID for result filtering (wins/losses) */
   currentUserId?: string;
+  /** Viewing user's ID for claim filtering (to exclude matches they're already in) */
+  viewingUserId?: string;
 };
 
 // ============================================
@@ -329,6 +384,7 @@ function MatchLogEmpty({
 export function MatchLog({
   matches,
   showElo = false,
+  showClaimBadges = false,
   isLoading = false,
   skeletonCount = 5,
   groupByDate = true,
@@ -340,15 +396,17 @@ export function MatchLog({
   headerAction,
   showFilters = false,
   currentUserId,
+  viewingUserId,
 }: MatchLogProps) {
   const [filters, setFilters] = React.useState<MatchFilters>({
     format: "all",
     result: "all",
+    claim: "all",
   });
 
   // Apply filters to matches
   const filteredMatches = showFilters
-    ? applyFilters(matches, filters, currentUserId)
+    ? applyFilters(matches, filters, currentUserId, viewingUserId)
     : matches;
 
   // Loading state
@@ -359,7 +417,11 @@ export function MatchLog({
           <MatchLogHeader title={title} matchCount={0} action={headerAction} />
         )}
         {showFilters && (
-          <MatchLogFilters filters={filters} onFiltersChange={setFilters} />
+          <MatchLogFilters 
+            filters={filters} 
+            onFiltersChange={setFilters}
+            showClaimFilter={showClaimBadges}
+          />
         )}
         <MatchLogSkeleton count={skeletonCount} />
       </div>
@@ -383,7 +445,7 @@ export function MatchLog({
   }
 
   // No matches after filtering
-  const hasActiveFilters = filters.format !== "all" || filters.result !== "all";
+  const hasActiveFilters = filters.format !== "all" || filters.result !== "all" || filters.claim !== "all";
   if (filteredMatches.length === 0 && hasActiveFilters) {
     return (
       <div className={className}>
@@ -395,7 +457,11 @@ export function MatchLog({
           />
         )}
         {showFilters && (
-          <MatchLogFilters filters={filters} onFiltersChange={setFilters} />
+          <MatchLogFilters 
+            filters={filters} 
+            onFiltersChange={setFilters}
+            showClaimFilter={showClaimBadges}
+          />
         )}
         <MatchLogEmpty
           title="No matches found"
@@ -404,7 +470,7 @@ export function MatchLog({
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setFilters({ format: "all", result: "all" })}
+              onClick={() => setFilters({ format: "all", result: "all", claim: "all" })}
             >
               Clear filters
             </Button>
@@ -433,7 +499,11 @@ export function MatchLog({
       )}
 
       {showFilters && (
-        <MatchLogFilters filters={filters} onFiltersChange={setFilters} />
+        <MatchLogFilters 
+          filters={filters} 
+          onFiltersChange={setFilters}
+          showClaimFilter={showClaimBadges}
+        />
       )}
 
       {groupByDate && groupedMatches ? (
@@ -452,6 +522,7 @@ export function MatchLog({
                       key={match.id}
                       match={match}
                       showElo={showElo}
+                      showClaimBadges={showClaimBadges}
                     />
                   ))}
                 </div>
@@ -467,6 +538,7 @@ export function MatchLog({
               key={match.id}
               match={match}
               showElo={showElo}
+              showClaimBadges={showClaimBadges}
             />
           ))}
         </div>
