@@ -3,6 +3,11 @@
  *
  * All queries for ratings, rating history, and user statistics.
  * Uses the get_or_create_rating and get_user_stats database functions.
+ *
+ * Write operations use apply_rating_change — a SECURITY DEFINER SQL function
+ * that atomically updates `ratings` and inserts into `rating_history`.
+ * Both tables have no direct-user-write RLS policies (system-managed only),
+ * so all mutations must go through this function.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -480,6 +485,89 @@ export async function recordRatingHistory(
 }
 
 // ============================================
+// Atomic Rating Write (SECURITY DEFINER RPC)
+// ============================================
+
+/**
+ * Type for apply_rating_change RPC args.
+ * Defined manually here because database.types.ts is generated and should not
+ * be edited by hand — regenerate with `supabase gen types typescript` after
+ * deploying migration 006_rating_write_functions.sql.
+ */
+type ApplyRatingChangeArgs = {
+  p_user_id: string
+  p_match_id: string
+  p_format_id: string
+  p_collection_id: string | null
+  p_new_rating: number
+  p_delta: number
+  p_is_win: boolean
+  p_player_bracket: number
+  p_opponent_avg_rating: number
+  p_opponent_avg_bracket: number
+  p_k_factor: number
+  p_algorithm_version: number
+}
+
+/**
+ * Atomically update a user's rating and record the history entry.
+ *
+ * Calls the `apply_rating_change` SECURITY DEFINER Postgres function, which
+ * bypasses the system-managed-only RLS on `ratings` and `rating_history`.
+ * Also correctly increments `wins` and sets `is_win` on the history row.
+ */
+export async function applyRatingChange(
+  client: SupabaseClient<Database>,
+  params: {
+    userId: string
+    matchId: string
+    formatId: string
+    collectionId?: string
+    newRating: number
+    delta: number
+    isWin: boolean
+    playerBracket: Bracket
+    opponentAvgRating: number
+    opponentAvgBracket: number
+    kFactor: number
+    algorithmVersion: number
+  }
+): Promise<Result<null>> {
+  // apply_rating_change is not yet in the generated Database types.
+  // Cast through unknown (not any) to an explicit typed shim.
+  type RpcShim = {
+    rpc(
+      fn: 'apply_rating_change',
+      args: ApplyRatingChangeArgs
+    ): Promise<{ error: { message: string } | null }>
+  }
+
+  const { error } = await (client as unknown as RpcShim).rpc(
+    'apply_rating_change',
+    {
+      p_user_id: params.userId,
+      p_match_id: params.matchId,
+      p_format_id: params.formatId,
+      p_collection_id: params.collectionId ?? null,
+      p_new_rating: params.newRating,
+      p_delta: params.delta,
+      p_is_win: params.isWin,
+      p_player_bracket: params.playerBracket,
+      p_opponent_avg_rating: params.opponentAvgRating,
+      p_opponent_avg_bracket: params.opponentAvgBracket,
+      p_k_factor: params.kFactor,
+      p_algorithm_version: params.algorithmVersion,
+    }
+  )
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: null }
+}
+
+// ============================================
 // Collection-Scoped Rating Updates
 // ============================================
 
@@ -533,37 +621,27 @@ export async function updateCollectionRatings(
       collectionId,
     })
 
-    // Update collection-scoped rating
+    // Atomically update rating + record history via SECURITY DEFINER RPC
     const newRating = collectionRating.rating + ratingCalc.delta
-    const updateResult = await updateRating(
-      client,
-      params.userId,
-      params.formatId,
-      newRating,
-      true, // increment match count
-      collectionId
-    )
-
-    if (!updateResult.success) {
-      console.error(`Failed to update collection rating for ${collectionId}:`, updateResult.error)
-      continue
-    }
-
-    // Record collection-scoped rating history
-    await recordRatingHistory(client, {
+    const applyResult = await applyRatingChange(client, {
       userId: params.userId,
       matchId: params.matchId,
       formatId: params.formatId,
       collectionId,
-      ratingBefore: collectionRating.rating,
-      ratingAfter: newRating,
+      newRating,
       delta: ratingCalc.delta,
+      isWin: params.isWinner,
       playerBracket: params.playerBracket,
       opponentAvgRating: ratingCalc.opponentAvgRating,
       opponentAvgBracket: ratingCalc.opponentAvgBracket,
       kFactor: ratingCalc.kFactor,
       algorithmVersion: params.algorithmVersion,
     })
+
+    if (!applyResult.success) {
+      console.error(`Failed to apply collection rating change for ${collectionId}:`, applyResult.error)
+      continue
+    }
 
     results.push({
       collectionId,

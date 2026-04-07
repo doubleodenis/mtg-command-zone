@@ -12,7 +12,7 @@ import {
   searchClaimableMatches,
   createMatch,
 } from '@/lib/supabase/matches'
-import { getRating, updateRating, recordRatingHistory, updateCollectionRatings } from '@/lib/supabase/ratings'
+import { getRating, applyRatingChange, updateCollectionRatings } from '@/lib/supabase/ratings'
 import { getMatchCollections, getUserMemberCollections } from '@/lib/supabase/collections'
 import { calculateRating } from '@/lib/rating'
 import type { Result, Bracket, ClaimableMatchSlot, ClaimStatus, CreateMatchPayload, MatchData, ParticipantInput } from '@/types'
@@ -137,30 +137,50 @@ export async function logMatch(payload: {
     collectionId: null,
   })
 
-  // Update rating
+  // Atomically update global rating + record history via SECURITY DEFINER RPC
   const newRating = currentRating.rating + ratingCalc.delta
-  await updateRating(
-    supabase,
-    user.id,
-    format.id,
-    newRating,
-    true // increment match count
-  )
-
-  // Record rating history
-  await recordRatingHistory(supabase, {
+  const applyResult = await applyRatingChange(supabase, {
     userId: user.id,
     matchId: match.id,
     formatId: format.id,
-    ratingBefore: currentRating.rating,
-    ratingAfter: newRating,
+    newRating,
     delta: ratingCalc.delta,
+    isWin: creatorParticipant.is_winner,
     playerBracket,
     opponentAvgRating: ratingCalc.opponentAvgRating,
     opponentAvgBracket: ratingCalc.opponentAvgBracket,
     kFactor: ratingCalc.kFactor,
     algorithmVersion: 1,
   })
+
+  if (!applyResult.success) {
+    return { success: false, error: `Failed to save rating: ${applyResult.error}` }
+  }
+
+  // Update collection-scoped ratings (creator is auto-confirmed so this runs now)
+  const matchCollectionsResult = await getMatchCollections(supabase, match.id)
+  if (matchCollectionsResult.success && matchCollectionsResult.data.length > 0) {
+    const userMemberCollectionsResult = await getUserMemberCollections(
+      supabase,
+      user.id,
+      matchCollectionsResult.data
+    )
+    if (userMemberCollectionsResult.success && userMemberCollectionsResult.data.length > 0) {
+      await updateCollectionRatings(supabase, {
+        userId: user.id,
+        matchId: match.id,
+        formatId: format.id,
+        playerBracket,
+        isWinner: creatorParticipant.is_winner,
+        opponents,
+        collectionIds: userMemberCollectionsResult.data,
+        algorithmVersion: 1,
+      })
+      for (const collectionId of userMemberCollectionsResult.data) {
+        revalidatePath(`/collections/${collectionId}`)
+      }
+    }
+  }
 
   // Revalidate pages
   revalidatePath('/dashboard')
@@ -316,34 +336,25 @@ export async function confirmMatch(
     return { success: false, error: confirmResult.error }
   }
 
-  // Update rating
+  // Atomically update global rating + record history via SECURITY DEFINER RPC
   const newRating = currentRating.rating + ratingCalc.delta
-  const updateResult = await updateRating(
-    supabase,
-    user.id,
-    format.id,
-    newRating,
-    true // increment match count
-  )
-
-  if (!updateResult.success) {
-    return { success: false, error: updateResult.error }
-  }
-
-  // Record rating history
-  await recordRatingHistory(supabase, {
+  const applyResult = await applyRatingChange(supabase, {
     userId: user.id,
     matchId: participant.match_id,
     formatId: format.id,
-    ratingBefore: currentRating.rating,
-    ratingAfter: newRating,
+    newRating,
     delta: ratingCalc.delta,
+    isWin: participant.is_winner,
     playerBracket,
     opponentAvgRating: ratingCalc.opponentAvgRating,
     opponentAvgBracket: ratingCalc.opponentAvgBracket,
     kFactor: ratingCalc.kFactor,
     algorithmVersion: 1,
   })
+
+  if (!applyResult.success) {
+    return { success: false, error: `Failed to save rating: ${applyResult.error}` }
+  }
 
   // Update collection-scoped ratings
   // Get all collections this match belongs to

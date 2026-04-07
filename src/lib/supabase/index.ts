@@ -103,8 +103,8 @@ export {
   getRatingHistory,
   getRatingTimeline,
   getRatingHistoryEntry,
-  updateRating,
-  recordRatingHistory,
+  applyRatingChange,
+  updateCollectionRatings,
 } from './ratings'
 
 // Formats
