@@ -42,6 +42,7 @@ export function createMockCollection(
     description: 'A collection of epic Commander matches',
     isPublic: true,
     matchAddPermission: 'any_member',
+    autoApproveMembers: false,
     createdAt: generateMockDate(90),
     ...overrides,
   }
@@ -131,6 +132,8 @@ export function createMockCollectionActivity(
       winRate: Math.round((wins / gamesPlayed) * 100),
       rating,
       ratingDelta,
+      unconfirmedMatchCount: Math.floor(Math.random() * 3),
+      pendingApprovalCount: Math.floor(Math.random() * 2),
     },
     topPlayer: {
       profile: createMockProfileSummary(),
@@ -171,6 +174,8 @@ export function createMockCollectionActivities(count = 3): CollectionActivity[] 
         winRate: Math.round((wins / gamesPlayed) * 100),
         rating,
         ratingDelta,
+        unconfirmedMatchCount: Math.floor(Math.random() * 3),
+        pendingApprovalCount: Math.floor(Math.random() * 2),
       },
     })
   })
