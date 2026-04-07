@@ -61,7 +61,7 @@ export function ProfileDropdown({ username, avatarUrl }: ProfileDropdownProps) {
       {/* Avatar trigger */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="ml-1 rounded-full ring-offset-bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        className="cursor-pointer ml-1 rounded-full ring-offset-bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         aria-expanded={isOpen}
         aria-haspopup="true"
       >

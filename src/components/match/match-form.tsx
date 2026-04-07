@@ -454,7 +454,7 @@ export function MatchForm({
           <CardContent>
             {/* Team-based layout for team formats */}
             {selectedFormat.hasTeams ? (
-              <div className="flex flex-col md:grid md:grid-cols-[1fr_auto_1fr] gap-4">
+              <div className="flex flex-col md:grid md:grid-cols-[minmax(300px,1fr)_auto_minmax(300px,1fr)] gap-4">
                 {/* Team A */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 pb-2 border-b border-card-border">

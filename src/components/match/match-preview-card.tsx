@@ -219,6 +219,9 @@ export function MatchPreviewCard({
     p => !p.isRegistered && p.claimStatus === 'none'
   ).length;
 
+  // Don't show claim badges if the viewer is already participating in this match
+  const effectiveShowClaimBadges = showClaimBadges && !userParticipant;
+
   // Group participants by team for team formats
   const { teamA, teamB } = hasTeams
     ? groupByTeam(match.participants)
@@ -245,7 +248,7 @@ export function MatchPreviewCard({
                         key={participant.id}
                         participant={participant}
                         userParticipantId={userParticipant?.id}
-                        showClaimBadge={showClaimBadges}
+                        showClaimBadge={effectiveShowClaimBadges}
                       />
                     ))}
                   </div>
@@ -260,7 +263,7 @@ export function MatchPreviewCard({
                         key={participant.id}
                         participant={participant}
                         userParticipantId={userParticipant?.id}
-                        showClaimBadge={showClaimBadges}
+                        showClaimBadge={effectiveShowClaimBadges}
                       />
                     ))}
                   </div>
@@ -273,7 +276,7 @@ export function MatchPreviewCard({
                     participant={participant}
                     userParticipantId={userParticipant?.id}
                     relationship={getPentagramRelationship(participant, userParticipant)}
-                    showClaimBadge={showClaimBadges}
+                    showClaimBadge={effectiveShowClaimBadges}
                   />
                 ))
               ) : (
@@ -283,7 +286,7 @@ export function MatchPreviewCard({
                     key={participant.id}
                     participant={participant}
                     userParticipantId={userParticipant?.id}
-                    showClaimBadge={showClaimBadges}
+                    showClaimBadge={effectiveShowClaimBadges}
                   />
                 ))
               )}
@@ -302,7 +305,7 @@ export function MatchPreviewCard({
               )}
 
               {/* Claimable slots indicator */}
-              {showClaimBadges && claimableSlots > 0 && (
+              {effectiveShowClaimBadges && claimableSlots > 0 && (
                 <Badge variant="accent" className="text-xs">
                   {claimableSlots} open {claimableSlots === 1 ? 'slot' : 'slots'}
                 </Badge>

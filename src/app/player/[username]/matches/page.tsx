@@ -32,6 +32,7 @@ export default async function PlayerMatchHistoryPage({ params }: PageProps) {
   // Fetch matches for this user
   const matchesResult = await getRecentMatchCards(supabase, {
     userId: profile.id,
+    viewerUserId: currentUser?.id,
     limit: 100, // Show more matches on dedicated page
   });
 

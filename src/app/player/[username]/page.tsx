@@ -73,7 +73,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     getUserStats(supabase, profile.id),
     getUserRatings(supabase, profile.id),
     getFormatStats(supabase, profile.id),
-    getRecentMatchCards(supabase, { userId: profile.id, limit: 5 }),
+    getRecentMatchCards(supabase, { userId: profile.id, viewerUserId: currentUser?.id, limit: 5 }),
     getUserDecksWithStats(supabase, profile.id),
   ]);
 

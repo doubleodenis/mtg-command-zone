@@ -123,7 +123,7 @@ export function NotificationDropdown({
       <button
         onClick={isOpen ? () => setIsOpen(false) : handleOpen}
         className={cn(
-          "relative p-2 rounded-full transition-colors",
+          " cursor-pointer relative p-2 rounded-full transition-colors",
           "text-text-2 hover:text-text-1 hover:bg-surface",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
         )}
