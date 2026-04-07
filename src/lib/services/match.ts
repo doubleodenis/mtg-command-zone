@@ -170,7 +170,7 @@ export async function getRecentMatchCards(
   // Use viewerUserId (if provided) to correctly identify the logged-in user's slot,
   // even when filtering matches by a different user's profile.
   const matchCards = await Promise.all(
-    matches.map((match) => transformMatchToCardData(client, match, viewerUserId ?? userId))
+    matches.map((match) => transformMatchToCardData(client, match, viewerUserId ?? userId, collectionId))
   )
 
   return { success: true, data: matchCards }
@@ -187,6 +187,7 @@ async function transformMatchToCardData(
     format: { name: string; slug: string };
   },
   userId?: string,
+  collectionId?: string,
 ): Promise<MatchCardData> {
   // Fetch participants and rating history in parallel
   const [participantsResult, ratingHistoryResult] = await Promise.all([
@@ -207,10 +208,17 @@ async function transformMatchToCardData(
       `,
       )
       .eq("match_id", match.id),
-    client
-      .from("rating_history")
-      .select("user_id, delta, rating_before, rating_after")
-      .eq("match_id", match.id),
+    collectionId
+      ? client
+          .from("rating_history")
+          .select("user_id, delta, rating_before, rating_after")
+          .eq("match_id", match.id)
+          .eq("collection_id", collectionId)
+      : client
+          .from("rating_history")
+          .select("user_id, delta, rating_before, rating_after")
+          .eq("match_id", match.id)
+          .is("collection_id", null),
   ]);
 
   const participants = participantsResult.data ?? [];

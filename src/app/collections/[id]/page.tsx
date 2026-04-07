@@ -59,7 +59,7 @@ export default async function CollectionPage({ params }: PageProps) {
   // Fetch additional data in parallel
   const [formatsResult, matchesResult, commandersResult] = await Promise.all([
     getFormats(supabase),
-    getRecentMatchCards(supabase, { limit: 8, collectionId: id }),
+    getRecentMatchCards(supabase, { limit: 8, collectionId: id, viewerUserId: user?.id }),
     getTopCommanders(supabase, { limit: 5, collectionId: id }),
   ]);
 
@@ -171,6 +171,7 @@ export default async function CollectionPage({ params }: PageProps) {
         <MatchLog
           matches={recentMatches.slice(0, 5)}
           groupByDate
+          showElo={!!user && isMember}
         />
       </Section>
 
