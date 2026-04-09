@@ -13,7 +13,7 @@ export default async function ProfileSettingsPage() {
 
   return (
     <ProfileSettingsContent
-      profile={profile ? { username: profile.username, avatarUrl: profile.avatarUrl } : null}
+      profile={profile ? { username: profile.username, displayName: profile.displayName, avatarUrl: profile.avatarUrl } : null}
       userId={user.id}
     />
   );

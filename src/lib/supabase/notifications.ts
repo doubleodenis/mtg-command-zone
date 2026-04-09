@@ -37,6 +37,7 @@ export async function getNotifications(
       actor:profiles!notifications_actor_id_fkey (
         id,
         username,
+        display_name,
         avatar_url
       )
     `)
@@ -69,6 +70,7 @@ export async function getNotifications(
       ? mapProfileSummary({
           id: row.actor.id,
           username: row.actor.username,
+          display_name: row.actor.display_name ?? null,
           avatar_url: row.actor.avatar_url,
           created_at: null,
         })

@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 type FriendResult = {
   id: string
   username: string
+  displayName: string | null
   avatarUrl: string | null
 }
 
@@ -54,8 +55,8 @@ export function InviteMemberModal({
       // Search profiles matching query
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url')
-        .ilike('username', `%${query}%`)
+        .select('id, username, display_name, avatar_url')
+        .or(`display_name.ilike.%${query}%,username.ilike.%${query}%`)
         .not('id', 'in', `(${currentMemberIds.join(',')})`)
         .limit(10)
 
@@ -63,6 +64,7 @@ export function InviteMemberModal({
         (profiles ?? []).map(p => ({
           id: p.id,
           username: p.username,
+          displayName: p.display_name,
           avatarUrl: p.avatar_url,
         }))
       )
@@ -178,12 +180,17 @@ export function InviteMemberModal({
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar
                       src={result.avatarUrl}
-                      fallback={result.username}
+                      fallback={result.displayName || result.username}
                       size="sm"
                     />
-                    <span className="text-sm text-text-1 truncate">
-                      {result.username}
-                    </span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm text-text-1 truncate">
+                        {result.displayName || result.username}
+                      </span>
+                      <span className="text-xs text-text-3 truncate">
+                        @{result.username}
+                      </span>
+                    </div>
                   </div>
                   <Button
                     size="sm"

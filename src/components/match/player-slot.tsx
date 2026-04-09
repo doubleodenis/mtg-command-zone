@@ -89,8 +89,8 @@ export function PlayerSlot({
         const supabase = createClient();
         const { data } = await supabase
           .from("profiles")
-          .select("id, username, avatar_url")
-          .ilike("username", `%${query}%`)
+          .select("id, username, display_name, avatar_url")
+          .or(`display_name.ilike.%${query}%,username.ilike.%${query}%`)
           .not("id", "in", `(${excludeIds.join(",")})`)
           .limit(5);
 
@@ -103,7 +103,7 @@ export function PlayerSlot({
               return {
                 id: p.id,
                 username: p.username,
-                displayName: null,
+                displayName: p.display_name,
                 avatarUrl: p.avatar_url,
                 friendshipStatus: friendship?.status ?? null,
                 isFriend: friendship?.status === "accepted",
@@ -196,13 +196,13 @@ export function PlayerSlot({
                   {currentUser.avatarUrl ? (
                     <img
                       src={currentUser.avatarUrl}
-                      alt={currentUser.username}
+                      alt={currentUser.displayName || currentUser.username}
                       className="w-8 h-8 rounded-full"
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
                       <span className="text-accent text-xs font-medium">
-                        {currentUser.username.charAt(0).toUpperCase()}
+                        {(currentUser.displayName || currentUser.username).charAt(0).toUpperCase()}
                       </span>
                     </div>
                   )}

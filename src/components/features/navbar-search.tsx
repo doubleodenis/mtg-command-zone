@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 type SearchResult = {
   id: string;
   username: string;
+  display_name: string | null;
   avatar_url: string | null;
 };
 
@@ -30,8 +31,8 @@ export function NavbarSearch() {
       const supabase = createClient();
       const { data } = await supabase
         .from("profiles")
-        .select("id, username, avatar_url")
-        .ilike("username", `%${query}%`)
+        .select("id, username, display_name, avatar_url")
+        .or(`display_name.ilike.%${query}%,username.ilike.%${query}%`)
         .limit(5);
       setResults((data as SearchResult[]) || []);
       setIsOpen(data !== null && data.length > 0);
@@ -196,7 +197,7 @@ export function NavbarSearch() {
               </div>
               <div>
                 <div style={{ fontWeight: 500, color: "#ffffff", fontSize: "0.875rem" }}>
-                  {result.username}
+                  {result.display_name || result.username}
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "#71717a" }}>
                   @{result.username}

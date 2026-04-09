@@ -66,7 +66,8 @@ export async function getProfileByUsername(
 }
 
 /**
- * Search profiles by username (partial match)
+ * Search profiles by display_name or username (partial match)
+ * Prioritizes display_name matches, then username
  */
 export async function searchProfiles(
   client: SupabaseClient<Database>,
@@ -76,7 +77,7 @@ export async function searchProfiles(
   const { data, error } = await client
     .from('profiles')
     .select('*')
-    .ilike('username', `%${query}%`)
+    .or(`display_name.ilike.%${query}%,username.ilike.%${query}%`)
     .limit(limit)
 
   if (error) {
@@ -92,7 +93,7 @@ export async function searchProfiles(
 export async function updateProfile(
   client: SupabaseClient<Database>,
   userId: string,
-  updates: { username?: string; avatar_url?: string }
+  updates: { username?: string; display_name?: string | null; avatar_url?: string }
 ): Promise<Result<Profile>> {
   const { data, error } = await client
     .from('profiles')

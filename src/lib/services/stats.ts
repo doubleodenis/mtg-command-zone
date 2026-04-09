@@ -224,6 +224,7 @@ export type HeadToHeadComparison = {
   you: {
     id: string
     username: string
+    displayName: string | null
     avatarUrl: string | null
     stats: { totalMatches: number; wins: number; losses: number; winRate: number; currentStreak: number; longestWinStreak: number }
     rating: number
@@ -231,6 +232,7 @@ export type HeadToHeadComparison = {
   opponent: {
     id: string
     username: string
+    displayName: string | null
     avatarUrl: string | null
     stats: { totalMatches: number; wins: number; losses: number; winRate: number; currentStreak: number; longestWinStreak: number }
     rating: number
@@ -252,8 +254,8 @@ export async function getHeadToHeadComparison(
 ): Promise<Result<HeadToHeadComparison>> {
   // Fetch both user profiles
   const [currentUserResult, targetUserResult] = await Promise.all([
-    client.from('profiles').select('id, username, avatar_url').eq('id', currentUserId).single(),
-    client.from('profiles').select('id, username, avatar_url').eq('id', targetUserId).single(),
+    client.from('profiles').select('id, username, display_name, avatar_url').eq('id', currentUserId).single(),
+    client.from('profiles').select('id, username, display_name, avatar_url').eq('id', targetUserId).single(),
   ])
 
   if (currentUserResult.error || targetUserResult.error) {
@@ -482,6 +484,7 @@ export async function getHeadToHeadComparison(
       you: {
         id: currentUserResult.data.id,
         username: currentUserResult.data.username,
+        displayName: currentUserResult.data.display_name ?? null,
         avatarUrl: currentUserResult.data.avatar_url,
         stats: currentStats,
         rating: currentRating,
@@ -489,6 +492,7 @@ export async function getHeadToHeadComparison(
       opponent: {
         id: targetUserResult.data.id,
         username: targetUserResult.data.username,
+        displayName: targetUserResult.data.display_name ?? null,
         avatarUrl: targetUserResult.data.avatar_url,
         stats: targetStats,
         rating: targetRating,
@@ -537,8 +541,8 @@ async function getUserOverallStats(
  * Helper: Build empty comparison when users have no shared matches
  */
 async function buildEmptyComparison(
-  currentUser: { id: string; username: string; avatar_url: string | null },
-  targetUser: { id: string; username: string; avatar_url: string | null }
+  currentUser: { id: string; username: string; display_name: string | null; avatar_url: string | null },
+  targetUser: { id: string; username: string; display_name: string | null; avatar_url: string | null }
 ): Promise<Result<HeadToHeadComparison>> {
   const emptyRecord: RelationshipRecord = { wins: 0, losses: 0, matchesPlayed: 0, winRate: 0 }
 
@@ -548,6 +552,7 @@ async function buildEmptyComparison(
       you: {
         id: currentUser.id,
         username: currentUser.username,
+        displayName: currentUser.display_name ?? null,
         avatarUrl: currentUser.avatar_url,
         stats: { totalMatches: 0, wins: 0, losses: 0, winRate: 0, currentStreak: 0, longestWinStreak: 0 },
         rating: 1000,
@@ -555,6 +560,7 @@ async function buildEmptyComparison(
       opponent: {
         id: targetUser.id,
         username: targetUser.username,
+        displayName: targetUser.display_name ?? null,
         avatarUrl: targetUser.avatar_url,
         stats: { totalMatches: 0, wins: 0, losses: 0, winRate: 0, currentStreak: 0, longestWinStreak: 0 },
         rating: 1000,

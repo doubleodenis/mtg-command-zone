@@ -10,6 +10,7 @@ import type { ISODateString, UUID } from './common'
 export type Profile = {
   id: UUID
   username: string
+  displayName: string | null
   avatarUrl: string | null
   createdAt: ISODateString
 }
@@ -17,7 +18,7 @@ export type Profile = {
 /**
  * Profile for display in lists, cards, and compact views
  */
-export type ProfileSummary = Pick<Profile, 'id' | 'username' | 'avatarUrl'>
+export type ProfileSummary = Pick<Profile, 'id' | 'username' | 'displayName' | 'avatarUrl'>
 
 /**
  * Profile with aggregated stats
@@ -51,6 +52,7 @@ export type FormatStats = PlayerStats & {
  */
 export type ProfileUpdatePayload = {
   username?: string
+  displayName?: string | null
   avatarUrl?: string | null
 }
 

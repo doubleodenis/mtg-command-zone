@@ -9,6 +9,7 @@ import type { NotificationWithActor } from "@/types/notification";
 
 type NavbarProfile = {
   username: string;
+  display_name: string | null;
   avatar_url: string | null;
 };
 
@@ -25,7 +26,7 @@ export async function Navbar() {
   if (user) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("username, avatar_url")
+      .select("username, display_name, avatar_url")
       .eq("id", user.id)
       .single();
     
@@ -33,6 +34,7 @@ export async function Navbar() {
       // Profile doesn't exist yet - create a fallback from user metadata
       profile = {
         username: user.email?.split("@")[0] || "user",
+        display_name: user.user_metadata?.name || null,
         avatar_url: user.user_metadata?.avatar_url || null,
       };
     } else {
@@ -81,6 +83,7 @@ export async function Navbar() {
               />
               <ProfileDropdown
                 username={profile.username}
+                displayName={profile.display_name}
                 avatarUrl={profile.avatar_url}
               />
             </>

@@ -36,6 +36,19 @@ const MOCK_AVATARS = [
   'https://robohash.org/commander_chad?set=set4&size=200x200',
 ]
 
+const MOCK_DISPLAY_NAMES = [
+  'The Arcane Mage',
+  'Dragon Slayer',
+  'Planeswalker #99',
+  'MTG Master',
+  'Commander Chad',
+  'Spell Slinger',
+  null, // Some users have no display name
+  null,
+  'Token Maker',
+  'Combo Player',
+]
+
 // ============================================
 // Factory Functions
 // ============================================
@@ -48,6 +61,7 @@ export function createMockProfile(overrides: Partial<Profile> = {}): Profile {
   return {
     id,
     username: MOCK_USERNAMES[randomIndex],
+    displayName: MOCK_DISPLAY_NAMES[randomIndex] ?? null,
     avatarUrl: MOCK_AVATARS[randomIndex % MOCK_AVATARS.length],
     createdAt: generateMockDate(90),
     ...overrides,
@@ -61,6 +75,7 @@ export function createMockProfileSummary(
   return {
     id: profile.id,
     username: profile.username,
+    displayName: profile.displayName,
     avatarUrl: profile.avatarUrl,
   }
 }
@@ -299,6 +314,7 @@ export function createMockPlayerComparison(
     you: {
       id: youProfile.id,
       username: youProfile.username,
+      displayName: youProfile.displayName,
       avatarUrl: youProfile.avatarUrl,
       stats: youStats,
       rating: youRating,
@@ -306,6 +322,7 @@ export function createMockPlayerComparison(
     opponent: {
       id: opponent.id,
       username: opponent.username,
+      displayName: opponent.displayName,
       avatarUrl: opponent.avatarUrl,
       stats: opponentStats,
       rating: opponentRating,

@@ -11,20 +11,22 @@ import { createClient } from "@/lib/supabase/client";
 
 interface ProfileFormProps {
   initialUsername: string;
+  initialDisplayName: string | null;
   initialAvatarUrl: string | null;
   userId: string;
 }
 
-function ProfileForm({ initialUsername, initialAvatarUrl, userId }: ProfileFormProps) {
+function ProfileForm({ initialUsername, initialDisplayName, initialAvatarUrl, userId }: ProfileFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
 
   const [username, setUsername] = React.useState(initialUsername);
+  const [displayName, setDisplayName] = React.useState(initialDisplayName || "");
   const [avatarUrl, setAvatarUrl] = React.useState(initialAvatarUrl || "");
 
-  const hasChanges = username !== initialUsername || avatarUrl !== (initialAvatarUrl || "");
+  const hasChanges = username !== initialUsername || displayName !== (initialDisplayName || "") || avatarUrl !== (initialAvatarUrl || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,9 +70,12 @@ function ProfileForm({ initialUsername, initialAvatarUrl, userId }: ProfileFormP
       }
 
       // Update profile
-      const updates: { username?: string; avatar_url?: string | null } = {};
+      const updates: { username?: string; display_name?: string | null; avatar_url?: string | null } = {};
       if (trimmedUsername !== initialUsername) {
         updates.username = trimmedUsername;
+      }
+      if (displayName !== (initialDisplayName || "")) {
+        updates.display_name = displayName.trim() || null;
       }
       if (avatarUrl !== (initialAvatarUrl || "")) {
         updates.avatar_url = avatarUrl || null;
@@ -135,6 +140,25 @@ function ProfileForm({ initialUsername, initialAvatarUrl, userId }: ProfileFormP
         </p>
       </div>
 
+      {/* Display Name field */}
+      <div className="space-y-2">
+        <label htmlFor="displayName" className="block text-ui font-medium text-text-1">
+          Display Name
+          <span className="ml-2 text-ui text-text-3 font-normal">(optional)</span>
+        </label>
+        <Input
+          id="displayName"
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Your Name"
+          className="max-w-sm"
+        />
+        <p className="text-ui text-text-3">
+          How you want to be shown to others. Can include spaces and special characters.
+        </p>
+      </div>
+
       {/* Avatar URL field (hidden for now since OAuth provides it) */}
       <div className="space-y-2">
         <label htmlFor="avatarUrl" className="block text-ui font-medium text-text-1">
@@ -180,6 +204,7 @@ function ProfileForm({ initialUsername, initialAvatarUrl, userId }: ProfileFormP
             variant="ghost"
             onClick={() => {
               setUsername(initialUsername);
+              setDisplayName(initialDisplayName || "");
               setAvatarUrl(initialAvatarUrl || "");
             }}
           >
@@ -195,7 +220,7 @@ export default function ProfileSettingsContent({
   profile,
   userId,
 }: {
-  profile: { username: string; avatarUrl: string | null } | null;
+  profile: { username: string; displayName: string | null; avatarUrl: string | null } | null;
   userId: string;
 }) {
   if (!profile) {
@@ -224,6 +249,7 @@ export default function ProfileSettingsContent({
         <CardContent className="p-6">
           <ProfileForm
             initialUsername={profile.username}
+            initialDisplayName={profile.displayName}
             initialAvatarUrl={profile.avatarUrl}
             userId={userId}
           />

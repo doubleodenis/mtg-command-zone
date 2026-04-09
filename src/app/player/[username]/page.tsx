@@ -316,14 +316,14 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 function ProfileHeader({
   profile,
 }: {
-  profile: { username: string; avatarUrl: string | null };
+  profile: { username: string; displayName: string | null; avatarUrl: string | null };
 }) {
   return (
     <div className="flex flex-col sm:flex-row items-center gap-6">
       {/* Avatar */}
       <Avatar
         src={profile.avatarUrl}
-        fallback={profile.username}
+        fallback={profile.displayName || profile.username}
         size="xl"
         className="ring-4 ring-accent/30"
       />
@@ -331,7 +331,7 @@ function ProfileHeader({
       {/* Info */}
       <div className="flex-1 text-center sm:text-left">
         <h1 className="font-display text-3xl font-bold text-text-1 mb-1">
-          {profile.username}
+          {profile.displayName || profile.username}
         </h1>
         <p className="text-sm text-text-2">@{profile.username}</p>
       </div>

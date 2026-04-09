@@ -9,13 +9,14 @@ import { createClient } from "@/lib/supabase/client";
 
 interface ProfileDropdownProps {
   username: string;
+  displayName: string | null;
   avatarUrl: string | null;
 }
 
 /**
  * Profile avatar with dropdown menu for navigation and sign out.
  */
-export function ProfileDropdown({ username, avatarUrl }: ProfileDropdownProps) {
+export function ProfileDropdown({ username, displayName, avatarUrl }: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -65,7 +66,7 @@ export function ProfileDropdown({ username, avatarUrl }: ProfileDropdownProps) {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Avatar src={avatarUrl} fallback={username} size="sm" />
+        <Avatar src={avatarUrl} fallback={displayName || username} size="sm" />
       </button>
 
       {/* Dropdown menu */}
@@ -81,7 +82,8 @@ export function ProfileDropdown({ username, avatarUrl }: ProfileDropdownProps) {
         >
           {/* User info header */}
           <div className="px-3 py-2 border-b border-card-border">
-            <p className="text-ui text-text-1 font-medium truncate">@{username}</p>
+            <p className="text-ui text-text-1 font-medium truncate">{displayName || username}</p>
+            <p className="text-xs text-text-3">@{username}</p>
           </div>
 
           {/* Menu items */}

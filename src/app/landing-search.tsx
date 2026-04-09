@@ -10,8 +10,8 @@ export function LandingSearch() {
 
     const { data } = await supabase
       .from("profiles")
-      .select("id, username, avatar_url")
-      .ilike("username", `%${query}%`)
+      .select("id, username, display_name, avatar_url")
+      .or(`display_name.ilike.%${query}%,username.ilike.%${query}%`)
       .limit(5);
 
     return data || [];

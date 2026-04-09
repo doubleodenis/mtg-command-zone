@@ -78,8 +78,8 @@ function PentagonPlayerCard({
         const supabase = createClient();
         const { data } = await supabase
           .from("profiles")
-          .select("id, username, avatar_url")
-          .ilike("username", `%${query}%`)
+          .select("id, username, display_name, avatar_url")
+          .or(`display_name.ilike.%${query}%,username.ilike.%${query}%`)
           .not("id", "in", `(${excludeIds.join(",")})`)
           .limit(5);
 
@@ -92,7 +92,7 @@ function PentagonPlayerCard({
               return {
                 id: p.id,
                 username: p.username,
-                displayName: null,
+                displayName: p.display_name,
                 avatarUrl: p.avatar_url,
                 friendshipStatus: friendship?.status ?? null,
                 isFriend: friendship?.status === "accepted",

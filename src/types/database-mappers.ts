@@ -54,6 +54,7 @@ export function mapProfileRow(row: ProfileRow): Profile {
   return {
     id: row.id,
     username: row.username,
+    displayName: row.display_name ?? null,
     avatarUrl: row.avatar_url,
     createdAt: row.created_at ?? new Date().toISOString(),
   }
@@ -63,6 +64,7 @@ export function mapProfileSummary(row: ProfileRow): ProfileSummary {
   return {
     id: row.id,
     username: row.username,
+    displayName: row.display_name ?? null,
     avatarUrl: row.avatar_url,
   }
 }
@@ -121,6 +123,7 @@ export function mapFriendRow(row: FriendRow, otherProfile: ProfileRow, isRequest
   return {
     id: otherProfile.id,
     username: otherProfile.username,
+    displayName: otherProfile.display_name ?? null,
     avatarUrl: otherProfile.avatar_url,
     friendshipId: row.id,
     friendsSince: row.created_at ?? new Date().toISOString(),
@@ -333,6 +336,7 @@ export function mapRatingHistoryRow(row: RatingHistoryRow): RatingHistory {
 export type LeaderboardFunctionResult = {
   user_id: string
   username: string
+  display_name: string | null
   avatar_url: string | null
   rating: number
   matches_played: number
@@ -345,6 +349,7 @@ export function mapLeaderboardEntry(row: LeaderboardFunctionResult): Leaderboard
   return {
     id: row.user_id,
     username: row.username,
+    displayName: row.display_name ?? null,
     avatarUrl: row.avatar_url,
     rating: row.rating,
     matchesPlayed: row.matches_played,

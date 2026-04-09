@@ -550,7 +550,7 @@ export async function getPendingMatchApprovalsWithDetails(
       match_id,
       added_by,
       added_at,
-      submitter:profiles!collection_matches_added_by_fkey(id, username, avatar_url),
+      submitter:profiles!collection_matches_added_by_fkey(id, username, display_name, avatar_url),
       match:matches!collection_matches_match_id_fkey(
         id,
         played_at,
@@ -611,6 +611,7 @@ export async function getPendingMatchApprovalsWithDetails(
       addedBy: {
         id: d.submitter?.id ?? d.added_by,
         username: d.submitter?.username ?? 'Unknown',
+        displayName: d.submitter?.display_name ?? null,
         avatarUrl: d.submitter?.avatar_url ?? null,
       },
       addedAt: d.added_at ?? new Date().toISOString(),

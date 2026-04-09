@@ -237,22 +237,25 @@ async function transformMatchToCardData(
     ]),
   );
 
-  const participantInfos: ParticipantDisplayInfo[] = participants.map((p) => ({
-    id: p.id,
-    userId: p.user_id,
-    name: p.profile
-      ? mapProfileSummary(p.profile).username
-      : (p.placeholder_name ?? "Unknown"),
-    avatarUrl: p.profile ? mapProfileSummary(p.profile).avatarUrl : null,
-    isRegistered: !!p.user_id,
-    isConfirmed: !!p.confirmed_at,
-    deck: p.deck ? mapDeckSummary(p.deck) : null,
-    team: p.team,
-    isWinner: p.is_winner,
-    ratingDelta: p.user_id ? (ratingDeltaMap.get(p.user_id) ?? null) : null,
-    participantData: validateParticipantData(p.participant_data),
-    claimStatus: p.claim_status,
-  }));
+  const participantInfos: ParticipantDisplayInfo[] = participants.map((p) => {
+    const profileSummary = p.profile ? mapProfileSummary(p.profile) : null;
+    return {
+      id: p.id,
+      userId: p.user_id,
+      name: profileSummary
+        ? (profileSummary.displayName || profileSummary.username)
+        : (p.placeholder_name ?? "Unknown"),
+      avatarUrl: profileSummary?.avatarUrl ?? null,
+      isRegistered: !!p.user_id,
+      isConfirmed: !!p.confirmed_at,
+      deck: p.deck ? mapDeckSummary(p.deck) : null,
+      team: p.team,
+      isWinner: p.is_winner,
+      ratingDelta: p.user_id ? (ratingDeltaMap.get(p.user_id) ?? null) : null,
+      participantData: validateParticipantData(p.participant_data),
+      claimStatus: p.claim_status,
+    };
+  });
 
   const userParticipant = userId
     ? (participantInfos.find((info) => {

@@ -32,13 +32,13 @@ export function LeaderboardPreview({ entries }: LeaderboardPreviewProps) {
           </span>
 
           {/* Avatar */}
-          <Avatar src={entry.avatarUrl} fallback={entry.username} size="sm" />
+          <Avatar src={entry.avatarUrl} fallback={entry.displayName || entry.username} size="sm" />
 
           {/* Name & Stats */}
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-text-1 truncate">{entry.username}</p>
+            <p className="font-medium text-text-1 truncate">{entry.displayName || entry.username}</p>
             <p className="text-mono-xs text-text-2">
-              {entry.matchesPlayed} matches
+              @{entry.username}
             </p>
           </div>
 

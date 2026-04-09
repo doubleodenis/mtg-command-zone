@@ -211,7 +211,7 @@ async function getCollectionTopPlayer(
     .from('collection_members')
     .select(`
       user_id,
-      profile:profiles!collection_members_user_id_fkey(id, username, avatar_url)
+      profile:profiles!collection_members_user_id_fkey(id, username, display_name, avatar_url)
     `)
     .eq('collection_id', collectionId)
 
@@ -250,6 +250,7 @@ async function getCollectionTopPlayer(
         profile: {
           id: member.profile?.id ?? member.user_id,
           username: member.profile?.username ?? 'Unknown',
+          displayName: member.profile?.display_name ?? null,
           avatarUrl: member.profile?.avatar_url ?? null,
         },
         winRate,
