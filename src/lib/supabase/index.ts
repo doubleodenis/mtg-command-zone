@@ -33,6 +33,7 @@ export {
   updateProfile,
   getFriends,
   getIncomingFriendRequests,
+  getIncomingFriendRequestCount,
   getOutgoingFriendRequests,
   sendFriendRequest,
   respondToFriendRequest,

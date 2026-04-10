@@ -168,6 +168,26 @@ export async function getIncomingFriendRequests(
 }
 
 /**
+ * Get count of pending friend requests received by a user
+ */
+export async function getIncomingFriendRequestCount(
+  client: SupabaseClient<Database>,
+  userId: string
+): Promise<Result<number>> {
+  const { count, error } = await client
+    .from('friends')
+    .select('*', { count: 'exact', head: true })
+    .eq('addressee_id', userId)
+    .eq('status', 'pending')
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: count ?? 0 }
+}
+
+/**
  * Get pending friend requests sent by a user
  */
 export async function getOutgoingFriendRequests(

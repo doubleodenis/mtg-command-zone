@@ -8,7 +8,6 @@ export const AUTHENTICATED_NAV: NavItem[] = [
   { label: "Matches", href: "/matches" },
   { label: "Decks", href: "/decks" },
   { label: "Collections", href: "/collections" },
-  { label: "Friends", href: "/friends" },
   { label: "FAQ", href: "/faq" },
 ];
 

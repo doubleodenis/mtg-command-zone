@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 type ProfileInsert = {
   id: string;
   username: string;
+  display_name: string | null;
   avatar_url: string | null;
 };
 
@@ -37,9 +38,16 @@ export async function GET(request: Request) {
             user.email?.split("@")[0] ||
             `user_${user.id.slice(0, 8)}`;
 
+          // Use the user's full name from OAuth as display name
+          const displayName =
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            null;
+
           const newProfile: ProfileInsert = {
             id: user.id,
             username: username.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
+            display_name: displayName,
             avatar_url: user.user_metadata?.avatar_url || null,
           };
 

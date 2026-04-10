@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button";
 import { NavbarSearch } from "./navbar-search";
 import { ProfileDropdown } from "./profile-dropdown";
 import { NotificationDropdown } from "./notification-dropdown";
-import { getNotifications, getUnseenNotificationCount } from "@/lib/supabase";
+import { FriendDropdown } from "./friend-dropdown";
+import {
+  getNotifications,
+  getUnseenNotificationCount,
+  getFriends,
+  getIncomingFriendRequests,
+  getIncomingFriendRequestCount,
+} from "@/lib/supabase";
 import type { NotificationWithActor } from "@/types/notification";
+import type { Friend, FriendRequest } from "@/types";
 
 type NavbarProfile = {
   username: string;
@@ -22,6 +30,9 @@ export async function Navbar() {
   let profile: NavbarProfile | null = null;
   let notifications: NotificationWithActor[] = [];
   let unseenCount = 0;
+  let friends: Friend[] = [];
+  let pendingRequests: FriendRequest[] = [];
+  let pendingFriendCount = 0;
 
   if (user) {
     const { data, error } = await supabase
@@ -41,10 +52,19 @@ export async function Navbar() {
       profile = data;
     }
 
-    // Fetch notifications
-    const [notificationsResult, unseenResult] = await Promise.all([
+    // Fetch notifications and friends data in parallel
+    const [
+      notificationsResult,
+      unseenResult,
+      friendsResult,
+      pendingRequestsResult,
+      pendingCountResult,
+    ] = await Promise.all([
       getNotifications(supabase, user.id, { limit: 10 }),
       getUnseenNotificationCount(supabase, user.id),
+      getFriends(supabase, user.id),
+      getIncomingFriendRequests(supabase, user.id),
+      getIncomingFriendRequestCount(supabase, user.id),
     ]);
 
     if (notificationsResult.success) {
@@ -52,6 +72,15 @@ export async function Navbar() {
     }
     if (unseenResult.success) {
       unseenCount = unseenResult.data;
+    }
+    if (friendsResult.success) {
+      friends = friendsResult.data;
+    }
+    if (pendingRequestsResult.success) {
+      pendingRequests = pendingRequestsResult.data;
+    }
+    if (pendingCountResult.success) {
+      pendingFriendCount = pendingCountResult.data;
     }
   }
 
@@ -76,6 +105,12 @@ export async function Navbar() {
               <Button asChild size="sm">
                 <Link href="/matches/new">New Match</Link>
               </Button>
+              <FriendDropdown
+                initialFriends={friends}
+                initialPendingRequests={pendingRequests}
+                initialPendingCount={pendingFriendCount}
+                userId={user.id}
+              />
               <NotificationDropdown
                 initialNotifications={notifications ?? []}
                 initialUnseenCount={unseenCount}
