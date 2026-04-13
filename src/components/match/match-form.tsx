@@ -155,14 +155,44 @@ export function MatchForm({
     setParticipants(newParticipants);
   };
 
-  // Toggle winner status
+  // Toggle winner status (for team formats, toggle all team members at once)
   const toggleWinner = (index: number) => {
+    const participant = participants[index];
+    const team = participant.team || getTeamForIndex(index);
+    
+    // For team formats, toggle all members of the same team
+    if (selectedFormat?.hasTeams && selectedFormat.slug !== 'pentagram' && team) {
+      toggleTeamWinner(team);
+    } else {
+      // For non-team formats (FFA, pentagram), toggle individual
+      const newParticipants = [...participants];
+      newParticipants[index] = {
+        ...newParticipants[index],
+        isWinner: !newParticipants[index].isWinner,
+      };
+      setParticipants(newParticipants);
+    }
+  };
+
+  // Toggle winner status for an entire team
+  const toggleTeamWinner = (team: string) => {
     const newParticipants = [...participants];
-    newParticipants[index] = {
-      ...newParticipants[index],
-      isWinner: !newParticipants[index].isWinner,
-    };
+    // Check if any team member is currently a winner
+    const teamIsCurrentlyWinner = newParticipants.some(
+      (p, i) => getTeamForIndex(i) === team && p.isWinner
+    );
+    // Toggle all team members to the opposite state
+    newParticipants.forEach((p, i) => {
+      if (getTeamForIndex(i) === team) {
+        newParticipants[i] = { ...p, isWinner: !teamIsCurrentlyWinner };
+      }
+    });
     setParticipants(newParticipants);
+  };
+
+  // Check if a team has any winner
+  const isTeamWinner = (team: string): boolean => {
+    return participants.some((p, i) => getTeamForIndex(i) === team && p.isWinner);
   };
 
   // Select deck for participant
@@ -457,9 +487,29 @@ export function MatchForm({
               <div className="flex flex-col md:grid md:grid-cols-[minmax(300px,1fr)_auto_minmax(300px,1fr)] gap-4">
                 {/* Team A */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 pb-2 border-b border-card-border">
-                    <div className="w-3 h-3 rounded-full bg-accent" />
+                  <div className={cn(
+                    "flex items-center gap-2 pb-2 border-b transition-colors",
+                    isTeamWinner('A') ? "border-win/50" : "border-card-border"
+                  )}>
+                    <div className={cn(
+                      "w-3 h-3 rounded-full transition-colors",
+                      isTeamWinner('A') ? "bg-win" : "bg-accent"
+                    )} />
                     <span className="text-sm font-semibold text-text-1">Team A</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleTeamWinner('A')}
+                      className={cn(
+                        "ml-auto p-1.5 rounded transition-colors text-xs flex items-center gap-1",
+                        isTeamWinner('A')
+                          ? "bg-win text-text-1"
+                          : "bg-card-raised text-text-2 hover:text-text-1 hover:bg-accent/10"
+                      )}
+                      title={isTeamWinner('A') ? "Remove team win" : "Mark team as winner"}
+                    >
+                      <span>🏆</span>
+                      <span className="text-xs font-medium">{isTeamWinner('A') ? "Winner" : "Won"}</span>
+                    </button>
                   </div>
                   {participants
                     .map((slot, index) => ({ slot, index }))
@@ -490,6 +540,7 @@ export function MatchForm({
                         team="A"
                         excludeIds={excludeIds}
                         currentUser={currentUser}
+                        hideWinnerButton={true}
                       />
                     ))}
                 </div>
@@ -505,9 +556,29 @@ export function MatchForm({
 
                 {/* Team B */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 pb-2 border-b border-card-border">
-                    <div className="w-3 h-3 rounded-full bg-loss" />
+                  <div className={cn(
+                    "flex items-center gap-2 pb-2 border-b transition-colors",
+                    isTeamWinner('B') ? "border-win/50" : "border-card-border"
+                  )}>
+                    <div className={cn(
+                      "w-3 h-3 rounded-full transition-colors",
+                      isTeamWinner('B') ? "bg-win" : "bg-loss"
+                    )} />
                     <span className="text-sm font-semibold text-text-1">Team B</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleTeamWinner('B')}
+                      className={cn(
+                        "ml-auto p-1.5 rounded transition-colors text-xs flex items-center gap-1",
+                        isTeamWinner('B')
+                          ? "bg-win text-text-1"
+                          : "bg-card-raised text-text-2 hover:text-text-1 hover:bg-accent/10"
+                      )}
+                      title={isTeamWinner('B') ? "Remove team win" : "Mark team as winner"}
+                    >
+                      <span>🏆</span>
+                      <span className="text-xs font-medium">{isTeamWinner('B') ? "Winner" : "Won"}</span>
+                    </button>
                   </div>
                   {participants
                     .map((slot, index) => ({ slot, index }))
@@ -538,6 +609,7 @@ export function MatchForm({
                         team="B"
                         excludeIds={excludeIds}
                         currentUser={currentUser}
+                        hideWinnerButton={true}
                       />
                     ))}
                 </div>

@@ -39,6 +39,8 @@ export type PlayerSlotProps = {
   team?: string;
   excludeIds: string[];
   currentUser?: SearchResult;
+  /** When true, hide the individual winner toggle (used for team formats where winner is set at team level) */
+  hideWinnerButton?: boolean;
 };
 
 export type PentagonPlayerCardProps = {

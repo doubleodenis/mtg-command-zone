@@ -407,6 +407,31 @@ export async function createMatch(
   userId: string,
   payload: CreateMatchPayload
 ): Promise<Result<Match>> {
+  // Validate team format winner consistency
+  const { matchData, participants, winnerIndices } = payload
+  if (matchData.format === '2v2' || matchData.format === '3v3') {
+    // Group participants by team
+    const teamWinners: Record<string, boolean[]> = {}
+    participants.forEach((p, index) => {
+      const team = p.team
+      if (team) {
+        if (!teamWinners[team]) teamWinners[team] = []
+        teamWinners[team].push(winnerIndices.includes(index))
+      }
+    })
+    
+    // Check that all members of a team have the same winner status
+    for (const [team, winStatuses] of Object.entries(teamWinners)) {
+      const allSameStatus = winStatuses.every(s => s === winStatuses[0])
+      if (!allSameStatus) {
+        return { 
+          success: false, 
+          error: `Team ${team} has inconsistent winner status. All team members must win or lose together.` 
+        }
+      }
+    }
+  }
+
   // Create the match
   const { data: match, error: matchError } = await client
     .from('matches')

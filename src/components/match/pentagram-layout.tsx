@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
-import { getFriendshipStatus, sendFriendRequest } from "@/lib/supabase/profiles";
+import { getFriendshipStatus, sendFriendRequest, getFriends } from "@/lib/supabase/profiles";
 import type {
   PentagonPlayerCardProps,
   PentagramLayoutProps,
@@ -56,6 +56,42 @@ function PentagonPlayerCard({
   const [isOpen, setIsOpen] = React.useState(false);
   const [sendingRequestTo, setSendingRequestTo] = React.useState<string | null>(null);
   const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Friends state for showing friends first in dropdown
+  const [friends, setFriends] = React.useState<SearchResult[]>([]);
+  const [friendsLoaded, setFriendsLoaded] = React.useState(false);
+  const [isFriendsLoading, setIsFriendsLoading] = React.useState(false);
+
+  // Load friends when dropdown opens
+  React.useEffect(() => {
+    if (!isOpen || friendsLoaded || slot.type !== "empty") return;
+
+    const loadFriends = async () => {
+      setIsFriendsLoading(true);
+      try {
+        const supabase = createClient();
+        const result = await getFriends(supabase, currentUserId);
+        if (result.success) {
+          const friendResults: SearchResult[] = result.data.map((f) => ({
+            id: f.id,
+            username: f.username,
+            displayName: f.displayName,
+            avatarUrl: f.avatarUrl,
+            friendshipStatus: "accepted",
+            isFriend: true,
+          }));
+          setFriends(friendResults);
+        }
+      } catch (error) {
+        console.error("Failed to load friends:", error);
+      } finally {
+        setFriendsLoaded(true);
+        setIsFriendsLoading(false);
+      }
+    };
+
+    loadFriends();
+  }, [isOpen, friendsLoaded, slot.type, currentUserId]);
 
   // Commander search for placeholders
   const [commanderQuery, setCommanderQuery] = React.useState("");
@@ -272,6 +308,47 @@ function PentagonPlayerCard({
                   </div>
                 </div>
               ))}
+              {/* Friends section when not searching */}
+              {query.length < 2 && (
+                <>
+                  {isFriendsLoading && (
+                    <div className="p-2 text-center text-text-2">
+                      Loading...
+                    </div>
+                  )}
+                  {!isFriendsLoading && friends.filter((f) => !excludeIds.includes(f.id)).length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-xs text-text-3 font-medium border-b border-card-border">
+                        Friends
+                      </div>
+                      {friends
+                        .filter((f) => !excludeIds.includes(f.id))
+                        .map((player) => (
+                          <button
+                            key={player.id}
+                            type="button"
+                            onClick={() => {
+                              onSelectPlayer(player);
+                              setQuery("");
+                              setIsOpen(false);
+                            }}
+                            className="w-full p-2 flex items-center gap-2 text-left hover:bg-accent/10 transition-colors"
+                          >
+                            {player.avatarUrl ? (
+                              <img src={player.avatarUrl} alt="" className="w-5 h-5 rounded-full" />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-card-raised text-xs flex items-center justify-center">
+                                {player.username.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-text-1 truncate flex-1">{player.displayName || player.username}</span>
+                            <span className="text-xs text-win">✓</span>
+                          </button>
+                        ))}
+                    </>
+                  )}
+                </>
+              )}
               {query.length >= 2 && results.length === 0 && !isLoading && (
                 <div className="p-2 text-center text-text-2">No results</div>
               )}

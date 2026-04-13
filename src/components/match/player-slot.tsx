@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
-import { getFriendshipStatus, sendFriendRequest } from "@/lib/supabase/profiles";
+import { getFriendshipStatus, sendFriendRequest, getFriends } from "@/lib/supabase/profiles";
 import type { PlayerSlotProps, SearchResult } from "./match-form-types";
 
 export function PlayerSlot({
@@ -26,6 +26,7 @@ export function PlayerSlot({
   team,
   excludeIds,
   currentUser,
+  hideWinnerButton = false,
 }: PlayerSlotProps) {
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<SearchResult[]>([]);
@@ -35,12 +36,48 @@ export function PlayerSlot({
   const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
+  // Friends state for showing friends first in dropdown
+  const [friends, setFriends] = React.useState<SearchResult[]>([]);
+  const [friendsLoaded, setFriendsLoaded] = React.useState(false);
+  const [isFriendsLoading, setIsFriendsLoading] = React.useState(false);
+
   // Commander search state for placeholder players
   const [commanderQuery, setCommanderQuery] = React.useState("");
   const [commanderResults, setCommanderResults] = React.useState<ScryfallCard[]>([]);
   const [isCommanderLoading, setIsCommanderLoading] = React.useState(false);
   const [isCommanderOpen, setIsCommanderOpen] = React.useState(false);
   const commanderTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Load friends when dropdown opens
+  React.useEffect(() => {
+    if (!isOpen || friendsLoaded || slot.type !== "empty") return;
+
+    const loadFriends = async () => {
+      setIsFriendsLoading(true);
+      try {
+        const supabase = createClient();
+        const result = await getFriends(supabase, currentUserId);
+        if (result.success) {
+          const friendResults: SearchResult[] = result.data.map((f) => ({
+            id: f.id,
+            username: f.username,
+            displayName: f.displayName,
+            avatarUrl: f.avatarUrl,
+            friendshipStatus: "accepted",
+            isFriend: true,
+          }));
+          setFriends(friendResults);
+        }
+      } catch (error) {
+        console.error("Failed to load friends:", error);
+      } finally {
+        setFriendsLoaded(true);
+        setIsFriendsLoading(false);
+      }
+    };
+
+    loadFriends();
+  }, [isOpen, friendsLoaded, slot.type, currentUserId]);
 
   // Commander search effect for placeholder slots
   React.useEffect(() => {
@@ -289,17 +326,64 @@ export function PlayerSlot({
                 </>
               )}
 
+              {/* Friends section when not searching */}
+              {query.length < 2 && (
+                <>
+                  {isFriendsLoading && (
+                    <div className="p-2 text-center text-sm text-text-2">
+                      Loading friends...
+                    </div>
+                  )}
+                  {!isFriendsLoading && friends.filter((f) => !excludeIds.includes(f.id)).length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-xs text-text-3 font-medium border-b border-card-border">
+                        Friends
+                      </div>
+                      {friends
+                        .filter((f) => !excludeIds.includes(f.id))
+                        .map((player) => (
+                          <button
+                            key={player.id}
+                            type="button"
+                            onClick={() => handleSelect(player)}
+                            className="w-full p-2 flex items-center gap-2 text-left hover:bg-accent/10 transition-colors"
+                          >
+                            {player.avatarUrl ? (
+                              <img
+                                src={player.avatarUrl}
+                                alt={player.username}
+                                className="w-8 h-8 rounded-full"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-card-raised flex items-center justify-center">
+                                <span className="text-text-2 text-xs font-medium">
+                                  {player.username.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-text-1 truncate">
+                                {player.displayName || player.username}
+                              </p>
+                              <p className="text-xs text-text-2">@{player.username}</p>
+                            </div>
+                            <span className="text-xs text-win font-medium px-2">Friend</span>
+                          </button>
+                        ))}
+                    </>
+                  )}
+                  {!isFriendsLoading && friends.filter((f) => !excludeIds.includes(f.id)).length === 0 && friendsLoaded && (
+                    <div className="p-2 text-center text-xs text-text-2">
+                      Type to search for players
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* No results message */}
               {query.length >= 2 && results.length === 0 && !isLoading && (
                 <div className="p-2 text-center text-sm text-text-2">
                   No players found
-                </div>
-              )}
-
-              {/* Hint when no query */}
-              {query.length < 2 && (
-                <div className="p-2 text-center text-xs text-text-2">
-                  Type to search for players
                 </div>
               )}
             </div>
@@ -438,19 +522,21 @@ export function PlayerSlot({
 
         {/* Actions */}
         <div className="shrink-0 flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={onToggleWinner}
-            className={cn(
-              "p-1.5 rounded transition-colors text-xs",
-              slot.isWinner
-                ? "bg-win text-text-1"
-                : "bg-card-raised text-text-2 hover:text-text-1"
-            )}
-            title={slot.isWinner ? "Remove winner" : "Mark as winner"}
-          >
-            🏆
-          </button>
+          {!hideWinnerButton && (
+            <button
+              type="button"
+              onClick={onToggleWinner}
+              className={cn(
+                "p-1.5 rounded transition-colors text-xs",
+                slot.isWinner
+                  ? "bg-win text-text-1"
+                  : "bg-card-raised text-text-2 hover:text-text-1"
+              )}
+              title={slot.isWinner ? "Remove winner" : "Mark as winner"}
+            >
+              🏆
+            </button>
+          )}
           <button
             type="button"
             onClick={onRemove}
