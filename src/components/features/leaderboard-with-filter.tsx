@@ -40,7 +40,7 @@ export function LeaderboardWithFilter({ entries }: LeaderboardWithFilterProps) {
     .map((entry, index) => ({ ...entry, rank: index + 1 }))
 
   return (
-    <div>
+    <div className="overflow-hidden">
       {/* Format filter tabs */}
       <div className="flex gap-1 px-4 py-3 border-b border-card-border overflow-x-auto">
         {FORMAT_OPTIONS.map((option) => (
@@ -101,7 +101,7 @@ export function LeaderboardWithFilter({ entries }: LeaderboardWithFilterProps) {
               </div>
 
               {/* Win Rate */}
-              <span className="text-sm font-medium text-text-2 w-32 text-right">
+              <span className="text-sm font-medium text-text-2 hidden sm:block w-20 text-right">
                 {entry.winRate}% WR
               </span>
 

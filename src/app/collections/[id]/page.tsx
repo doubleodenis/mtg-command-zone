@@ -129,7 +129,7 @@ export default async function CollectionPage({ params }: PageProps) {
     : null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Collection Header */}
       <CollectionHeader
         collection={collection}
