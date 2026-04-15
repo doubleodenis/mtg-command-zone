@@ -19,7 +19,7 @@ export function AddToCollectionButton({
   className,
 }: AddToCollectionButtonProps) {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [lastAdded, setLastAdded] = React.useState<{
+  const [_lastAdded, setLastAdded] = React.useState<{
     collectionId: string;
     status: ApprovalStatus;
   } | null>(null);

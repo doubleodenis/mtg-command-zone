@@ -93,7 +93,7 @@ export function createMockDeckWithStats(
   }
 }
 
-export function createMockPlaceholderDeck(ownerId: UUID): DeckSummary {
+export function createMockPlaceholderDeck(_ownerId: UUID): DeckSummary {
   return {
     id: generateMockId(),
     commanderName: 'Unknown Commander',

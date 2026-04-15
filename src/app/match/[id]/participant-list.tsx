@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RatingDelta } from "@/components/ui";
 import { UpdateDeckModal } from "@/components/match/update-deck-modal";
-import { isPlaceholderDeck, PLACEHOLDER_DECK_NAME } from "@/types/deck";
+import { PLACEHOLDER_DECK_NAME } from "@/types/deck";
 import type { DeckSummary, RatingDelta as RatingDeltaType } from "@/types";
 
 type ParticipantInfo = {

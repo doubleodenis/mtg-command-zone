@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button, Badge } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { PageHeader, TabNav } from "@/components/layout";
 import { CollectionActivityCard } from "@/components/features/collection-activity-card";
 import { createClient } from "@/lib/supabase/server";

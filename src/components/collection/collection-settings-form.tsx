@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui";
 import { updateCollectionSettings, deleteCollection } from "@/app/actions/collection";
 import type { Collection, MatchAddPermission } from "@/types";
 

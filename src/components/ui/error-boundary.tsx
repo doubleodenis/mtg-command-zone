@@ -181,7 +181,7 @@ function ErrorFallback({
  * Error fallback for card-level errors (smaller, inline)
  */
 function ErrorFallbackCard({ 
-  error,
+  error: _error,
   onReset,
   className,
 }: { 

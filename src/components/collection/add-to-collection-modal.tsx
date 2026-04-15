@@ -38,14 +38,7 @@ export function AddToCollectionModal({
   const [error, setError] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
 
-  // Load collections when modal opens
-  React.useEffect(() => {
-    if (isOpen) {
-      loadCollections();
-    }
-  }, [isOpen, matchId]);
-
-  const loadCollections = async () => {
+  const loadCollections = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -58,7 +51,14 @@ export function AddToCollectionModal({
     }
 
     setIsLoading(false);
-  };
+  }, [matchId]);
+
+  // Load collections when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      loadCollections();
+    }
+  }, [isOpen, loadCollections]);
 
   const handleAddToCollection = async (collectionId: string) => {
     setIsAdding(collectionId);

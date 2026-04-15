@@ -72,7 +72,7 @@ export function DisplayNameSetupModal({
 
       setIsOpen(false)
       router.refresh()
-    } catch (err) {
+    } catch {
       setError('Failed to save display name')
       setIsSubmitting(false)
     }

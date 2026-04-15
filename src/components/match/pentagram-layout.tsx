@@ -96,7 +96,7 @@ function PentagonPlayerCard({
   // Commander search for placeholders
   const [commanderQuery, setCommanderQuery] = React.useState("");
   const [commanderResults, setCommanderResults] = React.useState<ScryfallCard[]>([]);
-  const [isCommanderLoading, setIsCommanderLoading] = React.useState(false);
+  const [_isCommanderLoading, setIsCommanderLoading] = React.useState(false);
   const [isCommanderOpen, setIsCommanderOpen] = React.useState(false);
   const commanderTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 

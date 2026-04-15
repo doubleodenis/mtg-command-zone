@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { PageHeader, Section } from "@/components/layout";
 import { EmptyState } from "@/components/ui/empty-state";

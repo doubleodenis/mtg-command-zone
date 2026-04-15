@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { respondToFriendRequest } from '@/lib/supabase/profiles'
-import type { Result, FriendshipStatus } from '@/types'
+import type { Result } from '@/types'
 
 /**
  * Accept a friend request.

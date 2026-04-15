@@ -10,25 +10,22 @@ import type { Database } from '@/types/database.types'
 import type { Result, PaginationParams } from '@/types'
 import type {
   Match,
-  MatchWithDetails,
   MatchParticipant,
   MatchParticipantWithDetails,
   MatchWithParticipants,
   MatchSummary,
   CreateMatchPayload,
-  ParticipantInput,
   ClaimableMatchSlot,
-} from '@/types/match'
-import type { FormatSlug, MatchData, ParticipantData } from '@/types/format'
+} from "@/types/match";
+import type { FormatSlug, MatchData, ParticipantData } from "@/types/format";
+import { PENTAGRAM_ADJACENCY_MAP, getPentagramEnemies } from "@/types/format";
 import {
   mapMatchRow,
-  mapMatchWithDetails,
   mapMatchParticipantRow,
-  mapMatchParticipantWithDetails,
   mapFormatSummary,
   mapProfileSummary,
   mapDeckSummary,
-} from '@/types/database-mappers'
+} from "@/types/database-mappers";
 
 // ============================================
 // JSONB Validation Helpers
@@ -39,34 +36,40 @@ import {
  * Returns null if validation fails
  */
 function validateMatchData(data: unknown): MatchData | null {
-  if (!data || typeof data !== 'object') return null
-  
-  const obj = data as Record<string, unknown>
-  const format = obj.format
-  
-  if (format === 'ffa' || format === '1v1') {
-    return { format }
+  if (!data || typeof data !== "object") return null;
+
+  const obj = data as Record<string, unknown>;
+  const format = obj.format;
+
+  if (format === "ffa" || format === "1v1") {
+    return { format };
   }
-  
-  if (format === '2v2' || format === '3v3') {
-    if (typeof obj.teams === 'object' && obj.teams !== null) {
-      return { format, teams: obj.teams as Record<string, { name?: string }> }
+
+  if (format === "2v2" || format === "3v3") {
+    if (typeof obj.teams === "object" && obj.teams !== null) {
+      return { format, teams: obj.teams as Record<string, { name?: string }> };
     }
     // Teams not required, can be empty
-    return { format, teams: {} }
+    return { format, teams: {} };
   }
-  
-  if (format === 'pentagram') {
+
+  if (format === "pentagram") {
     if (Array.isArray(obj.seatingOrder) && obj.seatingOrder.length === 5) {
       return {
         format,
-        seatingOrder: obj.seatingOrder as [string, string, string, string, string],
-      }
+        seatingOrder: obj.seatingOrder as [
+          string,
+          string,
+          string,
+          string,
+          string,
+        ],
+      };
     }
-    return null
+    return null;
   }
-  
-  return null
+
+  return null;
 }
 
 /**
@@ -74,39 +77,40 @@ function validateMatchData(data: unknown): MatchData | null {
  * Returns a default simple format if validation fails
  */
 function validateParticipantData(data: unknown): ParticipantData {
-  if (!data || typeof data !== 'object') {
-    return { format: 'ffa' }
+  if (!data || typeof data !== "object") {
+    return { format: "ffa" };
   }
-  
-  const obj = data as Record<string, unknown>
-  const format = obj.format
-  
-  if (format === 'ffa' || format === '1v1') {
-    return { format }
+
+  const obj = data as Record<string, unknown>;
+  const format = obj.format;
+
+  if (format === "ffa" || format === "1v1") {
+    return { format };
   }
-  
-  if (format === '2v2' || format === '3v3') {
+
+  if (format === "2v2" || format === "3v3") {
     return {
       format,
-      teamId: typeof obj.teamId === 'string' ? obj.teamId : '',
-    }
+      teamId: typeof obj.teamId === "string" ? obj.teamId : "",
+    };
   }
-  
-  if (format === 'pentagram') {
-    const seatPosition = typeof obj.seatPosition === 'number' ? obj.seatPosition : 0
+
+  if (format === "pentagram") {
+    const seatPosition =
+      typeof obj.seatPosition === "number" ? obj.seatPosition : 0;
     return {
       format,
       seatPosition: seatPosition as 0 | 1 | 2 | 3 | 4,
       targetParticipantIds: Array.isArray(obj.targetParticipantIds)
         ? (obj.targetParticipantIds as [string, string])
-        : ['', ''],
+        : ["", ""],
       allyParticipantIds: Array.isArray(obj.allyParticipantIds)
         ? (obj.allyParticipantIds as [string, string])
-        : ['', ''],
-    }
+        : ["", ""],
+    };
   }
-  
-  return { format: 'ffa' }
+
+  return { format: "ffa" };
 }
 
 // ============================================
@@ -118,21 +122,21 @@ function validateParticipantData(data: unknown): ParticipantData {
  */
 export async function getMatchById(
   client: SupabaseClient<Database>,
-  matchId: string
+  matchId: string,
 ): Promise<Result<Match>> {
   const { data, error } = await client
-    .from('matches')
-    .select('*')
-    .eq('id', matchId)
-    .single()
+    .from("matches")
+    .select("*")
+    .eq("id", matchId)
+    .single();
 
   if (error) {
-    return { success: false, error: error.message }
+    return { success: false, error: error.message };
   }
 
-  const matchData = validateMatchData(data.match_data)
+  const matchData = validateMatchData(data.match_data);
   if (!matchData) {
-    return { success: false, error: 'Invalid match_data format' }
+    return { success: false, error: "Invalid match_data format" };
   }
 
   return {
@@ -141,7 +145,7 @@ export async function getMatchById(
       ...mapMatchRow(data),
       matchData,
     },
-  }
+  };
 }
 
 /**
@@ -149,50 +153,56 @@ export async function getMatchById(
  */
 export async function getMatchWithDetails(
   client: SupabaseClient<Database>,
-  matchId: string
+  matchId: string,
 ): Promise<Result<MatchWithParticipants>> {
   // Fetch match with format and creator
   const { data: match, error: matchError } = await client
-    .from('matches')
-    .select(`
+    .from("matches")
+    .select(
+      `
       *,
       format:formats!matches_format_id_fkey(*),
       creator:profiles!matches_created_by_fkey(*)
-    `)
-    .eq('id', matchId)
-    .single()
+    `,
+    )
+    .eq("id", matchId)
+    .single();
 
   if (matchError) {
-    return { success: false, error: matchError.message }
+    return { success: false, error: matchError.message };
   }
 
   // Fetch participants with profiles and decks
   const { data: participants, error: participantsError } = await client
-    .from('match_participants')
-    .select(`
+    .from("match_participants")
+    .select(
+      `
       *,
       profile:profiles!match_participants_user_id_fkey(*),
       deck:decks!match_participants_deck_id_fkey(*),
       claimant:profiles!match_participants_claimed_by_fkey(*)
-    `)
-    .eq('match_id', matchId)
+    `,
+    )
+    .eq("match_id", matchId);
 
   if (participantsError) {
-    return { success: false, error: participantsError.message }
+    return { success: false, error: participantsError.message };
   }
 
-  const matchData = validateMatchData(match.match_data)
+  const matchData = validateMatchData(match.match_data);
   if (!matchData) {
-    return { success: false, error: 'Invalid match_data format' }
+    return { success: false, error: "Invalid match_data format" };
   }
 
-  const mappedParticipants: MatchParticipantWithDetails[] = participants.map((p) => ({
-    ...mapMatchParticipantRow(p),
-    participantData: validateParticipantData(p.participant_data),
-    profile: p.profile ? mapProfileSummary(p.profile) : null,
-    deck: p.deck ? mapDeckSummary(p.deck) : null,
-    claimant: p.claimant ? mapProfileSummary(p.claimant) : null,
-  }))
+  const mappedParticipants: MatchParticipantWithDetails[] = participants.map(
+    (p) => ({
+      ...mapMatchParticipantRow(p),
+      participantData: validateParticipantData(p.participant_data),
+      profile: p.profile ? mapProfileSummary(p.profile) : null,
+      deck: p.deck ? mapDeckSummary(p.deck) : null,
+      claimant: p.claimant ? mapProfileSummary(p.claimant) : null,
+    }),
+  );
 
   return {
     success: true,
@@ -203,7 +213,7 @@ export async function getMatchWithDetails(
       creator: mapProfileSummary(match.creator),
       participants: mappedParticipants,
     },
-  }
+  };
 }
 
 /**
@@ -212,53 +222,56 @@ export async function getMatchWithDetails(
 export async function getUserMatches(
   client: SupabaseClient<Database>,
   userId: string,
-  pagination: PaginationParams = { page: 1, pageSize: 20 }
+  pagination: PaginationParams = { page: 1, pageSize: 20 },
 ): Promise<Result<MatchSummary[]>> {
-  const page = pagination.page ?? 1
-  const pageSize = pagination.pageSize ?? 20
-  const offset = (page - 1) * pageSize
+  const page = pagination.page ?? 1;
+  const pageSize = pagination.pageSize ?? 20;
+  const offset = (page - 1) * pageSize;
 
   // Get match IDs where user is a participant
   const { data: participantData, error: participantError } = await client
-    .from('match_participants')
-    .select('match_id')
-    .eq('user_id', userId)
+    .from("match_participants")
+    .select("match_id")
+    .eq("user_id", userId);
 
   if (participantError) {
-    return { success: false, error: participantError.message }
+    return { success: false, error: participantError.message };
   }
 
-  const matchIds = participantData.map((p) => p.match_id)
+  const matchIds = participantData.map((p) => p.match_id);
   if (matchIds.length === 0) {
-    return { success: true, data: [] }
+    return { success: true, data: [] };
   }
 
   // Fetch matches with format
   const { data: matches, error: matchesError } = await client
-    .from('matches')
-    .select(`
+    .from("matches")
+    .select(
+      `
       *,
       format:formats!matches_format_id_fkey(name, slug)
-    `)
-    .in('id', matchIds)
-    .order('played_at', { ascending: false })
-    .range(offset, offset + pageSize - 1)
+    `,
+    )
+    .in("id", matchIds)
+    .order("played_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
 
   if (matchesError) {
-    return { success: false, error: matchesError.message }
+    return { success: false, error: matchesError.message };
   }
 
   // Get participant counts and confirmation status for each match
   const summaryPromises = matches.map(async (match) => {
     const { data: participants } = await client
-      .from('match_participants')
-      .select('id, is_winner, confirmed_at, user_id, placeholder_name')
-      .eq('match_id', match.id)
+      .from("match_participants")
+      .select("id, is_winner, confirmed_at, user_id, placeholder_name")
+      .eq("match_id", match.id);
 
-    const participantCount = participants?.length ?? 0
-    const confirmedCount = participants?.filter((p) => p.confirmed_at).length ?? 0
-    const winners = participants?.filter((p) => p.is_winner) ?? []
-    const winnerNames = winners.map((w) => w.placeholder_name ?? 'Player')
+    const participantCount = participants?.length ?? 0;
+    const confirmedCount =
+      participants?.filter((p) => p.confirmed_at).length ?? 0;
+    const winners = participants?.filter((p) => p.is_winner) ?? [];
+    const winnerNames = winners.map((w) => w.placeholder_name ?? "Player");
 
     return {
       id: match.id,
@@ -268,13 +281,14 @@ export async function getUserMatches(
       participantCount,
       confirmedCount,
       winnerNames,
-      isFullyConfirmed: participantCount > 0 && confirmedCount === participantCount,
-    }
-  })
+      isFullyConfirmed:
+        participantCount > 0 && confirmedCount === participantCount,
+    };
+  });
 
-  const summaries = await Promise.all(summaryPromises)
+  const summaries = await Promise.all(summaryPromises);
 
-  return { success: true, data: summaries }
+  return { success: true, data: summaries };
 }
 
 /**
@@ -282,63 +296,66 @@ export async function getUserMatches(
  */
 export async function getRecentMatches(
   client: SupabaseClient<Database>,
-  options: { collectionId?: string; limit?: number } = {}
+  options: { collectionId?: string; limit?: number } = {},
 ): Promise<Result<MatchSummary[]>> {
-  const { collectionId, limit = 10 } = options
+  const { collectionId, limit = 10 } = options;
 
-  let matchIds: string[]
+  let matchIds: string[];
 
   if (collectionId) {
     // Get matches in the collection
     const { data, error } = await client
-      .from('collection_matches')
-      .select('match_id')
-      .eq('collection_id', collectionId)
-      .eq('approval_status', 'approved')
+      .from("collection_matches")
+      .select("match_id")
+      .eq("collection_id", collectionId)
+      .eq("approval_status", "approved");
 
     if (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: error.message };
     }
 
-    matchIds = data.map((m) => m.match_id)
+    matchIds = data.map((m) => m.match_id);
     if (matchIds.length === 0) {
-      return { success: true, data: [] }
+      return { success: true, data: [] };
     }
   } else {
-    matchIds = []
+    matchIds = [];
   }
 
   // Build query
   let query = client
-    .from('matches')
-    .select(`
+    .from("matches")
+    .select(
+      `
       *,
       format:formats!matches_format_id_fkey(name, slug)
-    `)
-    .order('played_at', { ascending: false })
-    .limit(limit)
+    `,
+    )
+    .order("played_at", { ascending: false })
+    .limit(limit);
 
   if (matchIds.length > 0) {
-    query = query.in('id', matchIds)
+    query = query.in("id", matchIds);
   }
 
-  const { data: matches, error: matchesError } = await query
+  const { data: matches, error: matchesError } = await query;
 
   if (matchesError) {
-    return { success: false, error: matchesError.message }
+    return { success: false, error: matchesError.message };
   }
 
   // Get participant info for each match
   const summaryPromises = matches.map(async (match) => {
     const { data: participants } = await client
-      .from('match_participants')
-      .select('id, is_winner, confirmed_at, user_id, placeholder_name')
-      .eq('match_id', match.id)
+      .from("match_participants")
+      .select("id, is_winner, confirmed_at, user_id, placeholder_name")
+      .eq("match_id", match.id);
 
-    const participantCount = participants?.length ?? 0
-    const confirmedCount = participants?.filter((p) => p.confirmed_at).length ?? 0
-    const winners = participants?.filter((p) => p.is_winner) ?? []
-    const winnerNames = winners.map((w) => w.placeholder_name ?? 'Player')
+    const participantCount = participants?.length ?? 0;
+    const confirmedCount =
+      participants?.filter((p) => p.confirmed_at).length ?? 0;
+    const winners = participants?.filter((p) => p.is_winner) ?? [];
+    const winnerNames = winners.map((w) => w.placeholder_name ?? "Player");
 
     return {
       id: match.id,
@@ -348,13 +365,14 @@ export async function getRecentMatches(
       participantCount,
       confirmedCount,
       winnerNames,
-      isFullyConfirmed: participantCount > 0 && confirmedCount === participantCount,
-    }
-  })
+      isFullyConfirmed:
+        participantCount > 0 && confirmedCount === participantCount,
+    };
+  });
 
-  const summaries = await Promise.all(summaryPromises)
+  const summaries = await Promise.all(summaryPromises);
 
-  return { success: true, data: summaries }
+  return { success: true, data: summaries };
 }
 
 /**
@@ -362,37 +380,37 @@ export async function getRecentMatches(
  */
 export async function getPendingConfirmations(
   client: SupabaseClient<Database>,
-  userId: string
+  userId: string,
 ): Promise<Result<MatchWithParticipants[]>> {
   // Get unconfirmed participations
   const { data: participations, error: participationsError } = await client
-    .from('match_participants')
-    .select('match_id')
-    .eq('user_id', userId)
-    .is('confirmed_at', null)
+    .from("match_participants")
+    .select("match_id")
+    .eq("user_id", userId)
+    .is("confirmed_at", null);
 
   if (participationsError) {
-    return { success: false, error: participationsError.message }
+    return { success: false, error: participationsError.message };
   }
 
   if (participations.length === 0) {
-    return { success: true, data: [] }
+    return { success: true, data: [] };
   }
 
-  const matchIds = participations.map((p) => p.match_id)
+  const matchIds = participations.map((p) => p.match_id);
 
   // Fetch full match details for each
-  const matchPromises = matchIds.map((id) => getMatchWithDetails(client, id))
-  const matchResults = await Promise.all(matchPromises)
+  const matchPromises = matchIds.map((id) => getMatchWithDetails(client, id));
+  const matchResults = await Promise.all(matchPromises);
 
-  const matches: MatchWithParticipants[] = []
+  const matches: MatchWithParticipants[] = [];
   for (const result of matchResults) {
     if (result.success) {
-      matches.push(result.data)
+      matches.push(result.data);
     }
   }
 
-  return { success: true, data: matches }
+  return { success: true, data: matches };
 }
 
 // ============================================
@@ -405,61 +423,65 @@ export async function getPendingConfirmations(
 export async function createMatch(
   client: SupabaseClient<Database>,
   userId: string,
-  payload: CreateMatchPayload
+  payload: CreateMatchPayload,
 ): Promise<Result<Match>> {
   // Validate team format winner consistency
-  const { matchData, participants, winnerIndices } = payload
-  if (matchData.format === '2v2' || matchData.format === '3v3') {
+  const { matchData, participants, winnerIndices } = payload;
+  if (matchData.format === "2v2" || matchData.format === "3v3") {
     // Group participants by team
-    const teamWinners: Record<string, boolean[]> = {}
+    const teamWinners: Record<string, boolean[]> = {};
     participants.forEach((p, index) => {
-      const team = p.team
+      const team = p.team;
       if (team) {
-        if (!teamWinners[team]) teamWinners[team] = []
-        teamWinners[team].push(winnerIndices.includes(index))
+        if (!teamWinners[team]) teamWinners[team] = [];
+        teamWinners[team].push(winnerIndices.includes(index));
       }
-    })
-    
+    });
+
     // Check that all members of a team have the same winner status
     for (const [team, winStatuses] of Object.entries(teamWinners)) {
-      const allSameStatus = winStatuses.every(s => s === winStatuses[0])
+      const allSameStatus = winStatuses.every((s) => s === winStatuses[0]);
       if (!allSameStatus) {
-        return { 
-          success: false, 
-          error: `Team ${team} has inconsistent winner status. All team members must win or lose together.` 
-        }
+        return {
+          success: false,
+          error: `Team ${team} has inconsistent winner status. All team members must win or lose together.`,
+        };
       }
     }
   }
 
   // Create the match
   const { data: match, error: matchError } = await client
-    .from('matches')
+    .from("matches")
     .insert({
       created_by: userId,
       format_id: payload.formatId,
       played_at: payload.playedAt ?? new Date().toISOString(),
       notes: payload.notes ?? null,
-      match_data: payload.matchData as Database['public']['Tables']['matches']['Insert']['match_data'],
+      match_data:
+        payload.matchData as Database["public"]["Tables"]["matches"]["Insert"]["match_data"],
     })
     .select()
-    .single()
+    .single();
 
   if (matchError) {
-    return { success: false, error: matchError.message }
+    return { success: false, error: matchError.message };
   }
 
   // Create participants
   const participantInserts = payload.participants.map((p, index) => {
-    const isWinner = payload.winnerIndices.includes(index)
+    const isWinner = payload.winnerIndices.includes(index);
     const baseParticipant = {
       match_id: match.id,
       is_winner: isWinner,
       team: p.team ?? null,
-      participant_data: getParticipantData(payload.matchData, index) as Database['public']['Tables']['match_participants']['Insert']['participant_data'],
-    }
+      participant_data: getParticipantData(
+        payload.matchData,
+        index,
+      ) as Database["public"]["Tables"]["match_participants"]["Insert"]["participant_data"],
+    };
 
-    if (p.type === 'registered') {
+    if (p.type === "registered") {
       return {
         ...baseParticipant,
         user_id: p.userId,
@@ -467,7 +489,7 @@ export async function createMatch(
         placeholder_name: null,
         // Creator auto-confirms their own participation
         confirmed_at: p.userId === userId ? new Date().toISOString() : null,
-      }
+      };
     } else {
       return {
         ...baseParticipant,
@@ -475,46 +497,48 @@ export async function createMatch(
         deck_id: null,
         placeholder_name: p.placeholderName,
         confirmed_at: null,
-      }
+      };
     }
-  })
+  });
 
   const { error: participantsError } = await client
-    .from('match_participants')
-    .insert(participantInserts)
+    .from("match_participants")
+    .insert(participantInserts);
 
   if (participantsError) {
     // Rollback: delete the match
-    await client.from('matches').delete().eq('id', match.id)
-    return { success: false, error: participantsError.message }
+    await client.from("matches").delete().eq("id", match.id);
+    return { success: false, error: participantsError.message };
   }
 
-  return { success: true, data: mapMatchRow(match) }
+  return { success: true, data: mapMatchRow(match) };
 }
 
 /**
  * Generate participant_data based on match format
  */
-function getParticipantData(matchData: MatchData, index: number): ParticipantData {
+function getParticipantData(
+  matchData: MatchData,
+  index: number,
+): ParticipantData {
   switch (matchData.format) {
-    case 'ffa':
-    case '1v1':
-      return { format: matchData.format }
-    
-    case '2v2':
-    case '3v3':
+    case "ffa":
+    case "1v1":
+      return { format: matchData.format };
+
+    case "2v2":
+    case "3v3":
       // Assign to teams in order (first half team A, second half team B)
-      const playersPerTeam = matchData.format === '2v2' ? 2 : 3
-      const teamId = index < playersPerTeam ? 'A' : 'B'
-      return { format: matchData.format, teamId }
-    
-    case 'pentagram': {
-      const seatPosition = index as 0 | 1 | 2 | 3 | 4
-      const { PENTAGRAM_ADJACENCY_MAP, getPentagramEnemies } = require('@/types/format')
-      const allies = PENTAGRAM_ADJACENCY_MAP[seatPosition]
-      const enemies = getPentagramEnemies(seatPosition)
+      const playersPerTeam = matchData.format === "2v2" ? 2 : 3;
+      const teamId = index < playersPerTeam ? "A" : "B";
+      return { format: matchData.format, teamId };
+
+    case "pentagram": {
+      const seatPosition = index as 0 | 1 | 2 | 3 | 4;
+      const allies = PENTAGRAM_ADJACENCY_MAP[seatPosition];
+      const enemies = getPentagramEnemies(seatPosition);
       return {
-        format: 'pentagram',
+        format: "pentagram",
         seatPosition,
         targetParticipantIds: [
           matchData.seatingOrder[enemies[0]],
@@ -524,7 +548,7 @@ function getParticipantData(matchData: MatchData, index: number): ParticipantDat
           matchData.seatingOrder[allies[0]],
           matchData.seatingOrder[allies[1]],
         ],
-      }
+      };
     }
   }
 }

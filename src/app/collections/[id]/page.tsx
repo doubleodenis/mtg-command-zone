@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge, Avatar, Button } from "@/components/ui";
-import { PageHeader, Section } from "@/components/layout";
+import { Section } from "@/components/layout";
 import { MatchLog } from "@/components/match";
 import { PendingMatchApprovals } from "@/components/collection";
 import { LeaderboardWithFilter } from "@/components/features/leaderboard-with-filter";
@@ -256,9 +256,9 @@ type CollectionHeaderProps = {
 
 function CollectionHeader({
   collection,
-  matchCount,
+  matchCount: _matchCount,
   isMember,
-  isOwner,
+  isOwner: _isOwner,
 }: CollectionHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
