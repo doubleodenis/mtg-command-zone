@@ -188,7 +188,7 @@ export async function getFormatStats(
 
   // Get stats for each format
   const statsPromises = formats.map(async (format) => {
-    const [ratingResult, statsResult] = await Promise.all([
+    const [_ratingResult, statsResult] = await Promise.all([
       getRating(client, userId, format.id, collectionId),
       getUserStats(client, userId, format.id, collectionId),
     ])

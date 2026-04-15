@@ -8,7 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import type { Result, UUID } from '@/types'
-import type { Notification, NotificationWithActor, NotificationData } from '@/types/notification'
+import type { NotificationWithActor, NotificationData } from '@/types/notification'
 import { mapNotificationRow, mapProfileSummary } from '@/types/database-mappers'
 import type { ProfileSummary } from '@/types/profile'
 

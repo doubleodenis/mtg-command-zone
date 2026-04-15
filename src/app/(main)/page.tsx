@@ -230,7 +230,7 @@ async function PersonalDashboard({ userId }: { userId: string }) {
     pendingResult,
     collectionsResult,
     ratingHistoryResult,
-    formatsResult,
+    _formatsResult,
     userDecksResult,
   ] = await Promise.all([
     getProfileById(supabase, userId),

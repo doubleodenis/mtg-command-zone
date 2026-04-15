@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge, ColorIdentity, RatingDelta } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { buildCommanderImageUrl } from "@/lib/scryfall/api";
-import type { ClaimStatus, FormatSlug, MatchCardData, ParticipantDataPentagram, ParticipantDisplayInfo } from "@/types";
+import type { FormatSlug, MatchCardData, ParticipantDataPentagram, ParticipantDisplayInfo } from "@/types";
 
 // Bracket name mapping
 const BRACKET_NAMES: Record<number, string> = {

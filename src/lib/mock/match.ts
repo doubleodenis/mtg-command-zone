@@ -260,7 +260,7 @@ export function createMockMatchCardData(
 function getTeamForParticipant(
   format: FormatSlug,
   index: number,
-  playerCount: number
+  _playerCount: number
 ): string | null {
   switch (format) {
     case '1v1':

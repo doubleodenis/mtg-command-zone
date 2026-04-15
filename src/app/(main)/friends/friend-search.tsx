@@ -3,13 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 import { Avatar, Button } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { searchProfiles, sendFriendRequest, getFriendshipStatus, respondToFriendRequest } from "@/lib/supabase/profiles";
-import type { ProfileSummary, FriendshipStatus, Friendship } from "@/types";
+import type { ProfileSummary, FriendshipStatus } from "@/types";
 
 interface FriendSearchProps {
   currentUserId: string;

@@ -143,7 +143,7 @@ function ResultsSkeleton() {
 }
 
 export function ClaimSearchForm() {
-  const router = useRouter();
+  const _router = useRouter();
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<ClaimableMatchSlot[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);

@@ -24,7 +24,6 @@ import {
 import {
   createMockRatingTimeline,
 } from "@/lib/mock";
-import type { FormatStats } from "@/types/profile";
 
 // Type for color stats used in radar chart
 type ColorStats = {

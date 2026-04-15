@@ -5,7 +5,6 @@ import { getMatchByInviteToken } from '@/app/actions/match'
 import { Navbar } from '@/components/features/navbar'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { FormatBadge } from '@/components/ui/format-badge'
 import { ClaimSlotForm } from './claim-slot-form'
 import type { FormatSlug } from '@/types'
@@ -73,7 +72,7 @@ export default async function ClaimByTokenPage({ params }: PageProps) {
     )
   }
 
-  const { match, placeholderSlots, isExpired, isUsed } = result.data
+  const { match, placeholderSlots, isExpired, isUsed: _isUsed } = result.data
 
   // Check for expired token
   if (isExpired) {

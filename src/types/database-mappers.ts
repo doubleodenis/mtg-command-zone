@@ -6,13 +6,13 @@
  */
 
 import type { Tables, Enums } from './database.types'
-import type { Bracket, ColorIdentity, ISODateString, UUID } from './common'
+import type { Bracket, ColorIdentity } from './common'
 import type { Profile, ProfileSummary, LeaderboardEntry } from './profile'
 import type { Deck, DeckSummary, DeckWithStats, DeckStats } from './deck'
 import type { Friendship, FriendshipStatus, Friend, FriendRequest, OutgoingFriendRequest } from './friendship'
 import type { Format, FormatSummary, FormatSlug, FormatConfig, WinConditionType } from './format'
 import type { Match, MatchParticipant, MatchWithDetails, MatchParticipantWithDetails, ClaimStatus } from './match'
-import type { Collection, CollectionMember, CollectionRole, MatchAddPermission, ApprovalStatus, CollectionSummary, CollectionMemberWithProfile } from './collection'
+import type { Collection, CollectionMember, CollectionRole, MatchAddPermission, CollectionSummary, CollectionMemberWithProfile } from './collection'
 import type { Rating, RatingHistory, RatingWithFormat } from './rating'
 import type { NotificationType, NotificationEntityType } from './notification'
 
@@ -119,7 +119,7 @@ export function mapFriendshipRow(row: FriendRow): Friendship {
   }
 }
 
-export function mapFriendRow(row: FriendRow, otherProfile: ProfileRow, isRequester: boolean): Friend {
+export function mapFriendRow(row: FriendRow, otherProfile: ProfileRow, _isRequester: boolean): Friend {
   return {
     id: otherProfile.id,
     username: otherProfile.username,

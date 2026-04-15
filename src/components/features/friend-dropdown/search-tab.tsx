@@ -26,7 +26,7 @@ export function SearchTab({
   setHasSearched,
   sendingTo,
   setSendingTo,
-  pendingRequests,
+  pendingRequests: _pendingRequests,
   setPendingRequests,
   setPendingCount,
   onClose,

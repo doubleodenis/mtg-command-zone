@@ -64,7 +64,7 @@ const MOCK_COMMANDERS = [
 // Seed Functions
 // ============================================
 
-async function clearData() {
+async function _clearData() {
   console.log('Clearing existing data...')
 
   // Delete in reverse dependency order
