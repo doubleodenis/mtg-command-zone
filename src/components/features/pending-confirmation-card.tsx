@@ -24,7 +24,7 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
   const [showDeckSelect, setShowDeckSelect] = React.useState(false)
   const [selectedDeck, setSelectedDeck] = React.useState<string>('')
   const [error, setError] = React.useState<string | null>(null)
-  const [result, setResult] = React.useState<{ delta: number; newRating: number } | null>(null)
+  const [result, setResult] = React.useState<{ previewDelta: number } | null>(null)
 
   const confirmationStatus = match.isFullyConfirmed 
     ? 'confirmed' 
@@ -70,7 +70,7 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
               <div>
                 <p className="text-sm font-medium text-text-1">Match Confirmed!</p>
                 <p className="text-sm text-text-2">
-                  Rating: {result.delta >= 0 ? '+' : ''}{result.delta} → {result.newRating}
+                  Expected rating: {result.previewDelta >= 0 ? '+' : ''}{result.previewDelta}
                 </p>
               </div>
             </div>

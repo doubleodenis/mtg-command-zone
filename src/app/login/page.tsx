@@ -40,7 +40,12 @@ function LoginContent() {
     });
 
     if (error) {
-      console.error("OAuth error:", error);
+      console.error("[Auth] OAuth error:", {
+        provider,
+        message: error.message,
+        status: error.status,
+        code: error.code,
+      });
       setError(error.message);
       setIsLoading(null);
     }
@@ -100,6 +105,12 @@ function LoginContent() {
       });
 
       if (error) {
+        console.error("[Auth] Sign up error:", {
+          email,
+          message: error.message,
+          status: error.status,
+          code: error.code,
+        });
         setError(error.message);
         setIsLoading(null);
         return;
@@ -114,6 +125,12 @@ function LoginContent() {
       });
 
       if (error) {
+        console.error("[Auth] Sign in error:", {
+          email,
+          message: error.message,
+          status: error.status,
+          code: error.code,
+        });
         setError(error.message);
         setIsLoading(null);
         return;

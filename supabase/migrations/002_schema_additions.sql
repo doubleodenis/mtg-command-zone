@@ -6,37 +6,45 @@
 -- Fan-out on write model with denormalized data snapshot
 -- ============================================
 
-CREATE TYPE notification_type AS ENUM (
-  -- Match notifications
-  'match_pending_confirmation',
-  'match_confirmed',
-  'match_disputed',
-  'match_result_edited',
-  -- Rating notifications
-  'elo_milestone',
-  'rank_changed',
-  -- Collection notifications
-  'collection_invite',
-  'collection_match_added',
-  -- Claim notifications
-  'claim_available',
-  'claim_accepted',
-  -- Deck notifications
-  'deck_retroactively_updated',
-  -- Friend notifications
-  'friend_request',
-  'friend_accepted'
-);
+DO $$ BEGIN
+  CREATE TYPE notification_type AS ENUM (
+    -- Match notifications
+    'match_pending_confirmation',
+    'match_confirmed',
+    'match_disputed',
+    'match_result_edited',
+    -- Rating notifications
+    'elo_milestone',
+    'rank_changed',
+    -- Collection notifications
+    'collection_invite',
+    'collection_match_added',
+    -- Claim notifications
+    'claim_available',
+    'claim_accepted',
+    -- Deck notifications
+    'deck_retroactively_updated',
+    -- Friend notifications
+    'friend_request',
+    'friend_accepted'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE notification_entity_type AS ENUM (
-  'match',
-  'collection',
-  'player',
-  'deck'
-);
+DO $$ BEGIN
+  CREATE TYPE notification_entity_type AS ENUM (
+    'match',
+    'collection',
+    'player',
+    'deck'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipient_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   actor_id UUID REFERENCES profiles(id) ON DELETE SET NULL, -- User who triggered the notification
   type notification_type NOT NULL,

@@ -120,6 +120,7 @@ export type {
   MatchWithParticipants,
   ParticipantDisplayInfo,
   ParticipantInput,
+  ParticipantStatus,
   PendingClaimRequest,
   PendingConfirmation,
   PlaceholderParticipantInput,

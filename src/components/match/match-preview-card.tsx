@@ -386,7 +386,11 @@ export function MatchPreviewCard({
 
               {/* ELO delta - only on personal dashboard */}
               {showElo && userParticipant?.ratingDelta && (
-                <RatingDelta delta={userParticipant.ratingDelta.delta} size="lg" />
+                <RatingDelta 
+                  delta={userParticipant.ratingDelta.delta} 
+                  size="lg" 
+                  isPreview={userParticipant.ratingDelta.isPreview}
+                />
               )}
             </div>
           </div>

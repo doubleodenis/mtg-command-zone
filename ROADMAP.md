@@ -150,7 +150,7 @@
 ---
 
 ## Phase 8 — Rating System
-> You are here.
+> Complete (except Edge Function)!
 
 - [x] Wire rating calculation to match confirmation event
 - [x] Global rating update on confirmation
@@ -194,7 +194,29 @@
 
 ---
 
-## Phase 11 — Future Considerations
+## Phase 11 — Testing
+> You are here.
+
+- [x] Vitest setup and configuration
+- [x] Rating system unit tests (37 tests)
+  - [x] K factor calculation tests
+  - [x] Expected score calculation tests
+  - [x] Bracket modifier tests
+  - [x] Opponent average calculations
+  - [x] Full rating calculation tests
+  - [x] Batch match rating tests
+  - [x] Utility function tests
+- [ ] Supabase query helpers tests
+- [ ] Database mappers tests
+- [ ] Integration tests for critical paths
+  - [ ] Match flow (create → confirm → rating)
+  - [ ] Friend request flow
+  - [ ] Collection membership flow
+- [ ] E2E testing setup (Playwright)
+
+---
+
+## Phase 12 — Future Considerations
 
 - [ ] Scryfall API integration for commander autocomplete and color identity
 - [ ] Global leaderboards (per format, public and friends-only)

@@ -96,9 +96,13 @@ export function ParticipantList({
 
               {/* Badges and actions - stacks below on mobile */}
               <div className="flex items-center gap-2 pl-9 sm:pl-0 flex-wrap">
-                {/* Rating delta for confirmed participants */}
+                {/* Rating delta for confirmed participants or preview for pending */}
                 {participant.ratingDelta && (
-                  <RatingDelta delta={participant.ratingDelta.delta} size="md" />
+                  <RatingDelta 
+                    delta={participant.ratingDelta.delta} 
+                    size="md"
+                    isPreview={participant.ratingDelta.isPreview}
+                  />
                 )}
 
                 {/* Update deck button for user's own slot */}

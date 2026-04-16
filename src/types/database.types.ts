@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          backdate_limit_days: number
+          created_at: string | null
+          key: string
+          lock_window_hours: number
+          updated_at: string | null
+        }
+        Insert: {
+          backdate_limit_days?: number
+          created_at?: string | null
+          key: string
+          lock_window_hours?: number
+          updated_at?: string | null
+        }
+        Update: {
+          backdate_limit_days?: number
+          created_at?: string | null
+          key?: string
+          lock_window_hours?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       collection_matches: {
         Row: {
           added_at: string | null
@@ -377,6 +401,7 @@ export type Database = {
           is_winner: boolean
           match_id: string
           participant_data: Json
+          participant_status: Database["public"]["Enums"]["participant_status"]
           placeholder_name: string | null
           team: string | null
           user_id: string | null
@@ -391,6 +416,7 @@ export type Database = {
           is_winner?: boolean
           match_id: string
           participant_data?: Json
+          participant_status?: Database["public"]["Enums"]["participant_status"]
           placeholder_name?: string | null
           team?: string | null
           user_id?: string | null
@@ -405,6 +431,7 @@ export type Database = {
           is_winner?: boolean
           match_id?: string
           participant_data?: Json
+          participant_status?: Database["public"]["Enums"]["participant_status"]
           placeholder_name?: string | null
           team?: string | null
           user_id?: string | null
@@ -446,27 +473,39 @@ export type Database = {
           created_by: string
           format_id: string
           id: string
+          is_dirty: boolean
+          last_recalculated_at: string | null
+          locks_at: string
           match_data: Json
           notes: string | null
           played_at: string
+          ratings_applied_at: string | null
         }
         Insert: {
           created_at?: string | null
           created_by: string
           format_id: string
           id?: string
+          is_dirty?: boolean
+          last_recalculated_at?: string | null
+          locks_at?: string
           match_data?: Json
           notes?: string | null
           played_at?: string
+          ratings_applied_at?: string | null
         }
         Update: {
           created_at?: string | null
           created_by?: string
           format_id?: string
           id?: string
+          is_dirty?: boolean
+          last_recalculated_at?: string | null
+          locks_at?: string
           match_data?: Json
           notes?: string | null
           played_at?: string
+          ratings_applied_at?: string | null
         }
         Relationships: [
           {
@@ -923,6 +962,7 @@ export type Database = {
         | "deck_retroactively_updated"
         | "friend_request"
         | "friend_accepted"
+      participant_status: "pending" | "confirmed" | "auto_confirmed"
       win_condition_type:
         | "last_standing"
         | "eliminate_team"

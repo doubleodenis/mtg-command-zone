@@ -22,7 +22,7 @@ export default async function CollectionLayout({
   return (
     <>
       <TabNav items={navItems} />
-      <main className="max-w-6xl px-4 py-8">
+      <main className="max-w-6xl md:min-w-2xl md:mx-auto px-4 py-8">
         {children}
       </main>
     </>

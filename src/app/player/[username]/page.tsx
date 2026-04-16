@@ -16,6 +16,7 @@ import {
   getUserRatings,
   getFormatStats,
   getUserDecksWithStats,
+  getRatingHistory,
 } from "@/lib/supabase";
 import {
   getRecentMatchCards,
@@ -24,6 +25,7 @@ import {
 import {
   createMockRatingTimeline,
 } from "@/lib/mock";
+import type { RatingHistoryEntry } from "@/types";
 
 // Type for color stats used in radar chart
 type ColorStats = {
@@ -68,12 +70,13 @@ export default async function PlayerProfilePage({ params }: PageProps) {
   const isOwnProfile = currentUser?.id === profile.id;
 
   // Fetch all user data in parallel
-  const [statsResult, ratingsResult, formatStatsResult, recentMatchesResult, userDecksResult] = await Promise.all([
+  const [statsResult, ratingsResult, formatStatsResult, recentMatchesResult, userDecksResult, ratingHistoryResult] = await Promise.all([
     getUserStats(supabase, profile.id),
     getUserRatings(supabase, profile.id),
     getFormatStats(supabase, profile.id),
     getRecentMatchCards(supabase, { userId: profile.id, viewerUserId: currentUser?.id, limit: 5 }),
     getUserDecksWithStats(supabase, profile.id),
+    getRatingHistory(supabase, profile.id, { limit: 20 }),
   ]);
 
   // Extract data with fallbacks
@@ -112,12 +115,19 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     .sort((a, b) => b.stats.gamesPlayed - a.stats.gamesPlayed)
     .slice(0, 5);
 
-  // Use mock rating timeline until we implement proper history tracking
-  // TODO: Replace with real rating history once RatingHistoryEntry data is available
-  const ratingTimeline = createMockRatingTimeline(20, ratings.length > 0 
-    ? Math.round(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length)
-    : 1000
-  );
+  // Transform RatingHistory to RatingHistoryEntry for the chart
+  // Data is fetched in descending order (newest first), reverse for chronological display
+  const ratingTimeline: RatingHistoryEntry[] = ratingHistoryResult.success && ratingHistoryResult.data.length > 0
+    ? ratingHistoryResult.data.map(entry => ({
+        ...entry,
+        matchDate: entry.createdAt,
+        isWin: entry.delta > 0,
+        opponentCount: 3, // Default, would need additional query for accurate count
+      })).reverse()
+    : createMockRatingTimeline(20, ratings.length > 0 
+        ? Math.round(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length)
+        : 1000
+      );
 
   // Calculate overall rating (average of format ratings or default)
   const overallRating = ratings.length > 0

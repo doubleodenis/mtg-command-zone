@@ -82,6 +82,7 @@ export function createMockParticipantData(
 // ============================================
 
 export function createMockMatch(overrides: Partial<Match> = {}): Match {
+  const createdAt = generateMockDate(7)
   return {
     id: generateMockId(),
     createdBy: generateMockId(),
@@ -89,7 +90,11 @@ export function createMockMatch(overrides: Partial<Match> = {}): Match {
     playedAt: generateMockDate(7),
     notes: null,
     matchData: createMockMatchData('ffa'),
-    createdAt: generateMockDate(7),
+    createdAt,
+    locksAt: createdAt, // Mock matches are already locked
+    isDirty: false,
+    lastRecalculatedAt: null,
+    ratingsAppliedAt: createdAt,
     ...overrides,
   }
 }
@@ -106,6 +111,7 @@ export function createMockMatchParticipant(
     team: null,
     isWinner: false,
     confirmedAt: generateMockDate(7),
+    participantStatus: 'confirmed',
     claimedBy: null,
     claimStatus: 'none',
     participantData: createMockParticipantData('ffa'),
@@ -144,6 +150,7 @@ export function createMockParticipantDisplayInfo(
     avatarUrl: profile.avatarUrl,
     isRegistered: true,
     isConfirmed: true,
+    participantStatus: 'confirmed',
     deck: createMockDeckSummary(),
     team: null,
     isWinner: false,
@@ -185,6 +192,7 @@ export function createMockMatchWithParticipants(
   const matchId = generateMockId()
   const creatorId = generateMockId()
   const format = createMockFormatSummary(formatSlug)
+  const createdAt = generateMockDate(7)
 
   const participants: MatchParticipantWithDetails[] = Array.from(
     { length: participantCount },
@@ -199,6 +207,7 @@ export function createMockMatchWithParticipants(
         placeholderName: isPlaceholder ? 'Guest Player' : null,
         isWinner,
         confirmedAt: isConfirmed ? generateMockDate(7) : null,
+        participantStatus: isConfirmed ? 'confirmed' : 'pending',
         participantData: createMockParticipantData(formatSlug),
       })
     }
@@ -211,7 +220,11 @@ export function createMockMatchWithParticipants(
     playedAt: generateMockDate(7),
     notes: null,
     matchData: createMockMatchData(formatSlug),
-    createdAt: generateMockDate(7),
+    createdAt,
+    locksAt: createdAt,
+    isDirty: false,
+    lastRecalculatedAt: null,
+    ratingsAppliedAt: createdAt,
     format,
     creator: createMockProfileSummary({ id: creatorId }),
     participants,
@@ -221,15 +234,19 @@ export function createMockMatchWithParticipants(
 export function createMockMatchSummary(
   overrides: Partial<MatchSummary> = {}
 ): MatchSummary {
+  const playedAt = generateMockDate(7)
   return {
     id: generateMockId(),
     formatName: 'Free For All',
     formatSlug: 'ffa',
-    playedAt: generateMockDate(7),
+    playedAt,
     participantCount: 4,
     confirmedCount: 4,
     winnerNames: ['arcane_mage'],
     isFullyConfirmed: true,
+    locksAt: playedAt,
+    isLocked: true,
+    ratingsApplied: true,
     ...overrides,
   }
 }

@@ -17,7 +17,7 @@ export default async function MainLayout({
     <>
       <Navbar />
       <TabNav items={navItems} />
-      <main className="max-w-6xl px-4 py-8 md:mx-auto">
+      <main className="max-w-6xl md:min-w-4xl px-4 py-8 md:mx-auto">
         {children}
       </main>
     </>

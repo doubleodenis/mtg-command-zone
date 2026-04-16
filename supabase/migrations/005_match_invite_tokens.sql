@@ -13,7 +13,7 @@
 
 -- Match invite tokens table
 CREATE TABLE IF NOT EXISTS match_invite_tokens (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
   participant_id UUID REFERENCES match_participants(id) ON DELETE CASCADE, -- Optional: link to specific placeholder
   token TEXT NOT NULL UNIQUE,
