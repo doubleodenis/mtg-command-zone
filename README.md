@@ -20,6 +20,14 @@ A NextJS web application for tracking Magic: The Gathering Commander matches wit
 
 ---
 
+## Prerequisites
+
+- **Node.js 20+**
+- **Docker Desktop** - Required for local Supabase development ([download](https://www.docker.com/products/docker-desktop/))
+- **Supabase CLI** - Installed via npm (`supabase` package included in devDependencies)
+
+---
+
 ## Setup Checklist
 
 ### 1. Clone & Install Dependencies
@@ -30,7 +38,7 @@ cd mtg-game-tracker
 npm install
 ```
 
-### 2. Create Supabase Project
+### 2. Create Supabase Project (Production)
 
 1. Go to [supabase.com](https://supabase.com) and sign in
 2. Click **New Project**
@@ -60,14 +68,18 @@ npm install
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
    ```
 
-### 5. Run Database Migrations
+### 5. Run Database Migrations (Production)
+
+**For local development:** Migrations are applied automatically when running `supabase start`. See [Local Development with Supabase](#local-development-with-supabase) below.
+
+**For production (initial setup):**
 
 1. In Supabase dashboard, go to **SQL Editor**
 2. Click **New Query**
-3. Copy the contents of `supabase/migrations/001_initial_schema.sql`
-4. Paste into the editor and click **Run**
-5. Run `supabase/migrations/002_group_matches_pivot.sql` for playlist-style groups
-6. Verify tables were created in **Table Editor**
+3. Run each migration file from `supabase/migrations/` in order (001, 002, etc.)
+4. Verify tables were created in **Table Editor**
+
+> **Note:** After initial setup, production migrations are handled automatically via the Supabase GitHub Integration. See [CI/CD](#cicd) section.
 
 Expected tables:
 - `profiles`
@@ -130,6 +142,93 @@ Visit [http://localhost:3000](http://localhost:3000)
 
 ---
 
+## Local Development with Supabase
+
+For local development, you can run a full Supabase instance using Docker. This is the recommended approach for development and testing.
+
+### Starting Local Supabase
+
+Make sure Docker Desktop is running, then:
+
+```bash
+# Start all Supabase services
+supabase start
+
+# This will output local URLs and keys:
+# API URL: http://127.0.0.1:54321
+# Studio URL: http://127.0.0.1:54323
+# anon key: eyJ...
+# service_role key: eyJ...
+```
+
+### Database Migrations
+
+Migrations are stored in `supabase/migrations/` and are applied automatically when starting Supabase:
+
+```
+supabase/migrations/
+├── 001_initial_schema.sql        # Core tables: profiles, matches, decks
+├── 002_schema_additions.sql      # Additional schema updates
+├── 003_fix_collection_members_rls.sql
+├── 004_claim_system.sql          # Guest claim tokens
+├── 005_match_invite_tokens.sql
+├── 006_rating_write_functions.sql
+├── 007_rating_recalc_functions.sql
+├── ...                           # And more
+```
+
+### Seed Data
+
+Seed files live in `supabase/seeds/` and provide test data for local development:
+
+```
+supabase/seeds/
+├── 01_users.sql     # Test user profiles
+├── 02_decks.sql     # Sample commander decks
+├── 03_matches.sql   # Sample matches and collections
+└── README.md        # Seed documentation
+```
+
+#### Test Credentials
+
+| Email               | Password      | Username | Display Name |
+|---------------------|---------------|----------|--------------|
+| player1@gmail.com   | password123   | player1  | Player One   |
+| player2@gmail.com   | password123   | player2  | Player Two   |
+
+### Common Commands
+
+```bash
+# Start Supabase (applies migrations automatically)
+supabase start
+
+# Reset database (drops all data, re-applies migrations + seeds)
+supabase db reset
+
+# Stop Supabase
+supabase stop
+
+# View local Supabase Studio
+# Open http://127.0.0.1:54323 in your browser
+
+# Generate TypeScript types from schema
+supabase gen types typescript --local > src/types/database.types.ts
+
+# Create a new migration
+supabase migration new <migration_name>
+```
+
+### Environment Setup for Local Development
+
+Create a `.env.local` file with the local Supabase URLs:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key-from-supabase-start>
+```
+
+---
+
 ## Deployment (Netlify)
 
 ### 1. Push to GitHub
@@ -169,6 +268,46 @@ The plugin should auto-detect, but verify in `netlify.toml` or site settings.
 Add your Netlify domain as an authorized redirect in:
 - Google Cloud Console
 - Discord Developer Portal
+
+---
+
+## CI/CD
+
+### Continuous Integration
+
+The project uses GitHub Actions for CI. On every pull request to `main`, the following checks run automatically:
+
+#### Type Check & Lint (`ci.yml`)
+- **Type checking** via TypeScript compiler (`tsc --noEmit`)
+- **Linting** via ESLint (`npm run lint`)
+
+#### Migration Validation (`ci.yml`)
+- Spins up a local Supabase instance in CI
+- Runs `supabase db reset` to verify all migrations apply cleanly
+- Catches migration errors before they reach production
+
+### Continuous Deployment
+
+**Production migrations** are deployed automatically via the [Supabase GitHub Integration](https://supabase.com/docs/guides/platform/github-integration):
+
+1. When a PR is merged to `main`, Supabase detects new migrations
+2. Migrations are applied to the production database automatically
+3. No manual intervention or secrets management required
+
+To enable this integration:
+1. Go to your Supabase Dashboard → **Project Settings** → **Integrations**
+2. Connect your GitHub repository
+3. Configure the production branch (typically `main`)
+
+### Workflow Summary
+
+```
+PR Created → CI Runs (lint, types, migration validation)
+     ↓
+PR Merged to main → Supabase GitHub Integration deploys migrations
+     ↓
+Netlify rebuilds and deploys the app
+```
 
 ---
 
