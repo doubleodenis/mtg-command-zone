@@ -670,7 +670,8 @@ INSERT INTO formats (name, slug, min_players, max_players, has_teams, win_condit
   FALSE,
   'eliminate_targets',
   '{"format": "pentagram", "playerCount": 5, "adjacencyMap": {"0": [1, 4], "1": [0, 2], "2": [1, 3], "3": [2, 4], "4": [3, 0]}}'::jsonb
-);
+)
+ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================
 -- FUNCTIONS

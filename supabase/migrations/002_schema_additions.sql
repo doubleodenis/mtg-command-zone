@@ -604,8 +604,13 @@ CREATE TRIGGER on_collection_member_added
 -- Subscribe to INSERT events filtered by recipient_id
 -- ============================================
 
--- Add notifications to realtime publication
-ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+-- Add notifications to realtime publication (idempotent)
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================
 -- GRANT PERMISSIONS
