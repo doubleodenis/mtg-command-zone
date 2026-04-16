@@ -43,7 +43,7 @@ export type RatingWithFormat = Rating & {
 
 /**
  * Rating history record (maps to rating_history table)
- * Immutable append-only log of every rating change
+ * Rewritable by the system for recalculation, never directly by users
  */
 export type RatingHistory = {
   id: UUID
@@ -60,6 +60,8 @@ export type RatingHistory = {
   kFactor: number
   algorithmVersion: number
   createdAt: ISODateString
+  /** When this row was last recalculated (null = original calculation) */
+  recalculatedAt: ISODateString | null
 }
 
 /**

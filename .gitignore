@@ -27,6 +27,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.*production
 
 # vercel
 .vercel
@@ -36,3 +37,8 @@ yarn-error.log*
 next-env.d.ts
 # Sentry Config File
 .env.sentry-build-plugin
+
+
+#supabase
+/supabase/.temp/
+/supabase/.branches/

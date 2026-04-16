@@ -10,6 +10,7 @@ import type { Result } from '@/types'
 import type {
   MatchCardData,
   ParticipantDisplayInfo,
+  ParticipantStatus,
   PendingConfirmation,
 } from '@/types/match'
 import type { FormatSlug, ParticipantData } from '@/types/format'
@@ -239,6 +240,10 @@ async function transformMatchToCardData(
 
   const participantInfos: ParticipantDisplayInfo[] = participants.map((p) => {
     const profileSummary = p.profile ? mapProfileSummary(p.profile) : null;
+    // Handle new participant_status field with fallback
+    const pRow = p as typeof p & { participant_status?: string };
+    const participantStatus = (pRow.participant_status ?? (p.confirmed_at ? 'confirmed' : 'pending')) as ParticipantStatus;
+    
     return {
       id: p.id,
       userId: p.user_id,
@@ -248,6 +253,7 @@ async function transformMatchToCardData(
       avatarUrl: profileSummary?.avatarUrl ?? null,
       isRegistered: !!p.user_id,
       isConfirmed: !!p.confirmed_at,
+      participantStatus,
       deck: p.deck ? mapDeckSummary(p.deck) : null,
       team: p.team,
       isWinner: p.is_winner,
@@ -264,6 +270,15 @@ async function transformMatchToCardData(
       }) ?? null)
     : null;
 
+  // Handle new lock window fields with fallback for legacy matches
+  const matchRow = match as typeof match & {
+    locks_at?: string;
+    ratings_applied_at?: string | null;
+  };
+  const locksAt = matchRow.locks_at ?? match.played_at;
+  const isLocked = new Date(locksAt) <= new Date();
+  const ratingsApplied = matchRow.ratings_applied_at != null;
+
   return {
     id: match.id,
     formatName: match.format.name,
@@ -273,6 +288,9 @@ async function transformMatchToCardData(
     confirmedCount: participantInfos.filter((p) => p.isConfirmed).length,
     winnerNames: participantInfos.filter((p) => p.isWinner).map((p) => p.name),
     isFullyConfirmed: participantInfos.every((p) => p.isConfirmed),
+    locksAt,
+    isLocked,
+    ratingsApplied,
     participants: participantInfos,
     userParticipant,
   };
@@ -363,6 +381,9 @@ async function transformToPendingConfirmation(
       confirmedCount,
       winnerNames,
       isFullyConfirmed: false,
+      locksAt: match?.played_at ?? new Date().toISOString(),
+      isLocked: true, // Pending confirmations are always for locked matches
+      ratingsApplied: false, // If we have pending confirmation, ratings aren't applied yet
     },
     createdAt: participation.created_at ?? new Date().toISOString(),
     hasDeckAssigned: participation.deck_id !== null,

@@ -3,7 +3,9 @@
 -- Matches REQUIREMENTS.md and application types exactly
 
 -- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp" with schema extensions;
+-- drop extension if exists "uuid-ossp";
+create extension if not exists "uuid-ossp" with schema extensions;
 
 -- ============================================
 -- DROP OLD SCHEMA (if exists)
@@ -71,7 +73,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 -- Friends table (bidirectional friendship system)
 CREATE TABLE IF NOT EXISTS friends (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   requester_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   addressee_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status friendship_status NOT NULL DEFAULT 'pending',
@@ -82,7 +84,7 @@ CREATE TABLE IF NOT EXISTS friends (
 
 -- Decks table (commander decks with brackets)
 CREATE TABLE IF NOT EXISTS decks (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   commander_name TEXT NOT NULL,
   partner_name TEXT,
@@ -95,7 +97,7 @@ CREATE TABLE IF NOT EXISTS decks (
 
 -- Formats table (config-driven format definitions)
 CREATE TABLE IF NOT EXISTS formats (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   slug TEXT UNIQUE NOT NULL, -- '1v1', '2v2', '3v3', 'ffa', 'pentagram'
   min_players SMALLINT NOT NULL,
@@ -108,7 +110,7 @@ CREATE TABLE IF NOT EXISTS formats (
 
 -- Matches table (core match record)
 CREATE TABLE IF NOT EXISTS matches (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   format_id UUID NOT NULL REFERENCES formats(id) ON DELETE RESTRICT,
   played_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -119,7 +121,7 @@ CREATE TABLE IF NOT EXISTS matches (
 
 -- Match participants table (registered users and placeholders)
 CREATE TABLE IF NOT EXISTS match_participants (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
   user_id UUID REFERENCES profiles(id) ON DELETE SET NULL, -- NULL for placeholder
   placeholder_name TEXT, -- Used when user_id is NULL
@@ -139,7 +141,7 @@ CREATE TABLE IF NOT EXISTS match_participants (
 
 -- Collections table (named groups of matches)
 CREATE TABLE IF NOT EXISTS collections (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -150,7 +152,7 @@ CREATE TABLE IF NOT EXISTS collections (
 
 -- Collection members table
 CREATE TABLE IF NOT EXISTS collection_members (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   collection_id UUID NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   role collection_role NOT NULL DEFAULT 'member',
@@ -160,7 +162,7 @@ CREATE TABLE IF NOT EXISTS collection_members (
 
 -- Collection matches join table (many-to-many)
 CREATE TABLE IF NOT EXISTS collection_matches (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   collection_id UUID NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
   added_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -171,7 +173,7 @@ CREATE TABLE IF NOT EXISTS collection_matches (
 
 -- Ratings table (current rating per user/format/collection)
 CREATE TABLE IF NOT EXISTS ratings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   format_id UUID NOT NULL REFERENCES formats(id) ON DELETE CASCADE,
   collection_id UUID REFERENCES collections(id) ON DELETE CASCADE, -- NULL = global rating
@@ -184,7 +186,7 @@ CREATE TABLE IF NOT EXISTS ratings (
 
 -- Rating history table (immutable append-only audit log)
 CREATE TABLE IF NOT EXISTS rating_history (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
   format_id UUID NOT NULL REFERENCES formats(id) ON DELETE CASCADE,
@@ -669,10 +671,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Note: This trigger goes on auth.users which requires elevated permissions
 -- Run this separately with Supabase dashboard or service role:
--- CREATE TRIGGER on_auth_user_created
---   AFTER INSERT ON auth.users
---   FOR EACH ROW
---   EXECUTE FUNCTION handle_new_user();
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_new_user();
 
 -- Get or create rating for user/format/collection
 CREATE OR REPLACE FUNCTION get_or_create_rating(
@@ -741,6 +743,7 @@ CREATE OR REPLACE FUNCTION get_leaderboard(
 RETURNS TABLE (
   user_id UUID,
   username TEXT,
+  display_name TEXT,
   avatar_url TEXT,
   rating INTEGER,
   matches_played INTEGER,
@@ -754,6 +757,7 @@ BEGIN
     SELECT
       r.user_id,
       p.username,
+      p.display_name,
       p.avatar_url,
       r.rating,
       r.matches_played,
@@ -787,6 +791,7 @@ BEGIN
   SELECT
     rr.user_id,
     rr.username,
+    rr.display_name,
     rr.avatar_url,
     rr.rating,
     rr.matches_played,

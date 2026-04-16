@@ -62,6 +62,7 @@ export function createMockRatingHistory(
     kFactor: 32,
     algorithmVersion: 1,
     createdAt: generateMockDate(7),
+    recalculatedAt: null,
     ...overrides,
   }
 }

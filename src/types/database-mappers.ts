@@ -11,7 +11,7 @@ import type { Profile, ProfileSummary, LeaderboardEntry } from './profile'
 import type { Deck, DeckSummary, DeckWithStats, DeckStats } from './deck'
 import type { Friendship, FriendshipStatus, Friend, FriendRequest, OutgoingFriendRequest } from './friendship'
 import type { Format, FormatSummary, FormatSlug, FormatConfig, WinConditionType } from './format'
-import type { Match, MatchParticipant, MatchWithDetails, MatchParticipantWithDetails, ClaimStatus } from './match'
+import type { Match, MatchParticipant, MatchWithDetails, MatchParticipantWithDetails, ClaimStatus, ParticipantStatus } from './match'
 import type { Collection, CollectionMember, CollectionRole, MatchAddPermission, CollectionSummary, CollectionMemberWithProfile } from './collection'
 import type { Rating, RatingHistory, RatingWithFormat } from './rating'
 import type { NotificationType, NotificationEntityType } from './notification'
@@ -188,6 +188,10 @@ export function mapMatchRow(row: MatchRow): Match {
     notes: row.notes,
     matchData: row.match_data as Match['matchData'],
     createdAt: row.created_at ?? new Date().toISOString(),
+    locksAt: (row as MatchRow & { locks_at?: string }).locks_at ?? new Date().toISOString(),
+    isDirty: (row as MatchRow & { is_dirty?: boolean }).is_dirty ?? false,
+    lastRecalculatedAt: (row as MatchRow & { last_recalculated_at?: string | null }).last_recalculated_at ?? null,
+    ratingsAppliedAt: (row as MatchRow & { ratings_applied_at?: string | null }).ratings_applied_at ?? null,
   }
 }
 
@@ -213,6 +217,7 @@ export function mapMatchParticipantRow(row: MatchParticipantRow): MatchParticipa
     team: row.team,
     isWinner: row.is_winner,
     confirmedAt: row.confirmed_at,
+    participantStatus: ((row as MatchParticipantRow & { participant_status?: string }).participant_status ?? 'pending') as ParticipantStatus,
     claimedBy: row.claimed_by,
     claimStatus: row.claim_status as ClaimStatus,
     participantData: row.participant_data as MatchParticipant['participantData'],
@@ -326,6 +331,7 @@ export function mapRatingHistoryRow(row: RatingHistoryRow): RatingHistory {
     kFactor: row.k_factor,
     algorithmVersion: row.algorithm_version,
     createdAt: row.created_at ?? new Date().toISOString(),
+    recalculatedAt: (row as RatingHistoryRow & { recalculated_at?: string | null }).recalculated_at ?? null,
   }
 }
 

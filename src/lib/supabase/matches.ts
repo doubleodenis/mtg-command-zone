@@ -273,6 +273,15 @@ export async function getUserMatches(
     const winners = participants?.filter((p) => p.is_winner) ?? [];
     const winnerNames = winners.map((w) => w.placeholder_name ?? "Player");
 
+    // Handle new fields with fallback for legacy matches
+    const matchRow = match as typeof match & {
+      locks_at?: string;
+      ratings_applied_at?: string | null;
+    };
+    const locksAt = matchRow.locks_at ?? match.played_at;
+    const isLocked = new Date(locksAt) <= new Date();
+    const ratingsApplied = matchRow.ratings_applied_at != null;
+
     return {
       id: match.id,
       formatName: match.format.name,
@@ -283,6 +292,9 @@ export async function getUserMatches(
       winnerNames,
       isFullyConfirmed:
         participantCount > 0 && confirmedCount === participantCount,
+      locksAt,
+      isLocked,
+      ratingsApplied,
     };
   });
 
@@ -357,6 +369,15 @@ export async function getRecentMatches(
     const winners = participants?.filter((p) => p.is_winner) ?? [];
     const winnerNames = winners.map((w) => w.placeholder_name ?? "Player");
 
+    // Handle new fields with fallback for legacy matches
+    const matchRow = match as typeof match & {
+      locks_at?: string;
+      ratings_applied_at?: string | null;
+    };
+    const locksAt = matchRow.locks_at ?? match.played_at;
+    const isLocked = new Date(locksAt) <= new Date();
+    const ratingsApplied = matchRow.ratings_applied_at != null;
+
     return {
       id: match.id,
       formatName: match.format.name,
@@ -367,6 +388,9 @@ export async function getRecentMatches(
       winnerNames,
       isFullyConfirmed:
         participantCount > 0 && confirmedCount === participantCount,
+      locksAt,
+      isLocked,
+      ratingsApplied,
     };
   });
 

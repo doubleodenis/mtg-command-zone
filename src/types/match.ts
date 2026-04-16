@@ -14,6 +14,11 @@ import type { RatingDelta } from './rating'
 export type ClaimStatus = 'none' | 'pending' | 'approved' | 'rejected'
 
 /**
+ * Participant confirmation status
+ */
+export type ParticipantStatus = 'pending' | 'confirmed' | 'auto_confirmed'
+
+/**
  * Match record (maps to matches table)
  */
 export type Match = {
@@ -24,6 +29,14 @@ export type Match = {
   notes: string | null
   matchData: MatchData
   createdAt: ISODateString
+  /** When the match becomes locked and ratings are applied */
+  locksAt: ISODateString
+  /** Whether the match needs rating recalculation due to post-lock edits */
+  isDirty: boolean
+  /** When the nightly recalc job last processed this match */
+  lastRecalculatedAt: ISODateString | null
+  /** When ratings were applied to the ratings table (null = still in lock window) */
+  ratingsAppliedAt: ISODateString | null
 }
 
 /**
@@ -46,6 +59,8 @@ export type MatchParticipant = {
   team: string | null
   isWinner: boolean
   confirmedAt: ISODateString | null // null = unconfirmed
+  /** Confirmation status: pending, confirmed (manual), or auto_confirmed (lock window expired) */
+  participantStatus: ParticipantStatus
   claimedBy: UUID | null
   claimStatus: ClaimStatus
   participantData: ParticipantData
@@ -71,6 +86,8 @@ export type ParticipantDisplayInfo = {
   avatarUrl: string | null
   isRegistered: boolean
   isConfirmed: boolean
+  /** Confirmation status: pending, confirmed, or auto_confirmed */
+  participantStatus: ParticipantStatus
   deck: DeckSummary | null
   team: string | null
   isWinner: boolean
@@ -98,6 +115,12 @@ export type MatchSummary = {
   confirmedCount: number
   winnerNames: string[]
   isFullyConfirmed: boolean
+  /** When the match becomes locked */
+  locksAt: ISODateString
+  /** Whether the lock window has expired */
+  isLocked: boolean
+  /** Whether ratings have been applied to the ratings table */
+  ratingsApplied: boolean
 }
 
 /**

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 type ProfileInsert = {
   id: string;
@@ -13,9 +14,15 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/";
 
+  logger.auth('Callback initiated', { hasCode: !!code, next });
+
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      logger.supabaseError('exchangeCodeForSession', error, { next });
+    }
 
     if (!error) {
       // Check if profile exists, create if not
@@ -23,12 +30,19 @@ export async function GET(request: Request) {
         data: { user },
       } = await supabase.auth.getUser();
 
+      logger.auth('User retrieved', { userId: user?.id, email: user?.email });
+
       if (user) {
-        const { data: existingProfile } = await supabase
+        const { data: existingProfile, error: profileFetchError } = await supabase
           .from("profiles")
           .select("id")
           .eq("id", user.id)
           .single();
+
+        if (profileFetchError && profileFetchError.code !== 'PGRST116') {
+          // PGRST116 = not found, which is expected for new users
+          logger.supabaseError('fetch profile', profileFetchError, { userId: user.id });
+        }
 
         let needsDisplayNameSetup = false;
 
@@ -57,7 +71,17 @@ export async function GET(request: Request) {
             avatar_url: user.user_metadata?.avatar_url || null,
           };
 
-          await supabase.from("profiles").insert(newProfile as never);
+          logger.auth('Creating new profile', { userId: user.id, username: newProfile.username });
+
+          const { error: insertError } = await supabase.from("profiles").insert(newProfile as never);
+          
+          if (insertError) {
+            logger.supabaseError('insert profile', insertError, { userId: user.id, username: newProfile.username });
+          } else {
+            logger.auth('Profile created successfully', { userId: user.id });
+          }
+        } else {
+          logger.auth('Existing profile found', { userId: user.id });
         }
 
         // Build redirect URL
@@ -70,6 +94,8 @@ export async function GET(request: Request) {
         const forwardedHost = request.headers.get("x-forwarded-host");
         const isLocalEnv = process.env.NODE_ENV === "development";
 
+        logger.auth('Redirecting after successful auth', { redirectUrl, isLocalEnv });
+
         if (isLocalEnv) {
           return NextResponse.redirect(`${origin}${redirectUrl}`);
         } else if (forwardedHost) {
@@ -77,10 +103,13 @@ export async function GET(request: Request) {
         } else {
           return NextResponse.redirect(`${origin}${redirectUrl}`);
         }
+      } else {
+        logger.auth('No user returned after session exchange');
       }
     }
   }
 
   // Return the user to an error page with instructions
+  logger.auth('Auth callback failed, redirecting to login with error');
   return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
 }
