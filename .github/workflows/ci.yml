@@ -56,6 +56,7 @@ jobs:
   deploy-migrations:
     name: Deploy Migrations to Production
     runs-on: ubuntu-latest
+    environment: prod
     # Only run on push to main (after PR merge)
     if: github.event_name == 'push'
 
