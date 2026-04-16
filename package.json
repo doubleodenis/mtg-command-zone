@@ -1,6 +1,6 @@
 {
-  "name": "mtg-game-tracker",
-  "version": "1.0.0",
+  "name": "mtg-command-zone",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --port 3001",
@@ -14,15 +14,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/doubleodenis/mtg-game-tracker.git"
+    "url": "git+https://github.com/doubleodenis/mtg-command-zone.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/doubleodenis/mtg-game-tracker/issues"
+    "url": "https://github.com/doubleodenis/mtg-command-zone/issues"
   },
-  "homepage": "https://github.com/doubleodenis/mtg-game-tracker#readme",
+  "homepage": "https://github.com/doubleodenis/mtg-command-zone#readme",
   "description": "",
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
