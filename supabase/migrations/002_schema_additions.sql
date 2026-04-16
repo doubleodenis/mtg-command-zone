@@ -104,6 +104,7 @@ ALTER TABLE rating_history
 
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own notifications" ON notifications;
 CREATE POLICY "Users can view own notifications"
   ON notifications FOR SELECT
   USING (auth.uid() = recipient_id);
@@ -111,6 +112,7 @@ CREATE POLICY "Users can view own notifications"
 -- No INSERT policy for anon/authenticated - service role only
 -- This ensures notifications are only created by trusted server-side code
 
+DROP POLICY IF EXISTS "Users can update own notifications (mark seen/read/dismissed)" ON notifications;
 CREATE POLICY "Users can update own notifications (mark seen/read/dismissed)"
   ON notifications FOR UPDATE
   USING (auth.uid() = recipient_id)

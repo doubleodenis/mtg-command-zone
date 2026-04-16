@@ -280,14 +280,17 @@ ALTER TABLE rating_history ENABLE ROW LEVEL SECURITY;
 -- RLS POLICIES - Profiles
 -- ============================================
 
+DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON profiles;
 CREATE POLICY "Profiles are viewable by everyone"
   ON profiles FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
 CREATE POLICY "Users can insert own profile"
   ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
@@ -296,18 +299,22 @@ CREATE POLICY "Users can insert own profile"
 -- RLS POLICIES - Friends
 -- ============================================
 
+DROP POLICY IF EXISTS "Users can view own friendships" ON friends;
 CREATE POLICY "Users can view own friendships"
   ON friends FOR SELECT
   USING (auth.uid() = requester_id OR auth.uid() = addressee_id);
 
+DROP POLICY IF EXISTS "Users can send friend requests" ON friends;
 CREATE POLICY "Users can send friend requests"
   ON friends FOR INSERT
   WITH CHECK (auth.uid() = requester_id);
 
+DROP POLICY IF EXISTS "Addressee can update friendship status" ON friends;
 CREATE POLICY "Addressee can update friendship status"
   ON friends FOR UPDATE
   USING (auth.uid() = addressee_id);
 
+DROP POLICY IF EXISTS "Users can delete own friendships" ON friends;
 CREATE POLICY "Users can delete own friendships"
   ON friends FOR DELETE
   USING (auth.uid() = requester_id OR auth.uid() = addressee_id);
@@ -316,18 +323,22 @@ CREATE POLICY "Users can delete own friendships"
 -- RLS POLICIES - Decks
 -- ============================================
 
+DROP POLICY IF EXISTS "Decks are viewable by everyone" ON decks;
 CREATE POLICY "Decks are viewable by everyone"
   ON decks FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Users can create own decks" ON decks;
 CREATE POLICY "Users can create own decks"
   ON decks FOR INSERT
   WITH CHECK (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Users can update own decks" ON decks;
 CREATE POLICY "Users can update own decks"
   ON decks FOR UPDATE
   USING (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Users can delete own decks" ON decks;
 CREATE POLICY "Users can delete own decks"
   ON decks FOR DELETE
   USING (auth.uid() = owner_id);
@@ -336,6 +347,7 @@ CREATE POLICY "Users can delete own decks"
 -- RLS POLICIES - Formats
 -- ============================================
 
+DROP POLICY IF EXISTS "Formats are viewable by everyone" ON formats;
 CREATE POLICY "Formats are viewable by everyone"
   ON formats FOR SELECT
   USING (true);
@@ -346,18 +358,22 @@ CREATE POLICY "Formats are viewable by everyone"
 -- RLS POLICIES - Matches
 -- ============================================
 
+DROP POLICY IF EXISTS "Matches are viewable by everyone" ON matches;
 CREATE POLICY "Matches are viewable by everyone"
   ON matches FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can create matches" ON matches;
 CREATE POLICY "Authenticated users can create matches"
   ON matches FOR INSERT
   WITH CHECK (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Creator can update matches" ON matches;
 CREATE POLICY "Creator can update matches"
   ON matches FOR UPDATE
   USING (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Creator can delete matches" ON matches;
 CREATE POLICY "Creator can delete matches"
   ON matches FOR DELETE
   USING (auth.uid() = created_by);
@@ -366,10 +382,12 @@ CREATE POLICY "Creator can delete matches"
 -- RLS POLICIES - Match Participants
 -- ============================================
 
+DROP POLICY IF EXISTS "Participants are viewable by everyone" ON match_participants;
 CREATE POLICY "Participants are viewable by everyone"
   ON match_participants FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Match creator can manage participants" ON match_participants;
 CREATE POLICY "Match creator can manage participants"
   ON match_participants FOR INSERT
   WITH CHECK (
@@ -380,6 +398,7 @@ CREATE POLICY "Match creator can manage participants"
     )
   );
 
+DROP POLICY IF EXISTS "Match creator can update participants" ON match_participants;
 CREATE POLICY "Match creator can update participants"
   ON match_participants FOR UPDATE
   USING (
@@ -390,10 +409,12 @@ CREATE POLICY "Match creator can update participants"
     )
   );
 
+DROP POLICY IF EXISTS "Participant can confirm own slot" ON match_participants;
 CREATE POLICY "Participant can confirm own slot"
   ON match_participants FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Match creator can delete participants" ON match_participants;
 CREATE POLICY "Match creator can delete participants"
   ON match_participants FOR DELETE
   USING (
@@ -408,6 +429,7 @@ CREATE POLICY "Match creator can delete participants"
 -- RLS POLICIES - Collections
 -- ============================================
 
+DROP POLICY IF EXISTS "Public collections are viewable by everyone" ON collections;
 CREATE POLICY "Public collections are viewable by everyone"
   ON collections FOR SELECT
   USING (
@@ -420,14 +442,17 @@ CREATE POLICY "Public collections are viewable by everyone"
     )
   );
 
+DROP POLICY IF EXISTS "Authenticated users can create collections" ON collections;
 CREATE POLICY "Authenticated users can create collections"
   ON collections FOR INSERT
   WITH CHECK (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Owner can update collections" ON collections;
 CREATE POLICY "Owner can update collections"
   ON collections FOR UPDATE
   USING (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Owner can delete collections" ON collections;
 CREATE POLICY "Owner can delete collections"
   ON collections FOR DELETE
   USING (auth.uid() = owner_id);
@@ -436,6 +461,7 @@ CREATE POLICY "Owner can delete collections"
 -- RLS POLICIES - Collection Members
 -- ============================================
 
+DROP POLICY IF EXISTS "Members can view collection membership" ON collection_members;
 CREATE POLICY "Members can view collection membership"
   ON collection_members FOR SELECT
   USING (
@@ -454,6 +480,7 @@ CREATE POLICY "Members can view collection membership"
     )
   );
 
+DROP POLICY IF EXISTS "Owner can add members" ON collection_members;
 CREATE POLICY "Owner can add members"
   ON collection_members FOR INSERT
   WITH CHECK (
@@ -473,6 +500,7 @@ CREATE POLICY "Owner can add members"
     )
   );
 
+DROP POLICY IF EXISTS "Owner can update member roles" ON collection_members;
 CREATE POLICY "Owner can update member roles"
   ON collection_members FOR UPDATE
   USING (
@@ -483,6 +511,7 @@ CREATE POLICY "Owner can update member roles"
     )
   );
 
+DROP POLICY IF EXISTS "Members can leave collections" ON collection_members;
 CREATE POLICY "Members can leave collections"
   ON collection_members FOR DELETE
   USING (
@@ -498,6 +527,7 @@ CREATE POLICY "Members can leave collections"
 -- RLS POLICIES - Collection Matches
 -- ============================================
 
+DROP POLICY IF EXISTS "Collection matches follow collection visibility" ON collection_matches;
 CREATE POLICY "Collection matches follow collection visibility"
   ON collection_matches FOR SELECT
   USING (
@@ -516,6 +546,8 @@ CREATE POLICY "Collection matches follow collection visibility"
     )
   );
 
+DROP POLICY IF EXISTS "Members can add matches based on permissions" ON collection_matches;
+DROP POLICY IF EXISTS "Members can add matches based on permissions" ON collection_matches;
 CREATE POLICY "Members can add matches based on permissions"
   ON collection_matches FOR INSERT
   WITH CHECK (
@@ -545,6 +577,7 @@ CREATE POLICY "Members can add matches based on permissions"
     )
   );
 
+DROP POLICY IF EXISTS "Owner can update match approval status" ON collection_matches;
 CREATE POLICY "Owner can update match approval status"
   ON collection_matches FOR UPDATE
   USING (
@@ -555,6 +588,7 @@ CREATE POLICY "Owner can update match approval status"
     )
   );
 
+DROP POLICY IF EXISTS "Owner can remove matches from collection" ON collection_matches;
 CREATE POLICY "Owner can remove matches from collection"
   ON collection_matches FOR DELETE
   USING (
@@ -569,6 +603,7 @@ CREATE POLICY "Owner can remove matches from collection"
 -- RLS POLICIES - Ratings
 -- ============================================
 
+DROP POLICY IF EXISTS "Ratings are viewable by everyone" ON ratings;
 CREATE POLICY "Ratings are viewable by everyone"
   ON ratings FOR SELECT
   USING (true);
@@ -579,6 +614,7 @@ CREATE POLICY "Ratings are viewable by everyone"
 -- RLS POLICIES - Rating History
 -- ============================================
 
+DROP POLICY IF EXISTS "Rating history is viewable by everyone" ON rating_history;
 CREATE POLICY "Rating history is viewable by everyone"
   ON rating_history FOR SELECT
   USING (true);
@@ -650,6 +686,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger for ratings updated_at
+DROP TRIGGER IF EXISTS update_ratings_updated_at ON ratings;
 CREATE TRIGGER update_ratings_updated_at
   BEFORE UPDATE ON ratings
   FOR EACH ROW
@@ -671,6 +708,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Note: This trigger goes on auth.users which requires elevated permissions
 -- Run this separately with Supabase dashboard or service role:
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW

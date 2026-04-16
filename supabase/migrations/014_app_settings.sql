@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 -- RLS: Everyone can read, no direct writes (admin-managed)
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "App settings are viewable by everyone" ON app_settings;
 CREATE POLICY "App settings are viewable by everyone"
   ON app_settings FOR SELECT
   USING (true);

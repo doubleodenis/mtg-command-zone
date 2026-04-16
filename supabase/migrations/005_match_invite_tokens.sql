@@ -37,6 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_match_invite_tokens_match_id ON match_invite_toke
 ALTER TABLE match_invite_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Match creators can create tokens for their matches
+DROP POLICY IF EXISTS "Match creators can create invite tokens" ON match_invite_tokens;
 CREATE POLICY "Match creators can create invite tokens"
   ON match_invite_tokens FOR INSERT
   WITH CHECK (
@@ -50,11 +51,13 @@ CREATE POLICY "Match creators can create invite tokens"
 
 -- Anyone can read tokens (needed to validate invite links)
 -- But sensitive info is controlled by the application layer
+DROP POLICY IF EXISTS "Anyone can read invite tokens" ON match_invite_tokens;
 CREATE POLICY "Anyone can read invite tokens"
   ON match_invite_tokens FOR SELECT
   USING (true);
 
 -- Match creators can update tokens (e.g., mark as used)
+DROP POLICY IF EXISTS "Match creators can update invite tokens" ON match_invite_tokens;
 CREATE POLICY "Match creators can update invite tokens"
   ON match_invite_tokens FOR UPDATE
   USING (
@@ -66,6 +69,7 @@ CREATE POLICY "Match creators can update invite tokens"
   );
 
 -- Users can mark a token as used by themselves
+DROP POLICY IF EXISTS "Users can mark tokens as used by themselves" ON match_invite_tokens;
 CREATE POLICY "Users can mark tokens as used by themselves"
   ON match_invite_tokens FOR UPDATE
   USING (
@@ -77,6 +81,7 @@ CREATE POLICY "Users can mark tokens as used by themselves"
   );
 
 -- Match creators can delete their tokens
+DROP POLICY IF EXISTS "Match creators can delete invite tokens" ON match_invite_tokens;
 CREATE POLICY "Match creators can delete invite tokens"
   ON match_invite_tokens FOR DELETE
   USING (

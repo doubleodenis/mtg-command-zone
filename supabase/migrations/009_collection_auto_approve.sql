@@ -4,4 +4,4 @@
 -- They can still update their deck afterward to keep commander stats accurate.
 
 ALTER TABLE collections
-  ADD COLUMN auto_approve_members BOOLEAN NOT NULL DEFAULT TRUE;
+  ADD COLUMN IF NOT EXISTS auto_approve_members BOOLEAN NOT NULL DEFAULT TRUE;

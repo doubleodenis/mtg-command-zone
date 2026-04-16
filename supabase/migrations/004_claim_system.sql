@@ -11,6 +11,7 @@
 --   - The slot has no user_id (is a placeholder)
 --   - The slot has no pending claim (claim_status = 'none')
 --   - The user is setting themselves as the claimant
+DROP POLICY IF EXISTS "Users can submit claims on placeholder slots" ON match_participants;
 CREATE POLICY "Users can submit claims on placeholder slots"
   ON match_participants FOR UPDATE
   USING (

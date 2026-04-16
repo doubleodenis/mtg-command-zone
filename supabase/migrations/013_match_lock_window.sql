@@ -16,11 +16,15 @@
 -- Participant Status Enum
 -- ============================================
 
-CREATE TYPE participant_status AS ENUM (
-  'pending',        -- Awaiting confirmation or auto-lock
-  'confirmed',      -- Manually confirmed by participant
-  'auto_confirmed'  -- Automatically confirmed when lock window closed
-);
+DO $$ BEGIN
+  CREATE TYPE participant_status AS ENUM (
+    'pending',        -- Awaiting confirmation or auto-lock
+    'confirmed',      -- Manually confirmed by participant
+    'auto_confirmed'  -- Automatically confirmed when lock window closed
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================
 -- Matches Table Changes
