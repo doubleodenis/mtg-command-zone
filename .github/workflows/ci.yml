@@ -58,7 +58,6 @@ jobs:
     runs-on: ubuntu-latest
     # Only run on push to main (after PR merge)
     if: github.event_name == 'push'
-    needs: check
 
     steps:
       - uses: actions/checkout@v4
