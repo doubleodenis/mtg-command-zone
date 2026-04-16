@@ -4,6 +4,8 @@ interface RatingDeltaProps {
   delta: number;
   size?: "sm" | "md" | "lg";
   showSign?: boolean;
+  /** True if this is a preview (not yet confirmed) rating change */  
+  isPreview?: boolean;
   className?: string;
 }
 
@@ -12,11 +14,13 @@ interface RatingDeltaProps {
  * Positive deltas are green, negative are red, zero is neutral.
  * 
  * Per design requirements: always shows sign (+12, −8), never just "12"
+ * Preview ratings are shown with reduced opacity to indicate they're estimates.
  */
 export function RatingDelta({ 
   delta, 
   size = "md", 
   showSign = true,
+  isPreview = false,
   className 
 }: RatingDeltaProps) {
   const isPositive = delta > 0;
@@ -44,9 +48,11 @@ export function RatingDelta({
         isPositive && "text-win",
         isNegative && "text-loss",
         isNeutral && "text-text-2",
+        isPreview && "opacity-50",
         className
       )}
-      aria-label={`Rating change: ${isPositive ? "plus" : isNegative ? "minus" : ""} ${Math.abs(delta)}`}
+      aria-label={`${isPreview ? "Estimated " : ""}Rating change: ${isPositive ? "plus" : isNegative ? "minus" : ""} ${Math.abs(delta)}`}
+      title={isPreview ? "Preview — will be confirmed after match is accepted" : undefined}
     >
       {showSign ? formattedDelta : Math.abs(delta)}
     </span>

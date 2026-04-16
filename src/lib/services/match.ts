@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
-import type { Result } from '@/types'
+import type { Bracket, Result } from '@/types'
 import type {
   MatchCardData,
   ParticipantDisplayInfo,
@@ -14,7 +14,10 @@ import type {
   PendingConfirmation,
 } from '@/types/match'
 import type { FormatSlug, ParticipantData } from '@/types/format'
+import type { RatingDelta } from '@/types/rating'
 import { mapDeckSummary, mapProfileSummary } from '@/types/database-mappers'
+import { calculateRating } from '@/lib/rating'
+import { RATING_CONFIG } from '@/types/rating'
 
 // ============================================
 // Helpers
@@ -76,6 +79,7 @@ export async function getMatchById(
     .select(`
       id,
       played_at,
+      format_id,
       format:formats!matches_format_id_fkey(name, slug)
     `)
     .eq('id', matchId)
@@ -121,6 +125,7 @@ export async function getRecentMatchCards(
     .select(`
       id,
       played_at,
+      format_id,
       format:formats!matches_format_id_fkey(name, slug)
     `)
     .order('played_at', { ascending: false })
@@ -185,6 +190,7 @@ async function transformMatchToCardData(
   match: {
     id: string;
     played_at: string;
+    format_id: string;
     format: { name: string; slug: string };
   },
   userId?: string,
@@ -225,8 +231,8 @@ async function transformMatchToCardData(
   const participants = participantsResult.data ?? [];
   const ratingHistory = ratingHistoryResult.data ?? [];
 
-  // Create lookup map for rating deltas by user_id
-  const ratingDeltaMap = new Map(
+  // Create lookup map for confirmed rating deltas by user_id (from rating_history)
+  const confirmedRatingDeltaMap = new Map<string, RatingDelta>(
     ratingHistory.map((rh) => [
       rh.user_id,
       {
@@ -234,9 +240,92 @@ async function transformMatchToCardData(
         after: rh.rating_after,
         delta: rh.delta,
         isPositive: rh.delta > 0,
+        isPreview: false,
       },
     ]),
   );
+
+  // Calculate rating PREVIEWS for registered participants without confirmed ratings
+  // This shows what their rating change would be if the match is fully confirmed
+  const registeredParticipants = participants.filter(
+    (p) => p.user_id && !confirmedRatingDeltaMap.has(p.user_id)
+  );
+
+  // Fetch current ratings for participants needing previews
+  const ratingPreviewMap = new Map<string, RatingDelta>();
+
+  if (registeredParticipants.length > 0) {
+    // Get current ratings for all registered participants in parallel
+    const allRegisteredUserIds = participants
+      .filter((p) => p.user_id)
+      .map((p) => p.user_id as string);
+
+    const { data: ratingsData } = await client
+      .from("ratings")
+      .select("user_id, rating, matches_played")
+      .eq("format_id", match.format_id)
+      .is("collection_id", collectionId ?? null)
+      .in("user_id", allRegisteredUserIds);
+
+    // Create a map of user ratings
+    const userRatingsMap = new Map(
+      (ratingsData ?? []).map((r) => [
+        r.user_id,
+        { rating: r.rating, matchesPlayed: r.matches_played },
+      ])
+    );
+
+    // Calculate preview for each participant without confirmed rating
+    for (const p of registeredParticipants) {
+      if (!p.user_id) continue;
+
+      const playerRatingInfo = userRatingsMap.get(p.user_id) ?? {
+        rating: RATING_CONFIG.defaultRating,
+        matchesPlayed: 0,
+      };
+      const playerBracket = (p.deck?.bracket as Bracket) ?? RATING_CONFIG.defaultBracket;
+
+      // Build opponent data
+      const opponents: Array<{ rating: number; bracket: Bracket }> = [];
+      for (const opp of participants) {
+        if (!opp.user_id || opp.user_id === p.user_id) continue;
+        const oppRatingInfo = userRatingsMap.get(opp.user_id) ?? {
+          rating: RATING_CONFIG.defaultRating,
+          matchesPlayed: 0,
+        };
+        const oppBracket = (opp.deck?.bracket as Bracket) ?? RATING_CONFIG.defaultBracket;
+        opponents.push({ rating: oppRatingInfo.rating, bracket: oppBracket });
+      }
+
+      // Only calculate preview if there are opponents
+      if (opponents.length > 0) {
+        const previewResult = calculateRating({
+          playerId: p.user_id,
+          playerRating: playerRatingInfo.rating,
+          playerBracket,
+          playerMatchCount: playerRatingInfo.matchesPlayed,
+          isWinner: p.is_winner,
+          opponents,
+          formatId: match.format_id,
+          collectionId: collectionId ?? null,
+        });
+
+        ratingPreviewMap.set(p.user_id, {
+          before: previewResult.ratingBefore,
+          after: previewResult.ratingAfter,
+          delta: previewResult.delta,
+          isPositive: previewResult.delta > 0,
+          isPreview: true,
+        });
+      }
+    }
+  }
+
+  // Merge confirmed ratings and previews
+  const ratingDeltaMap = new Map<string, RatingDelta>([
+    ...confirmedRatingDeltaMap,
+    ...ratingPreviewMap,
+  ]);
 
   const participantInfos: ParticipantDisplayInfo[] = participants.map((p) => {
     const profileSummary = p.profile ? mapProfileSummary(p.profile) : null;

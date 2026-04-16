@@ -81,6 +81,8 @@ export type RatingDelta = {
   after: number
   delta: number
   isPositive: boolean
+  /** True if this is a calculated preview, not yet committed to rating_history */
+  isPreview?: boolean
 }
 
 /**
