@@ -44,7 +44,7 @@ function LoginContent() {
         provider,
         message: error.message,
         status: error.status,
-        code: (error as Record<string, unknown>).code,
+        code: error.code,
       });
       setError(error.message);
       setIsLoading(null);
@@ -109,7 +109,7 @@ function LoginContent() {
           email,
           message: error.message,
           status: error.status,
-          code: (error as Record<string, unknown>).code,
+          code: error.code,
         });
         setError(error.message);
         setIsLoading(null);
@@ -129,7 +129,7 @@ function LoginContent() {
           email,
           message: error.message,
           status: error.status,
-          code: (error as Record<string, unknown>).code,
+          code: error.code,
         });
         setError(error.message);
         setIsLoading(null);

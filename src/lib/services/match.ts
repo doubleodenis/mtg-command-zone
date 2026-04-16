@@ -260,12 +260,15 @@ async function transformMatchToCardData(
       .filter((p) => p.user_id)
       .map((p) => p.user_id as string);
 
-    const { data: ratingsData } = await client
+    const ratingsQuery = client
       .from("ratings")
       .select("user_id, rating, matches_played")
       .eq("format_id", match.format_id)
-      .is("collection_id", collectionId ?? null)
       .in("user_id", allRegisteredUserIds);
+
+    const { data: ratingsData } = collectionId
+      ? await ratingsQuery.eq("collection_id", collectionId)
+      : await ratingsQuery.is("collection_id", null);
 
     // Create a map of user ratings
     const userRatingsMap = new Map(
