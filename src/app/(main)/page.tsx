@@ -277,13 +277,14 @@ async function PersonalDashboard({ userId }: { userId: string }) {
     : [];
 
   // Transform RatingHistory to RatingHistoryEntry for the chart
+  // Data is fetched in descending order (newest first), reverse for chronological display
   const ratingHistory: RatingHistoryEntry[] = ratingHistoryResult.success 
     ? ratingHistoryResult.data.map(entry => ({
         ...entry,
         matchDate: entry.createdAt,
         isWin: entry.delta > 0,
         opponentCount: 3, // Default, would need additional query for accurate count
-      }))
+      })).reverse()
     : createMockRatingTimeline(20, 1100);
 
   return (
