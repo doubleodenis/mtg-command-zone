@@ -67,6 +67,32 @@ export default function PrivacyPolicyPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Third-Party Content & Intellectual Property</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-text-2">
+          <p>
+            CommandZone is unofficial Fan Content permitted under the Fan Content Policy. Not
+            approved/endorsed by Wizards. Portions of the materials used are property of Wizards of
+            the Coast. ©Wizards of the Coast LLC.
+          </p>
+          <p>
+            Magic: The Gathering, including card names, card art, mana symbols, and related imagery,
+            are trademarks of Wizards of the Coast LLC. All card images displayed in this application
+            are sourced from Scryfall and are the property of Wizards of the Coast.
+          </p>
+          <div className="pt-2 border-t border-border-1">
+            <p className="text-text-3 text-xs font-medium uppercase tracking-wider mb-1">
+              Background Art Credit
+            </p>
+            <p>
+              &quot;Storm of Saruman&quot; illustration by Livia Prima © Wizards of the Coast.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <p className="text-xs text-text-2">
         This page is a product-level policy summary and can be updated as legal requirements evolve.
       </p>
