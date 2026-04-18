@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { createClient } from "@/lib/supabase/client";
 import { logMatch } from "@/app/actions/match";
 import type { FormatSummary, FormatSlug, MatchData } from "@/types/format";
@@ -48,7 +49,7 @@ export function MatchForm({
     React.useState<FormatSummary | null>(null);
   const [participants, setParticipants] = React.useState<ParticipantSlot[]>([]);
   const [playedAt, setPlayedAt] = React.useState(
-    new Date().toISOString().slice(0, 16)
+    new Date().toISOString()
   );
   const [notes, setNotes] = React.useState("");
   const [selectedCollectionIds, setSelectedCollectionIds] = React.useState<string[]>([]);
@@ -691,10 +692,11 @@ export function MatchForm({
               <label className="text-sm font-medium text-text-1 block mb-2">
                 Date & Time
               </label>
-              <Input
-                type="datetime-local"
+              <DateTimePicker
                 value={playedAt}
-                onChange={(e) => setPlayedAt(e.target.value)}
+                onChange={(value) => setPlayedAt(value)}
+                maxDate={new Date()}
+                minDate={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)} // 30 days ago
                 className="max-w-xs"
               />
             </div>

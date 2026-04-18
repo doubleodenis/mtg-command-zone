@@ -1,6 +1,7 @@
 // import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/features/navbar";
 import { TabNav, type NavItem } from "@/components/layout";
+import { createClient } from "@/lib/supabase/client";
 
 // Nav items shown when logged in (personal dashboard)
 const authenticatedNav: NavItem[] = [
@@ -22,10 +23,8 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // TODO: Re-enable Supabase auth when backend is configured
-  // const supabase = await createClient();
-  // const { data: { user } } = await supabase.auth.getUser();
-  const user = null as { id: string } | null;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const navItems = user ? authenticatedNav : publicNav;
 
@@ -33,7 +32,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-bg-base">
       <Navbar />
       <TabNav items={navItems} />
-      <main className="max-w-6xl md:mx-auto px-4 py-8">
+      <main className="max-w-6xl md:min-w-3xl lg:min-w-4xl md:mx-auto px-4 py-8">
         {children}
       </main>
     </div>

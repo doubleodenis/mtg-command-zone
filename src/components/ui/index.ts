@@ -5,6 +5,9 @@ export { Select, type SelectOption, type SelectProps } from "./select";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
 export { Badge, type BadgeVariant } from "./badge";
 export { Avatar, type AvatarSize } from "./avatar";
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
+export { Calendar } from "./calendar";
+export { DateTimePicker } from "./date-time-picker";
 
 // Domain-specific primitives
 export { FormatBadge } from "./format-badge";
