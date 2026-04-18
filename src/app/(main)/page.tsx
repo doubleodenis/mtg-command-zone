@@ -5,20 +5,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader, Section } from "@/components/layout";
 import { MatchPreviewCard } from "@/components/match/match-preview-card";
 import { DashboardStatCard } from "@/components/features/dashboard-stat-card";
-import { LeaderboardWithFilter } from "@/components/features/leaderboard-with-filter";
+// HIDDEN: Global leaderboards disabled - uncomment to re-enable
+// import { LeaderboardWithFilter } from "@/components/features/leaderboard-with-filter";
 import { TopCommandersList } from "@/components/features/top-commanders-list";
 import { PendingConfirmationCard } from "@/components/features/pending-confirmation-card";
 import { CollectionActivityCard } from "@/components/features/collection-activity-card";
-import { RatingHistoryChart } from "@/components/features/rating-history-chart";
+// HIDDEN: Rating system disabled - uncomment to re-enable
+// import { RatingHistoryChart } from "@/components/features/rating-history-chart";
 import { NavbarSearch } from "@/components/features/navbar-search";
 // Raw database queries
 import {
-  getLeaderboard,
   getProfileById,
   getUserStats,
-  getUserRatings,
-  getRatingHistory,
-  getFormats,
   getActiveDecks,
 } from "@/lib/supabase";
 // Business logic / data transformations
@@ -29,12 +27,7 @@ import {
   getUserCollectionActivities,
   getTopCommanders,
 } from "@/lib/services";
-import type { RatingHistoryEntry, LeaderboardEntry } from "@/types";
-import {
-  createMockPlayerStats,
-  createMockUserMatches,
-  createMockRatingTimeline,
-} from "@/lib/mock";
+
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -58,52 +51,48 @@ async function GlobalDashboard() {
   const supabase = await createClient();
 
   // Fetch real data, with mock fallbacks
-  const [platformStatsResult, formatsResult, recentMatchesResult, topCommandersResult] = await Promise.all([
+  const [platformStatsResult, 
+    // formatsResult, 
+    recentMatchesResult, 
+    topCommandersResult] = await Promise.all([
     getPlatformStats(supabase),
-    getFormats(supabase),
+    // getFormats(supabase),
     getRecentMatchCards(supabase, { limit: 5 }),
     getTopCommanders(supabase, { limit: 5 }),
   ]);
 
-  // Fetch leaderboards for all formats
-  const formats = formatsResult.success ? formatsResult.data : [];
-  const leaderboardPromises = formats.map((f) => 
-    getLeaderboard(supabase, f.id, 20).then(result => ({ format: f, result }))
-  );
-  const leaderboardResults = await Promise.all(leaderboardPromises);
-
-  // Build entries with format slugs for filtering
-  const allEntries: LeaderboardEntry[] = [];
-  for (const { format, result } of leaderboardResults) {
-    if (!result.success) continue;
-    for (const entry of result.data) {
-      allEntries.push({ ...entry, formatSlug: format.slug });
-    }
-  }
-
-  // Aggregate for "All Formats" view
-  const userMap = new Map<string, LeaderboardEntry>();
-  for (const entry of allEntries) {
-    const existing = userMap.get(entry.id);
-    if (existing) {
-      existing.matchesPlayed += entry.matchesPlayed;
-      existing.wins += entry.wins;
-      existing.rating = Math.max(existing.rating, entry.rating);
-      existing.winRate = existing.matchesPlayed > 0
-        ? Math.round((existing.wins / existing.matchesPlayed) * 100)
-        : 0;
-    } else {
-      userMap.set(entry.id, { ...entry, formatSlug: undefined });
-    }
-  }
-
-  const aggregatedEntries = Array.from(userMap.values())
-    .sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.rating - a.rating)
-    .slice(0, 5)
-    .map((entry, index) => ({ ...entry, rank: index + 1 }));
-
-  // Combine: aggregated (for "All") + individual format entries (for filtering)
-  const leaderboard = [...aggregatedEntries, ...allEntries];
+  // HIDDEN: Global leaderboards disabled - uncomment to re-enable
+  // const formats = formatsResult.success ? formatsResult.data : [];
+  // const leaderboardPromises = formats.map((f) => 
+  //   getLeaderboard(supabase, f.id, 20).then(result => ({ format: f, result }))
+  // );
+  // const leaderboardResults = await Promise.all(leaderboardPromises);
+  // const allEntries: LeaderboardEntry[] = [];
+  // for (const { format, result } of leaderboardResults) {
+  //   if (!result.success) continue;
+  //   for (const entry of result.data) {
+  //     allEntries.push({ ...entry, formatSlug: format.slug });
+  //   }
+  // }
+  // const userMap = new Map<string, LeaderboardEntry>();
+  // for (const entry of allEntries) {
+  //   const existing = userMap.get(entry.id);
+  //   if (existing) {
+  //     existing.matchesPlayed += entry.matchesPlayed;
+  //     existing.wins += entry.wins;
+  //     existing.rating = Math.max(existing.rating, entry.rating);
+  //     existing.winRate = existing.matchesPlayed > 0
+  //       ? Math.round((existing.wins / existing.matchesPlayed) * 100)
+  //       : 0;
+  //   } else {
+  //     userMap.set(entry.id, { ...entry, formatSlug: undefined });
+  //   }
+  // }
+  // const aggregatedEntries = Array.from(userMap.values())
+  //   .sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.rating - a.rating)
+  //   .slice(0, 5)
+  //   .map((entry, index) => ({ ...entry, rank: index + 1 }));
+  // const leaderboard = [...aggregatedEntries, ...allEntries];
 
   // Use real data with empty state fallbacks
   const platformStats = platformStatsResult.success 
@@ -122,7 +111,7 @@ async function GlobalDashboard() {
     <div className="space-y-8">
       <PageHeader
         title="Welcome to CommandZone"
-        description="Track your Commander matches, compete with friends, and climb the leaderboards"
+        description="Track your Commander matches, build your collection, and play with friends"
         actions={
           <Button asChild>
             <Link href="/login?mode=signup">Get Started</Link>
@@ -145,7 +134,7 @@ async function GlobalDashboard() {
         </div>
       </Section>
 
-      {/* Leaderboards Preview */}
+      {/* HIDDEN: Global leaderboards disabled - uncomment to re-enable
       <Section title="TOP PLAYERS" action={
         <Link href="/leaderboards" className="text-sm text-accent hover:text-accent-fill transition-colors">
           View All
@@ -161,6 +150,7 @@ async function GlobalDashboard() {
           </CardContent>
         </Card>
       </Section>
+      */}
 
       {/* Recent Matches */}
       <Section title="RECENT MATCHES" action={
@@ -203,7 +193,7 @@ async function GlobalDashboard() {
             Ready to track your games?
           </h2>
           <p className="text-text-2 mb-6">
-            Sign up to record matches, track your rating, and compete with friends.
+            Sign up to record matches, build your collection, and play with friends.
           </p>
           <Button asChild size="lg">
             <Link href="/login?mode=signup">Create Account</Link>
@@ -225,22 +215,16 @@ async function PersonalDashboard({ userId }: { userId: string }) {
   const [
     profileResult,
     statsResult,
-    ratingsResult,
     recentMatchesResult,
     pendingResult,
     collectionsResult,
-    ratingHistoryResult,
-    _formatsResult,
     userDecksResult,
   ] = await Promise.all([
     getProfileById(supabase, userId),
     getUserStats(supabase, userId),
-    getUserRatings(supabase, userId),
     getRecentMatchCards(supabase, { limit: 5, userId }),
     getUserPendingConfirmations(supabase, userId),
     getUserCollectionActivities(supabase, userId, 3),
-    getRatingHistory(supabase, userId, { limit: 20 }),
-    getFormats(supabase),
     getActiveDecks(supabase, userId),
   ]);
 
@@ -251,18 +235,11 @@ async function PersonalDashboard({ userId }: { userId: string }) {
 
   const stats = statsResult.success 
     ? statsResult.data 
-    : createMockPlayerStats({ totalMatches: 0, wins: 0 });
-
-  // Get primary rating (FFA or first available)
-  const ffaRating = ratingsResult.success 
-    ? ratingsResult.data.find(r => r.formatSlug === 'ffa')
-    : null;
-  const primaryRating = ffaRating?.rating ?? 1000;
-  const primaryFormatName = ffaRating?.formatName ?? 'FFA';
+    : { totalMatches: 0, wins: 0, losses: 0, winRate: 0, currentStreak: 0, longestWinStreak: 0 };
 
   const recentMatches = recentMatchesResult.success 
     ? recentMatchesResult.data 
-    : createMockUserMatches(userId);
+    : [];
 
   const pendingConfirmations = pendingResult.success 
     ? pendingResult.data 
@@ -275,17 +252,6 @@ async function PersonalDashboard({ userId }: { userId: string }) {
   const collectionActivities = collectionsResult.success 
     ? collectionsResult.data 
     : [];
-
-  // Transform RatingHistory to RatingHistoryEntry for the chart
-  // Data is fetched in descending order (newest first), reverse for chronological display
-  const ratingHistory: RatingHistoryEntry[] = ratingHistoryResult.success 
-    ? ratingHistoryResult.data.map(entry => ({
-        ...entry,
-        matchDate: entry.createdAt,
-        isWin: entry.delta > 0,
-        opponentCount: 3, // Default, would need additional query for accurate count
-      })).reverse()
-    : createMockRatingTimeline(20, 1100);
 
   return (
     <div className="space-y-8">
@@ -307,17 +273,21 @@ async function PersonalDashboard({ userId }: { userId: string }) {
       {/* Quick Stats */}
       <Section title="YOUR STATS">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* HIDDEN: Rating system disabled - uncomment to re-enable
           <DashboardStatCard label="Rating" value={primaryRating.toLocaleString()} sublabel={primaryFormatName} />
+          */}
           <DashboardStatCard label="Win Rate" value={`${stats.winRate}%`} />
           <DashboardStatCard label="Matches" value={stats.totalMatches.toString()} />
+          <DashboardStatCard label="Wins" value={stats.wins.toString()} />
           <DashboardStatCard label="Win Streak" value={stats.currentStreak.toString()} />
         </div>
       </Section>
 
-      {/* Rating History Chart */}
+      {/* HIDDEN: Rating system disabled - uncomment to re-enable
       <Section title="RATING HISTORY">
         <RatingHistoryChart data={ratingHistory} height={180} />
       </Section>
+      */}
 
       {/* Collections Activity */}
       <Section 

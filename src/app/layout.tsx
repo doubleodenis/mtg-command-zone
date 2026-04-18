@@ -57,7 +57,7 @@ export default async function RootLayout({
     <html lang="en" className="dark">
       <body className={`${barlow.variable} ${chakraPetch.variable} ${jetbrainsMono.variable} font-body antialiased bg-bg-base text-text-1 min-h-screen flex flex-col`}>
         <Providers userId={user?.id}>
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col bg-black/30 backdrop-blur-[2px]">
             {children}
           </div>
           <Footer />

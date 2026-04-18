@@ -16,6 +16,7 @@ export const AUTHENTICATED_NAV: NavItem[] = [
  */
 export const PUBLIC_NAV: NavItem[] = [
   { label: "Overview", href: "/" },
-  { label: "Leaderboards", href: "/leaderboards" },
+  // HIDDEN: Global leaderboards disabled - uncomment to re-enable
+  // { label: "Leaderboards", href: "/leaderboards" },
   { label: "FAQ", href: "/faq" },
 ];

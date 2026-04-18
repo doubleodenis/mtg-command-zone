@@ -1,3 +1,12 @@
+import { redirect } from "next/navigation";
+
+// HIDDEN: Global leaderboards are disabled
+// To re-enable, restore the original page content from git history
+export default function LeaderboardsPage() {
+  redirect("/");
+}
+
+/* ORIGINAL CODE - HIDDEN
 import { createClient } from "@/lib/supabase/server";
 import { getFormats, getLeaderboard } from "@/lib/supabase";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,3 +81,4 @@ export default async function LeaderboardsPage() {
     </main>
   );
 }
+*/

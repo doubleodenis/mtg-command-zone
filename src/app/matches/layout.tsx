@@ -11,7 +11,7 @@ export default function MatchesLayout({
     <>
       <Navbar />
       <TabNav items={AUTHENTICATED_NAV} />
-      <main className="max-w-6xl md:mx-auto px-4 py-8">
+      <main className="max-w-6xl md:min-w-3xl lg:min-w-4xl md:mx-auto px-4 py-8">
         {children}
       </main>
     </>

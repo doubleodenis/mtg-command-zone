@@ -14,111 +14,141 @@
 @import "tailwindcss";
 @import "./_design-system/tokens/theme.css";
 
+@layer base {
+  /* ─────────────────────────────────────────
+     RESETS
+  ───────────────────────────────────────── */
 
-/* ─────────────────────────────────────────
-   RESETS
-───────────────────────────────────────── */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
 
-*, *::before, *::after {
-  box-sizing: border-box;
+
+  /* ─────────────────────────────────────────
+     BASE
+  ───────────────────────────────────────── */
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-1);
+    font-family: var(--font-body);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Background image with dark overlay and horizontal vignette */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image: url('/storm-of-saruman.jpg');
+    /* background-image: url('/leyline-of-resonance.jpg'); */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    /* Dark overlay + vignette  */
+    background: 
+      linear-gradient(to right, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.3) 20%, rgba(0, 0, 0, 0.3) 80%, rgba(0, 0, 0, 0.85) 100%),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.5) 100%);
+
+      /* linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(0, 0, 0, 0.7) 25%, rgba(0, 0, 0, 0.7) 75%, rgba(240, 240, 240, 0) 100%),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.7) 50%, rgba(0, 0, 0, 0.5) 100%);  */
+  }
 }
 
+@layer utilities {
+  /* ─────────────────────────────────────────
+     TYPOGRAPHY UTILITIES
+     These combine font-family + size + weight
+     + tracking into a single reusable class.
+     They are token primitives — no color,
+     no layout, no borders.
+  ───────────────────────────────────────── */
 
-/* ─────────────────────────────────────────
-   BASE
-───────────────────────────────────────── */
+  /* 56px Chakra Petch — ELO hero number */
+  .text-elo {
+    font-family: var(--font-display);
+    font-size: var(--font-size-elo);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: var(--letter-spacing-tight);
+  }
 
-html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
+  /* 28px Chakra Petch — stat card values */
+  .text-stat {
+    font-family: var(--font-display);
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    line-height: 1;
+  }
 
-body {
-  background-color: var(--color-bg-base);
-  color: var(--color-text-1);
-  font-family: var(--font-body);
-  font-size: var(--font-size-base);
-  line-height: 1.5;
-  overflow-x: hidden;
-}
+  /* 18px Chakra Petch — ELO delta numbers (+18, -12) */
+  .text-delta {
+    font-family: var(--font-display);
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    line-height: 1;
+  }
 
+  /* 13px JetBrains Mono caps — section labels (OVERVIEW, MATCHES) */
+  .text-label {
+    font-family: var(--font-data);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    letter-spacing: var(--letter-spacing-widest);
+    text-transform: uppercase;
+  }
 
-/* ─────────────────────────────────────────
-   TYPOGRAPHY UTILITIES
-   These combine font-family + size + weight
-   + tracking into a single reusable class.
-   They are token primitives — no color,
-   no layout, no borders.
-───────────────────────────────────────── */
+  /* 13px JetBrains Mono caps — stat sublabels (WIN RATE, ELO) */
+  .text-sublabel {
+    font-family: var(--font-data);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+  }
 
-/* 56px Chakra Petch — ELO hero number */
-.text-elo {
-  font-family: var(--font-display);
-  font-size: var(--font-size-elo);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: var(--letter-spacing-tight);
-}
+  /* 11px JetBrains Mono — ELO trail (1829 → 1847), timestamps */
+  .text-mono-xs {
+    font-family: var(--font-data);
+    font-size: var(--font-size-xs);
+  }
 
-/* 28px Chakra Petch — stat card values */
-.text-stat {
-  font-family: var(--font-display);
-  font-size: var(--font-size-3xl);
-  font-weight: 700;
-  line-height: 1;
-}
+  /* 13px JetBrains Mono — inline data values */
+  .text-mono-sm {
+    font-family: var(--font-data);
+    font-size: var(--font-size-sm);
+  }
 
-/* 18px Chakra Petch — ELO delta numbers (+18, -12) */
-.text-delta {
-  font-family: var(--font-display);
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  line-height: 1;
-}
+  /* 15px Chakra Petch — wordmark */
+  .text-wordmark {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: var(--letter-spacing-wider);
+  }
 
-/* 13px JetBrains Mono caps — section labels (OVERVIEW, MATCHES) */
-.text-label {
-  font-family: var(--font-data);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  letter-spacing: var(--letter-spacing-widest);
-  text-transform: uppercase;
-}
-
-/* 13px JetBrains Mono caps — stat sublabels (WIN RATE, ELO) */
-.text-sublabel {
-  font-family: var(--font-data);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-}
-
-/* 11px JetBrains Mono — ELO trail (1829 → 1847), timestamps */
-.text-mono-xs {
-  font-family: var(--font-data);
-  font-size: var(--font-size-xs);
-}
-
-/* 13px JetBrains Mono — inline data values */
-.text-mono-sm {
-  font-family: var(--font-data);
-  font-size: var(--font-size-sm);
-}
-
-/* 15px Chakra Petch — wordmark */
-.text-wordmark {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: var(--letter-spacing-wider);
-}
-
-/* 13px Chakra Petch — nav items, buttons, tags */
-.text-ui {
-  font-family: var(--font-display);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  letter-spacing: var(--letter-spacing-wide);
+  /* 13px Chakra Petch — nav items, buttons, tags */
+  .text-ui {
+    font-family: var(--font-display);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    letter-spacing: var(--letter-spacing-wide);
+  }
 }
