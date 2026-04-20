@@ -2,8 +2,37 @@
 
 import Link from "next/link";
 import {
+  Plus,
+  Check,
+  Trophy,
+  AlertCircle,
+  X,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  Bell,
+  BellOff,
+  FileText,
+  User,
+  Users,
+  Settings,
+  LogOut,
+  Layers,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Info,
+  Gamepad2,
+  TrendingUp,
+  Swords,
+  Handshake,
+  Crown,
+} from "lucide-react";
+import {
   Button,
   Input,
+  Select,
   Card,
   CardHeader,
   CardTitle,
@@ -27,21 +56,31 @@ import {
   SkeletonCard,
   SkeletonMatchCard,
   SkeletonStatCard,
+  SkeletonProfileHeader,
+  SkeletonTable,
   EmptyState,
   IconMatches,
   IconDecks,
   IconCollections,
   IconFriends,
   IconSearch,
+  IconNotifications,
+  IconChart,
   ErrorFallback,
   ErrorFallbackCard,
+  FormError,
+  FormErrorBanner,
+  FormSuccessBanner,
+  StatCard,
 } from "@/components/ui";
+import { toast, useToast } from "@/components/ui/toast";
 import { MatchLog } from "@/components/match";
 import { Sidebar, TabNav, PageHeader, type NavItem } from "@/components/layout";
 import { createMockUserMatches, generateMockId } from "@/lib/mock";
 import type { FormatSlug } from "@/types/format";
 import type { ManaColor } from "@/app/_design-system";
 import type { Bracket } from "@/types";
+import * as React from "react";
 
 const sampleNavItems: NavItem[] = [
   { label: "Overview", href: "#" },
@@ -50,7 +89,32 @@ const sampleNavItems: NavItem[] = [
   { label: "Settings", href: "#" },
 ];
 
+const selectOptions = [
+  { value: "commander", label: "Commander" },
+  { value: "1v1", label: "1v1 Commander" },
+  { value: "cedh", label: "cEDH" },
+  { value: "pauper", label: "Pauper Commander" },
+];
+
 export default function DesignSystemPage() {
+  const [selectValue, setSelectValue] = React.useState("");
+  const { addToast } = useToast();
+
+  // Hide in production
+  if (process.env.NODE_ENV === "production") {
+    return (
+      <div className="min-h-screen bg-bg-base flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <p className="text-text-2 text-center">
+              Design System is only available in development mode.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-bg-base p-8">
       <div className="max-w-6xl mx-auto space-y-12">
@@ -131,6 +195,25 @@ export default function DesignSystemPage() {
             <Input placeholder="Default input" />
             <Input placeholder="Disabled input" disabled />
             <Input type="password" placeholder="Password input" />
+          </div>
+        </Section>
+
+        {/* Select */}
+        <Section title="Select">
+          <div className="max-w-sm space-y-3">
+            <Select
+              value={selectValue}
+              onChange={setSelectValue}
+              options={selectOptions}
+              placeholder="Select a format..."
+            />
+            <Select
+              value=""
+              onChange={() => {}}
+              options={selectOptions}
+              placeholder="Disabled select"
+              disabled
+            />
           </div>
         </Section>
 
@@ -327,6 +410,12 @@ export default function DesignSystemPage() {
             <Row label="Generic Card Skeleton">
               <SkeletonCard className="w-80" />
             </Row>
+            <Row label="Profile Header Skeleton">
+              <SkeletonProfileHeader className="w-80" />
+            </Row>
+            <Row label="Table Skeleton">
+              <SkeletonTable rows={3} className="w-80" />
+            </Row>
           </div>
         </Section>
 
@@ -374,11 +463,163 @@ export default function DesignSystemPage() {
             </Card>
             <Card>
               <EmptyState
+                icon={<IconNotifications className="w-full h-full" />}
+                title="No notifications"
+                description="You're all caught up!"
+              />
+            </Card>
+            <Card>
+              <EmptyState
+                icon={<IconChart className="w-full h-full" />}
+                title="No data yet"
+                description="Play some matches to see your statistics."
+              />
+            </Card>
+            <Card>
+              <EmptyState
                 title="Custom Empty State"
                 description="You can create custom empty states with any icon and content."
                 size="sm"
               />
             </Card>
+          </div>
+        </Section>
+
+        {/* Form Feedback */}
+        <Section title="Form Feedback">
+          <div className="space-y-4">
+            <Row label="Inline error">
+              <div className="w-64 space-y-2">
+                <Input placeholder="Username" />
+                <FormError message="Username is required" />
+              </div>
+              <div className="w-64 space-y-2">
+                <Input placeholder="Email" />
+                <FormError message="Invalid email format" size="sm" />
+              </div>
+            </Row>
+            <Row label="Error banner">
+              <FormErrorBanner
+                message="Failed to save changes. Please try again."
+                title="Save Failed"
+                onDismiss={() => {}}
+                className="w-96"
+              />
+            </Row>
+            <Row label="Success banner">
+              <FormSuccessBanner
+                message="Your profile has been updated successfully."
+                title="Saved"
+                onDismiss={() => {}}
+                className="w-96"
+              />
+            </Row>
+          </div>
+        </Section>
+
+        {/* Toast */}
+        <Section title="Toast Notifications">
+          <div className="space-y-4">
+            <Row label="Trigger toasts">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => addToast({ type: "default", title: "Default Toast", description: "This is a default notification" })}
+              >
+                Default
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => addToast({ type: "success", title: "Success!", description: "Your changes have been saved" })}
+              >
+                Success
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => addToast({ type: "error", title: "Error", description: "Something went wrong" })}
+              >
+                Error
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => addToast({ type: "warning", title: "Warning", description: "This action cannot be undone" })}
+              >
+                Warning
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => addToast({ type: "info", title: "Info", description: "New features are available" })}
+              >
+                Info
+              </Button>
+            </Row>
+            <Row label="With action">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => addToast({
+                  type: "info",
+                  title: "Friend Request",
+                  description: "PlayerOne wants to be your friend",
+                  action: { label: "Accept", onClick: () => alert("Accepted!") }
+                })}
+              >
+                With Action
+              </Button>
+            </Row>
+          </div>
+        </Section>
+
+        {/* Stat Card */}
+        <Section title="Stat Card">
+          <Row label="Variants">
+            <StatCard icon={<Gamepad2 className="w-6 h-6" />} value="142" label="Matches Played" />
+            <StatCard icon={<Trophy className="w-6 h-6" />} value="67.4%" label="Win Rate" />
+            <StatCard icon={<TrendingUp className="w-6 h-6" />} value="1847" label="Rating" />
+          </Row>
+        </Section>
+
+        {/* Icons (Lucide) */}
+        <Section title="Icons (Lucide)">
+          <div className="space-y-4">
+            <Row label="Navigation">
+              <IconBox icon={<Plus />} label="Plus" />
+              <IconBox icon={<Search />} label="Search" />
+              <IconBox icon={<Bell />} label="Bell" />
+              <IconBox icon={<BellOff />} label="BellOff" />
+              <IconBox icon={<Settings />} label="Settings" />
+              <IconBox icon={<User />} label="User" />
+              <IconBox icon={<Users />} label="Users" />
+              <IconBox icon={<LogOut />} label="LogOut" />
+            </Row>
+            <Row label="Actions">
+              <IconBox icon={<Check />} label="Check" />
+              <IconBox icon={<X />} label="X" />
+              <IconBox icon={<ChevronDown />} label="ChevronDown" />
+              <IconBox icon={<ChevronRight />} label="ChevronRight" />
+              <IconBox icon={<Loader2 className="animate-spin" />} label="Loader2" />
+            </Row>
+            <Row label="Status">
+              <IconBox icon={<CheckCircle2 />} label="CheckCircle2" />
+              <IconBox icon={<XCircle />} label="XCircle" />
+              <IconBox icon={<AlertCircle />} label="AlertCircle" />
+              <IconBox icon={<AlertTriangle />} label="AlertTriangle" />
+              <IconBox icon={<Info />} label="Info" />
+            </Row>
+            <Row label="Content">
+              <IconBox icon={<FileText />} label="FileText" />
+              <IconBox icon={<Layers />} label="Layers" />
+              <IconBox icon={<Trophy />} label="Trophy" />
+              <IconBox icon={<Crown />} label="Crown" />
+              <IconBox icon={<Gamepad2 />} label="Gamepad2" />
+              <IconBox icon={<TrendingUp />} label="TrendingUp" />
+              <IconBox icon={<Swords />} label="Swords" />
+              <IconBox icon={<Handshake />} label="Handshake" />
+            </Row>
           </div>
         </Section>
 
@@ -537,6 +778,17 @@ function Swatch({ className, label, dark }: { className: string; label: string; 
     <div className="flex flex-col items-center gap-1">
       <div className={`w-12 h-12 rounded-md border border-card-border ${className}`} />
       <span className={`text-mono-xs ${dark ? "text-text-3" : "text-text-2"}`}>{label}</span>
+    </div>
+  );
+}
+
+function IconBox({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="w-10 h-10 rounded-md border border-card-border bg-card flex items-center justify-center text-text-1">
+        {icon}
+      </div>
+      <span className="text-mono-xs text-text-2">{label}</span>
     </div>
   );
 }
