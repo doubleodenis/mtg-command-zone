@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { Check, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -520,7 +521,7 @@ export function MatchForm({
                       )}
                       title={isTeamWinner('A') ? "Remove team win" : "Mark team as winner"}
                     >
-                      <span>🏆</span>
+                      <Trophy className="w-4 h-4" />
                       <span className="text-xs font-medium">{isTeamWinner('A') ? "Winner" : "Won"}</span>
                     </button>
                   </div>
@@ -589,7 +590,7 @@ export function MatchForm({
                       )}
                       title={isTeamWinner('B') ? "Remove team win" : "Mark team as winner"}
                     >
-                      <span>🏆</span>
+                      <Trophy className="w-4 h-4" />
                       <span className="text-xs font-medium">{isTeamWinner('B') ? "Winner" : "Won"}</span>
                     </button>
                   </div>
@@ -744,19 +745,7 @@ export function MatchForm({
                           )}
                         >
                           {isSelected && (
-                            <svg
-                              className="w-3 h-3 text-text-1"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={3}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
+                            <Check className="w-3 h-3 text-text-1" strokeWidth={3} />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">

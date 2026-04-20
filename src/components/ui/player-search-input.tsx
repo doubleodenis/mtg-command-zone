@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 
 interface SearchResult {
   id: string;
@@ -87,7 +88,7 @@ export function PlayerSearchInput({
           transition: "all 0.2s",
         }}
       >
-        <svg
+        <Search
           style={{
             position: "absolute",
             left: "1rem",
@@ -97,17 +98,7 @@ export function PlayerSearchInput({
             width: "1.25rem",
             color: "#a1a1aa",
           }}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
-        </svg>
+        />
         <input
           ref={inputRef}
           type="text"

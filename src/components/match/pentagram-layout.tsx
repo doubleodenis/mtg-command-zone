@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -404,7 +405,7 @@ function PentagonPlayerCard({
               slot.isWinner ? "bg-win text-text-1" : "text-text-2 hover:text-text-1"
             )}
           >
-            🏆
+            <Trophy className="w-4 h-4" />
           </button>
           <button
             type="button"

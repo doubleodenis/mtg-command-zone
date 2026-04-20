@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ============================================
@@ -20,27 +21,6 @@ type SelectProps = {
   className?: string;
   disabled?: boolean;
 };
-
-// ============================================
-// Icons
-// ============================================
-
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
 
 // ============================================
 // Component
@@ -119,7 +99,7 @@ export function Select({
         <span className="flex-1 min-w-0 truncate">
           {selectedOption ? selectedOption.label : placeholder}
         </span>
-        <ChevronDownIcon
+        <ChevronDown
           className={cn(
             "w-4 h-4 shrink-0 text-text-2 transition-transform duration-150",
             isOpen && "rotate-180"

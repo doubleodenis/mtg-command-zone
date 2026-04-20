@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { NavbarSearch } from "./navbar-search";
@@ -153,6 +154,12 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
+// Lucide version:
+function PlusIcon({ className }: { className?: string }) {
+  return <Plus className={className} />;
+}
+
+/* Original SVG version for comparison:
 function PlusIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -170,3 +177,4 @@ function PlusIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+*/

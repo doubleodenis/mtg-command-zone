@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { AlertTriangle, Clock, AlertCircle, XCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getMatchByInviteToken } from '@/app/actions/match'
 import { Navbar } from '@/components/features/navbar'
@@ -39,22 +40,7 @@ export default async function ClaimByTokenPage({ params }: PageProps) {
           <Card>
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-red-500"
-                >
-                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-                  <path d="M12 9v4" />
-                  <path d="M12 17h.01" />
-                </svg>
+                <AlertTriangle className="w-6 h-6 text-red-500" />
               </div>
               <CardTitle className="text-xl">Invalid Invite Link</CardTitle>
               <CardDescription>
@@ -83,21 +69,7 @@ export default async function ClaimByTokenPage({ params }: PageProps) {
           <Card>
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-yellow-500"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
+                <Clock className="w-6 h-6 text-yellow-500" />
               </div>
               <CardTitle className="text-xl">Invite Link Expired</CardTitle>
               <CardDescription>
@@ -183,22 +155,7 @@ export default async function ClaimByTokenPage({ params }: PageProps) {
             <CardContent className="py-4">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-yellow-500"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" x2="12" y1="8" y2="12" />
-                    <line x1="12" x2="12.01" y1="16" y2="16" />
-                  </svg>
+                  <AlertCircle className="w-4 h-4 text-yellow-500" />
                 </div>
                 <div>
                   <p className="font-medium text-yellow-500">Already in this match</p>
@@ -214,22 +171,7 @@ export default async function ClaimByTokenPage({ params }: PageProps) {
             <CardContent className="py-4">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-red-500"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="m15 9-6 6" />
-                    <path d="m9 9 6 6" />
-                  </svg>
+                  <XCircle className="w-4 h-4 text-red-500" />
                 </div>
                 <div>
                   <p className="font-medium text-red-500">No slots available</p>

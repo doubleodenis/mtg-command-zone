@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Bell, X, FileText, User, Users, Trophy } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
@@ -379,7 +380,32 @@ function NotificationTypeIcon({ type, className }: { type: NotificationType; cla
   }
 }
 
-// Icons
+// Lucide versions:
+function BellIcon({ className }: { className?: string }) {
+  return <Bell className={className} />;
+}
+
+function XIcon({ className }: { className?: string }) {
+  return <X className={className} />;
+}
+
+function MatchIcon({ className }: { className?: string }) {
+  return <FileText className={className} />;
+}
+
+function UserIcon({ className }: { className?: string }) {
+  return <User className={className} />;
+}
+
+function CollectionIcon({ className }: { className?: string }) {
+  return <Users className={className} />;
+}
+
+function TrophyIcon({ className }: { className?: string }) {
+  return <Trophy className={className} />;
+}
+
+/* Original SVG versions for comparison:
 function BellIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -493,3 +519,4 @@ function TrophyIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+*/
