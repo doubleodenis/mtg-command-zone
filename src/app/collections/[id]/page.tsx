@@ -152,10 +152,12 @@ export default async function CollectionPage({ params }: PageProps) {
           <DashboardStatCard
             label="Total Matches"
             value={recentMatches.length.toString()}
+            animatedValue={recentMatches.length}
           />
           <DashboardStatCard
             label="Members"
             value={collection.members.length.toString()}
+            animatedValue={collection.members.length}
           />
           <DashboardStatCard
             label="Top Commander WR"

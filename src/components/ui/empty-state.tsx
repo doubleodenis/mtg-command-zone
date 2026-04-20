@@ -1,6 +1,10 @@
+"use client";
+
 import * as React from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Users, Layers, FolderOpen, UserPlus, Search, Bell, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fadeInUp, duration } from "@/lib/motion";
 
 type EmptyStateProps = {
   /**
@@ -28,6 +32,11 @@ type EmptyStateProps = {
    * @default "md"
    */
   size?: "sm" | "md" | "lg";
+  /**
+   * Disable entrance animation
+   * @default false
+   */
+  noAnimation?: boolean;
 };
 
 const sizeClasses = {
@@ -62,21 +71,41 @@ function EmptyState({
   action,
   className,
   size = "md",
+  noAnimation = false,
 }: EmptyStateProps) {
   const sizes = sizeClasses[size];
+  const shouldReduceMotion = useReducedMotion();
+  const skipAnimation = noAnimation || shouldReduceMotion;
+
+  const Container = skipAnimation ? "div" : motion.div;
+  const containerProps = skipAnimation 
+    ? {} 
+    : {
+        initial: "hidden",
+        animate: "visible",
+        variants: fadeInUp,
+      };
 
   return (
-    <div
+    <Container
       className={cn(
         "flex flex-col items-center justify-center text-center",
         sizes.container,
         className
       )}
+      {...containerProps}
     >
       {icon && (
-        <div className={cn("text-text-3", sizes.icon)}>
+        <motion.div 
+          className={cn("text-text-3", sizes.icon)}
+          {...(skipAnimation ? {} : {
+            initial: { opacity: 0, scale: 0.8 },
+            animate: { opacity: 1, scale: 1 },
+            transition: { duration: duration.normal, delay: 0.1 },
+          })}
+        >
           {icon}
-        </div>
+        </motion.div>
       )}
       <h3 className={cn("font-display font-semibold text-text-1 mb-1", sizes.title)}>
         {title}
@@ -86,8 +115,19 @@ function EmptyState({
           {description}
         </p>
       )}
-      {action && <div className="mt-2">{action}</div>}
-    </div>
+      {action && (
+        <motion.div 
+          className="mt-2"
+          {...(skipAnimation ? {} : {
+            initial: { opacity: 0, y: 8 },
+            animate: { opacity: 1, y: 0 },
+            transition: { duration: duration.normal, delay: 0.2 },
+          })}
+        >
+          {action}
+        </motion.div>
+      )}
+    </Container>
   );
 }
 

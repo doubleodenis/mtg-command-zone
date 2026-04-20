@@ -151,4 +151,21 @@
     font-weight: 600;
     letter-spacing: var(--letter-spacing-wide);
   }
+
+}
+/* ─────────────────────────────────────────
+   REDUCED MOTION
+   Respects user accessibility preferences
+   by disabling animations and transitions
+───────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

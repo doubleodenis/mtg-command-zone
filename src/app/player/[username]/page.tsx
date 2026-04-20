@@ -228,6 +228,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         <DashboardStatCard
           label="Overall Rating"
           value={overallRating.toLocaleString()}
+          animatedValue={overallRating}
         />
         <DashboardStatCard
           label="Win Rate"
@@ -237,6 +238,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         <DashboardStatCard
           label="Total Matches"
           value={stats.totalMatches.toString()}
+          animatedValue={stats.totalMatches}
         />
         <DashboardStatCard
           label="Best Streak"
