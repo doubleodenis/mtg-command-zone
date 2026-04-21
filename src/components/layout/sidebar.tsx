@@ -91,7 +91,7 @@ export function TabNav({ items, className }: TabNavProps) {
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
-    <nav className={cn("sticky top-0 z-10 border-b border-card-border bg-bg-surface", className)}>
+    <nav className={cn("sticky top-12 z-40 border-b border-card-border bg-bg-surface", className)}>
       <div className="max-w-6xl md:mx-auto px-4">
         <div className="flex gap-6 overflow-x-auto scrollbar-hide">
           {items.map((item) => {
