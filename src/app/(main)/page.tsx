@@ -13,6 +13,7 @@ import { CollectionActivityCard } from "@/components/features/collection-activit
 // HIDDEN: Rating system disabled - uncomment to re-enable
 // import { RatingHistoryChart } from "@/components/features/rating-history-chart";
 import { NavbarSearch } from "@/components/features/navbar-search";
+import { LandingHero } from "@/components/features/landing-hero";
 // Raw database queries
 import {
   getProfileById,
@@ -108,16 +109,9 @@ async function GlobalDashboard() {
     : [];
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Welcome to CommandZone"
-        description="Track your Commander matches, build your collection, and play with friends"
-        actions={
-          <Button asChild>
-            <Link href="/login?mode=signup">Get Started</Link>
-          </Button>
-        }
-      />
+    <div className="space-y-12">
+      {/* Hero Section */}
+      <LandingHero />
 
       {/* Mobile search bar */}
       <div className="md:hidden">
