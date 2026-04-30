@@ -1,5 +1,6 @@
 export { AddToCollectionModal } from "./add-to-collection-modal";
 export { CollectionForm } from "./collection-form";
+export { CollectionHeader } from "./collection-header";
 export { CollectionSettingsForm } from "./collection-settings-form";
 export { PendingMatchApprovals } from "./pending-match-approvals";
 export { InviteMemberModal } from "./invite-member-modal";

@@ -1,5 +1,4 @@
-import { redirect, notFound } from "next/navigation";
-import { PageHeader } from "@/components/layout";
+import { redirect } from "next/navigation";
 import { CollectionSettingsForm } from "@/components/collection";
 import { createClient } from "@/lib/supabase/server";
 import { getCollectionById } from "@/lib/supabase";
@@ -23,8 +22,9 @@ export default async function CollectionSettingsPage({ params }: PageProps) {
   // Fetch collection
   const collectionResult = await getCollectionById(supabase, id);
 
+  // Layout handles 404 for missing collections
   if (!collectionResult.success) {
-    notFound();
+    return null;
   }
 
   const collection = collectionResult.data;
@@ -34,14 +34,5 @@ export default async function CollectionSettingsPage({ params }: PageProps) {
     redirect(`/collections/${id}`);
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Collection Settings"
-        description="Manage your collection's name, privacy, and permissions"
-      />
-
-      <CollectionSettingsForm collection={collection} />
-    </div>
-  );
+  return <CollectionSettingsForm collection={collection} />;
 }

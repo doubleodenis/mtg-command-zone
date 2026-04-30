@@ -6,6 +6,7 @@ import { MatchPreviewCard } from "./match-preview-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonMatchCard } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { MotionList, MotionListItem } from "@/components/ui/motion";
 import type { MatchCardData } from "@/types";
 import type { FormatSlug } from "@/types/format";
 
@@ -507,7 +508,7 @@ export function MatchLog({
       )}
 
       {groupByDate && groupedMatches ? (
-        // Grouped display
+        // Grouped display with staggered animations
         <div className="flex flex-col gap-3">
           {groupOrder.map((group) => {
             const groupMatches = groupedMatches.get(group);
@@ -516,32 +517,34 @@ export function MatchLog({
             return (
               <div key={group}>
                 <DateGroupHeader group={group} />
-                <div className="flex flex-col gap-3">
+                <MotionList className="flex flex-col gap-3" fast>
                   {groupMatches.map((match) => (
-                    <MatchPreviewCard
-                      key={match.id}
-                      match={match}
-                      showElo={showElo}
-                      showClaimBadges={showClaimBadges}
-                    />
+                    <MotionListItem key={match.id}>
+                      <MatchPreviewCard
+                        match={match}
+                        showElo={showElo}
+                        showClaimBadges={showClaimBadges}
+                      />
+                    </MotionListItem>
                   ))}
-                </div>
+                </MotionList>
               </div>
             );
           })}
         </div>
       ) : (
-        // Flat list display
-        <div className="flex flex-col gap-3">
+        // Flat list display with staggered animations
+        <MotionList className="flex flex-col gap-3" fast>
           {filteredMatches.map((match) => (
-            <MatchPreviewCard
-              key={match.id}
-              match={match}
-              showElo={showElo}
-              showClaimBadges={showClaimBadges}
-            />
+            <MotionListItem key={match.id}>
+              <MatchPreviewCard
+                match={match}
+                showElo={showElo}
+                showClaimBadges={showClaimBadges}
+              />
+            </MotionListItem>
           ))}
-        </div>
+        </MotionList>
       )}
     </div>
   );

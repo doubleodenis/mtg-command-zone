@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -534,7 +535,7 @@ export function PlayerSlot({
               )}
               title={slot.isWinner ? "Remove winner" : "Mark as winner"}
             >
-              🏆
+              <Trophy className="w-4 h-4" />
             </button>
           )}
           <button

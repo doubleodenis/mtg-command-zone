@@ -1,5 +1,8 @@
+'use client'
+
 import Link from 'next/link'
 import { Avatar, RatingDisplay } from '@/components/ui'
+import { MotionList, MotionListItem } from '@/components/ui/motion'
 import { cn } from '@/lib/utils'
 import type { LeaderboardEntry } from '@/types'
 
@@ -13,13 +16,13 @@ type LeaderboardPreviewProps = {
  */
 export function LeaderboardPreview({ entries }: LeaderboardPreviewProps) {
   return (
-    <div className="divide-y divide-card-border">
+    <MotionList className="divide-y divide-card-border" fast>
       {entries.map((entry) => (
-        <Link
-          key={entry.id}
-          href={`/player/${entry.username}`}
-          className="flex items-center gap-4 px-4 py-3 hover:bg-bg-raised/50 transition-colors"
-        >
+        <MotionListItem key={entry.id}>
+          <Link
+            href={`/player/${entry.username}`}
+            className="flex items-center gap-4 px-4 py-3 hover:bg-bg-raised/50 transition-colors"
+          >
           {/* Rank */}
           <span className={cn(
             "w-6 text-center font-display font-bold",
@@ -48,9 +51,10 @@ export function LeaderboardPreview({ entries }: LeaderboardPreviewProps) {
           </span>
 
           {/* Rating */}
-          <RatingDisplay rating={entry.rating} />
-        </Link>
+          <RatingDisplay rating={entry.rating} animated />
+          </Link>
+        </MotionListItem>
       ))}
-    </div>
+    </MotionList>
   )
 }

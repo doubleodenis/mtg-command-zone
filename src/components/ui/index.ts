@@ -61,6 +61,23 @@ export {
   FormSuccessBanner,
 } from "./form-feedback";
 
+// Animation components
+export {
+  FadeIn,
+  FadeInUp,
+  ScaleIn,
+  MotionList,
+  MotionListItem,
+  MotionCard,
+  MotionButton,
+  HoverGlow,
+} from "./motion";
+
+export {
+  AnimatedNumber,
+  AnimatedRating,
+} from "./animated-number";
+
 // Legacy (to be reviewed)
 export { StatCard } from "./stat-card";
 export { PlayerSearchInput } from "./player-search-input";

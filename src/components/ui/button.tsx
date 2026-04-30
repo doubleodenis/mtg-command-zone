@@ -38,10 +38,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp
         className={cn(
-          "text-ui inline-flex items-center justify-center whitespace-nowrap rounded-md font-semibold",
+          "text-ui inline-flex items-center justify-center whitespace-nowrap rounded-md font-semibold cursor-pointer",
           "transition-all duration-150 ease-out",
+          "active:scale-[0.98] active:transition-none",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
-          "disabled:pointer-events-none disabled:opacity-50",
+          "disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100",
           variantClasses[variant],
           sizeClasses[size],
           className

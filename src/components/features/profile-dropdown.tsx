@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { User, Layers, Users, FileText, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
@@ -156,7 +157,32 @@ function DropdownItem({ href, children, onClick }: DropdownItemProps) {
   );
 }
 
-// Icons
+// Lucide versions:
+function UserIcon({ className }: { className?: string }) {
+  return <User className={className} />;
+}
+
+function DeckIcon({ className }: { className?: string }) {
+  return <Layers className={className} />;
+}
+
+function CollectionIcon({ className }: { className?: string }) {
+  return <Users className={className} />;
+}
+
+function MatchIcon({ className }: { className?: string }) {
+  return <FileText className={className} />;
+}
+
+function SettingsIcon({ className }: { className?: string }) {
+  return <Settings className={className} />;
+}
+
+function SignOutIcon({ className }: { className?: string }) {
+  return <LogOut className={className} />;
+}
+
+/* Original SVG versions for comparison:
 function UserIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -271,3 +297,4 @@ function SignOutIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+*/

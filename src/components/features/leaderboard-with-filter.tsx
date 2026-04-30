@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Avatar, RatingDisplay } from '@/components/ui'
+import { MotionList, MotionListItem } from '@/components/ui/motion'
 import { cn } from '@/lib/utils'
 import type { LeaderboardEntry, FormatSlug } from '@/types'
 
@@ -72,12 +73,13 @@ export function LeaderboardWithFilter({ entries }: LeaderboardWithFilterProps) {
             <p className="text-text-3 text-xs mt-1">Play some matches to see the leaderboard</p>
           </div>
         ) : (
-          rankedEntries.map((entry) => (
-            <Link
-              key={`${entry.id}-${entry.formatSlug ?? 'all'}`}
-              href={`/player/${entry.username}`}
-              className="flex items-center gap-4 px-4 py-3 hover:bg-bg-raised/50 transition-colors"
-            >
+          <MotionList key={selectedFormat} fast>
+            {rankedEntries.map((entry) => (
+              <MotionListItem key={`${entry.id}-${entry.formatSlug ?? 'all'}`}>
+                <Link
+                  href={`/player/${entry.username}`}
+                  className="flex items-center gap-4 px-4 py-3 hover:bg-bg-raised/50 transition-colors"
+                >
               {/* Rank */}
               <span
                 className={cn(
@@ -106,9 +108,11 @@ export function LeaderboardWithFilter({ entries }: LeaderboardWithFilterProps) {
               </span>
 
               {/* Rating */}
-              <RatingDisplay rating={entry.rating} />
-            </Link>
-          ))
+              <RatingDisplay rating={entry.rating} animated />
+                </Link>
+              </MotionListItem>
+            ))}
+          </MotionList>
         )}
       </div>
     </div>

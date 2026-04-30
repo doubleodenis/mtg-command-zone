@@ -227,20 +227,22 @@ export default async function PlayerProfilePage({ params }: PageProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <DashboardStatCard
           label="Overall Rating"
-          value={overallRating.toLocaleString()}
+          animatedValue={overallRating}
         />
         <DashboardStatCard
           label="Win Rate"
-          value={`${stats.winRate}%`}
+          animatedValue={stats.winRate}
+          suffix="%"
           sublabel={`${stats.wins}W - ${stats.losses}L`}
         />
         <DashboardStatCard
           label="Total Matches"
-          value={stats.totalMatches.toString()}
+          animatedValue={stats.totalMatches}
         />
         <DashboardStatCard
           label="Best Streak"
-          value={`${stats.longestWinStreak} wins`}
+          animatedValue={stats.longestWinStreak}
+          suffix=" wins"
           sublabel={stats.currentStreak > 0 ? `🔥 Current: ${stats.currentStreak}` : undefined}
         />
       </div>

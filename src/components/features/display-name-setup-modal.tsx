@@ -19,22 +19,32 @@ export function DisplayNameSetupModal({
   const searchParams = useSearchParams()
   const needsSetup = searchParams.get('setup') === 'displayname'
   
-  // Show modal if:
-  // 1. URL has ?setup=displayname (OAuth redirect)
-  // 2. User doesn't have a display name set
-  const shouldShow = needsSetup || (!currentDisplayName && userId)
-  
-  const [isOpen, setIsOpen] = React.useState(shouldShow)
+  // Track hydration to avoid flash on initial render
+  const [hasMounted, setHasMounted] = React.useState(false)
+  const [isOpen, setIsOpen] = React.useState(false)
   const [displayName, setDisplayName] = React.useState(currentDisplayName || '')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  // Update open state when shouldShow changes
+  // Wait for hydration before checking if modal should show
+  // This prevents false positives from stale/null server-rendered data
   React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
+
+  // Only open modal after mounting to avoid race conditions with server data
+  React.useEffect(() => {
+    if (!hasMounted) return
+    
+    // Show modal if:
+    // 1. URL has ?setup=displayname (OAuth redirect)
+    // 2. User doesn't have a display name set
+    const shouldShow = needsSetup || (!currentDisplayName && userId)
+    
     if (shouldShow) {
       setIsOpen(true)
     }
-  }, [shouldShow])
+  }, [hasMounted, needsSetup, currentDisplayName, userId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

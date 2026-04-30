@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { NavbarSearch } from "./navbar-search";
@@ -89,8 +90,8 @@ export async function Navbar() {
       <div className="max-w-6xl md:mx-auto px-4 h-full flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 text-wordmark text-text-1 hover:text-accent transition-colors shrink-0">
-          <span className="text-accent">⚔️</span>
-          <span className="hidden min-[360px]:inline">CommandZone</span>
+          {/* <span className="text-accent">⚔️</span> */}
+          <span className="hidden min-[360px]:inline">Command<span className="text-accent">Zone</span></span>
         </Link>
 
         {/* Search Bar — always visible */}
@@ -153,6 +154,12 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
+// Lucide version:
+function PlusIcon({ className }: { className?: string }) {
+  return <Plus className={className} />;
+}
+
+/* Original SVG version for comparison:
 function PlusIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -170,3 +177,4 @@ function PlusIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+*/

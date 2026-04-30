@@ -1,3 +1,15 @@
+import { Users, X } from "lucide-react";
+
+// Lucide versions:
+export function UsersIcon({ className }: { className?: string }) {
+  return <Users className={className} />;
+}
+
+export function XIcon({ className }: { className?: string }) {
+  return <X className={className} />;
+}
+
+/* Original SVG versions for comparison:
 export function UsersIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -35,3 +47,4 @@ export function XIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+*/

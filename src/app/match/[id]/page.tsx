@@ -193,6 +193,7 @@ export default async function MatchDetailsPage({ params }: PageProps) {
                   commanderName: p.deck.commanderName,
                   deckName: p.deck.deckName,
                   bracket: p.deck.bracket,
+                  colorIdentity: p.deck.colorIdentity,
                 } : null,
               }))}
               currentUserId={user?.id ?? null}

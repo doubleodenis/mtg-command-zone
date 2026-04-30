@@ -31,7 +31,7 @@
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   body {
@@ -40,7 +40,7 @@
     font-family: var(--font-body);
     font-size: var(--font-size-base);
     line-height: 1.5;
-    overflow-x: hidden;
+    overflow-x: clip;
     position: relative;
   }
 
@@ -150,5 +150,23 @@
     font-size: var(--font-size-sm);
     font-weight: 600;
     letter-spacing: var(--letter-spacing-wide);
+  }
+
+}
+
+/* ─────────────────────────────────────────
+   REDUCED MOTION
+   Respects user accessibility preferences
+   by disabling animations and transitions
+───────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

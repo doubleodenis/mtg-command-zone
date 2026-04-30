@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildCommanderImageUrl } from "@/lib/scryfall/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,8 +92,8 @@ export function CommanderCard({
     >
       {/* Winner crown indicator */}
       {isWinner && (
-        <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 text-gold text-lg drop-shadow-lg">
-          👑
+        <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 text-gold drop-shadow-lg">
+          <Crown className="w-5 h-5" />
         </div>
       )}
 

@@ -17,7 +17,7 @@ export function InviteMemberButton({
 
   return (
     <>
-      <Button size="sm" onClick={() => setIsOpen(true)}>
+      <Button size="sm" variant="secondary" onClick={() => setIsOpen(true)}>
         Invite Member
       </Button>
       <InviteMemberModal

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
@@ -112,24 +113,6 @@ const sizeClasses = {
   },
 };
 
-function IconError({ className }: { className?: string }) {
-  return (
-    <svg 
-      className={className} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="1.5"
-    >
-      <path 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" 
-      />
-    </svg>
-  );
-}
-
 /**
  * Default error fallback UI.
  * Can be used standalone or as the default for ErrorBoundary.
@@ -153,7 +136,7 @@ function ErrorFallback({
       role="alert"
     >
       <div className={cn("text-loss", sizes.icon)}>
-        <IconError className="w-full h-full" />
+        <AlertTriangle className="w-full h-full" />
       </div>
       <h3 className={cn("font-display font-semibold text-text-1 mb-1", sizes.title)}>
         Something went wrong
@@ -198,7 +181,7 @@ function ErrorFallbackCard({
       role="alert"
     >
       <div className="flex items-center justify-center gap-2 text-loss mb-2">
-        <IconError className="w-4 h-4" />
+        <AlertTriangle className="w-4 h-4" />
         <span className="text-sm font-medium">Error loading content</span>
       </div>
       {onReset && (
@@ -266,7 +249,7 @@ export {
   ErrorFallbackCard,
   ErrorFallbackInline,
   PageError,
-  IconError,
+  AlertTriangle as IconError,
   type ErrorBoundaryProps,
   type ErrorFallbackProps,
   type PageErrorProps,

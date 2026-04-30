@@ -13,12 +13,17 @@ import { CollectionActivityCard } from "@/components/features/collection-activit
 // HIDDEN: Rating system disabled - uncomment to re-enable
 // import { RatingHistoryChart } from "@/components/features/rating-history-chart";
 import { NavbarSearch } from "@/components/features/navbar-search";
+import { LandingHero } from "@/components/features/landing-hero";
 // Raw database queries
 import {
   getProfileById,
   getUserStats,
   getActiveDecks,
+  getUserDecksWithStats,
+  getFormats,
+  getLeaderboard,
 } from "@/lib/supabase";
+import type { LeaderboardEntry } from "@/types/profile";
 // Business logic / data transformations
 import {
   getPlatformStats,
@@ -108,16 +113,9 @@ async function GlobalDashboard() {
     : [];
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Welcome to CommandZone"
-        description="Track your Commander matches, build your collection, and play with friends"
-        actions={
-          <Button asChild>
-            <Link href="/login?mode=signup">Get Started</Link>
-          </Button>
-        }
-      />
+    <div className="space-y-12">
+      {/* Hero Section */}
+      <LandingHero />
 
       {/* Mobile search bar */}
       <div className="md:hidden">
@@ -127,10 +125,10 @@ async function GlobalDashboard() {
       {/* Platform Stats */}
       <Section title="PLATFORM STATS">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <DashboardStatCard label="Total Matches" value={platformStats.totalMatches.toLocaleString()} />
-          <DashboardStatCard label="Players" value={platformStats.totalPlayers.toLocaleString()} />
-          <DashboardStatCard label="Decks" value={platformStats.totalDecks.toLocaleString()} />
-          <DashboardStatCard label="Collections" value={platformStats.totalCollections.toLocaleString()} />
+          <DashboardStatCard label="Total Matches" animatedValue={platformStats.totalMatches} />
+          <DashboardStatCard label="Players" animatedValue={platformStats.totalPlayers} />
+          <DashboardStatCard label="Decks" animatedValue={platformStats.totalDecks} />
+          <DashboardStatCard label="Collections" animatedValue={platformStats.totalCollections} />
         </div>
       </Section>
 
@@ -219,6 +217,9 @@ async function PersonalDashboard({ userId }: { userId: string }) {
     pendingResult,
     collectionsResult,
     userDecksResult,
+    userDecksWithStatsResult,
+    topCommandersResult,
+    formatsResult,
   ] = await Promise.all([
     getProfileById(supabase, userId),
     getUserStats(supabase, userId),
@@ -226,7 +227,46 @@ async function PersonalDashboard({ userId }: { userId: string }) {
     getUserPendingConfirmations(supabase, userId),
     getUserCollectionActivities(supabase, userId, 3),
     getActiveDecks(supabase, userId),
+    getUserDecksWithStats(supabase, userId),
+    getTopCommanders(supabase, { limit: 1 }),
+    getFormats(supabase),
   ]);
+
+  // Fetch leaderboard for all formats to find top win rate player
+  const formats = formatsResult.success ? formatsResult.data : [];
+  const leaderboardPromises = formats.map((f) =>
+    getLeaderboard(supabase, f.id, 50).then(result => ({ format: f, result }))
+  );
+  const leaderboardResults = await Promise.all(leaderboardPromises);
+
+  // Aggregate leaderboard entries across all formats
+  const allEntries: LeaderboardEntry[] = [];
+  for (const { result } of leaderboardResults) {
+    if (!result.success) continue;
+    for (const entry of result.data) {
+      allEntries.push(entry);
+    }
+  }
+
+  // Merge entries by user (sum matches/wins, recalculate win rate)
+  const userMap = new Map<string, LeaderboardEntry>();
+  for (const entry of allEntries) {
+    const existing = userMap.get(entry.id);
+    if (existing) {
+      existing.matchesPlayed += entry.matchesPlayed;
+      existing.wins += entry.wins;
+      existing.winRate = existing.matchesPlayed > 0
+        ? Math.round((existing.wins / existing.matchesPlayed) * 100)
+        : 0;
+    } else {
+      userMap.set(entry.id, { ...entry });
+    }
+  }
+
+  // Find player with highest win rate (minimum 5 matches)
+  const topWinRatePlayer = Array.from(userMap.values())
+    .filter(p => p.matchesPlayed >= 5)
+    .sort((a, b) => b.winRate - a.winRate)[0] ?? null;
 
   // Extract data with fallbacks
   const displayName = profileResult.success 
@@ -236,6 +276,17 @@ async function PersonalDashboard({ userId }: { userId: string }) {
   const stats = statsResult.success 
     ? statsResult.data 
     : { totalMatches: 0, wins: 0, losses: 0, winRate: 0, currentStreak: 0, longestWinStreak: 0 };
+
+  // Find user's best deck (highest win rate with at least 2 games)
+  const userDecksWithStats = userDecksWithStatsResult.success ? userDecksWithStatsResult.data : [];
+  const bestDeck = userDecksWithStats
+    .filter(d => d.stats.gamesPlayed >= 2)
+    .sort((a, b) => b.stats.winRate - a.stats.winRate)[0] ?? userDecksWithStats[0] ?? null;
+
+  // Top commander platform-wide
+  const topCommander = topCommandersResult.success && topCommandersResult.data.length > 0
+    ? topCommandersResult.data[0]
+    : null;
 
   const recentMatches = recentMatchesResult.success 
     ? recentMatchesResult.data 
@@ -273,13 +324,29 @@ async function PersonalDashboard({ userId }: { userId: string }) {
       {/* Quick Stats */}
       <Section title="YOUR STATS">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* HIDDEN: Rating system disabled - uncomment to re-enable
-          <DashboardStatCard label="Rating" value={primaryRating.toLocaleString()} sublabel={primaryFormatName} />
-          */}
-          <DashboardStatCard label="Win Rate" value={`${stats.winRate}%`} />
-          <DashboardStatCard label="Matches" value={stats.totalMatches.toString()} />
-          <DashboardStatCard label="Wins" value={stats.wins.toString()} />
-          <DashboardStatCard label="Win Streak" value={stats.currentStreak.toString()} />
+          <DashboardStatCard 
+            label="Your Win Rate" 
+            animatedValue={stats.winRate} 
+            suffix="%" 
+          />
+          <DashboardStatCard 
+            label="Your Best Deck" 
+            animatedValue={bestDeck?.stats.winRate ?? 0} 
+            suffix="%"
+            sublabel={bestDeck?.commanderName ?? "No decks yet"}
+          />
+          <DashboardStatCard 
+            label="Top Commander" 
+            animatedValue={topCommander?.stats.winRate ?? 0} 
+            suffix="%"
+            sublabel={topCommander?.commanderName ?? "No data"}
+          />
+          <DashboardStatCard 
+            label="Top Player WR" 
+            animatedValue={topWinRatePlayer?.winRate ?? 0} 
+            suffix="%"
+            sublabel={topWinRatePlayer?.displayName ?? topWinRatePlayer?.username ?? "No data"}
+          />
         </div>
       </Section>
 

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge, Avatar, Button } from "@/components/ui";
+import { Avatar, Badge } from "@/components/ui";
 import { Section } from "@/components/layout";
 import { MatchLog } from "@/components/match";
 import { PendingMatchApprovals } from "@/components/collection";
@@ -16,8 +16,9 @@ import {
   getFormats,
   getPendingMatchApprovalsWithDetails,
 } from "@/lib/supabase";
-import { getRecentMatchCards, getTopCommanders } from "@/lib/services";
+import { getRecentMatchCards, getTopCommanders, getUserStats } from "@/lib/services";
 import type { CollectionMemberWithProfile, PendingMatchApproval, LeaderboardEntry } from "@/types";
+import type { DeckWithStats } from "@/types/deck";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -128,16 +129,85 @@ export default async function CollectionPage({ params }: PageProps) {
     ? aggregatedEntries.reduce((best, entry) => entry.winRate > best.winRate ? entry : best, aggregatedEntries[0])
     : null;
 
-  return (
-    <div className="space-y-6">
-      {/* Collection Header */}
-      <CollectionHeader
-        collection={collection}
-        matchCount={recentMatches.length}
-        isMember={isMember}
-        isOwner={isOwner}
-      />
+  // Get current user's stats for this collection
+  let myWinRate = 0;
+  let myBestDeck: DeckWithStats | null = null;
 
+  if (user && isMember) {
+    // Get user stats within collection
+    const userStatsResult = await getUserStats(supabase, user.id, { collectionId: id });
+    if (userStatsResult.success) {
+      myWinRate = userStatsResult.data.winRate;
+    }
+
+    // Get user's best deck in collection by querying participations
+    const { data: deckParticipations } = await supabase
+      .from('match_participants')
+      .select(`
+        is_winner,
+        deck:decks!match_participants_deck_id_fkey (
+          id, deck_name, commander_name, partner_name, color_identity, bracket, is_active, created_at, owner_id
+        )
+      `)
+      .eq('user_id', user.id)
+      .in('match_id', recentMatches.map(m => m.id).length > 0 
+        ? (await supabase.from('collection_matches').select('match_id').eq('collection_id', id)).data?.map(cm => cm.match_id) ?? []
+        : []);
+
+    if (deckParticipations && deckParticipations.length > 0) {
+      // Aggregate stats by deck
+      type DeckData = NonNullable<typeof deckParticipations[0]['deck']>;
+      const deckStatsMap = new Map<string, { deck: DeckData, wins: number, games: number }>();
+      for (const p of deckParticipations) {
+        if (!p.deck) continue;
+        const existing = deckStatsMap.get(p.deck.id);
+        if (existing) {
+          existing.games++;
+          if (p.is_winner) existing.wins++;
+        } else {
+          deckStatsMap.set(p.deck.id, { deck: p.deck, wins: p.is_winner ? 1 : 0, games: 1 });
+        }
+      }
+
+      // Find best deck (highest win rate with at least 2 games, or most games)
+      const sortedDecks = Array.from(deckStatsMap.values())
+        .map(d => ({
+          ...d,
+          winRate: d.games > 0 ? Math.round((d.wins / d.games) * 100) : 0
+        }))
+        .sort((a, b) => {
+          // Prioritize decks with 2+ games, then by win rate
+          if (a.games >= 2 && b.games < 2) return -1;
+          if (b.games >= 2 && a.games < 2) return 1;
+          return b.winRate - a.winRate;
+        });
+
+      if (sortedDecks.length > 0) {
+        const best = sortedDecks[0];
+        const deck = best.deck;
+        myBestDeck = {
+          id: deck.id,
+          ownerId: deck.owner_id,
+          commanderName: deck.commander_name,
+          partnerName: deck.partner_name,
+          deckName: deck.deck_name,
+          colorIdentity: (deck.color_identity ?? []) as ('W' | 'U' | 'B' | 'R' | 'G')[],
+          bracket: (deck.bracket ?? 1) as 1 | 2 | 3 | 4,
+          isActive: deck.is_active,
+          createdAt: deck.created_at ?? new Date().toISOString(),
+          stats: {
+            gamesPlayed: best.games,
+            wins: best.wins,
+            losses: best.games - best.wins,
+            winRate: best.winRate,
+          }
+        };
+      }
+    }
+  }
+
+  return (
+    <>
       {/* Pending Approvals (owner only) */}
       {showPendingApprovals && pendingApprovals.length > 0 && (
         <PendingMatchApprovals
@@ -150,22 +220,28 @@ export default async function CollectionPage({ params }: PageProps) {
       <Section title="COLLECTION STATS">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <DashboardStatCard
-            label="Total Matches"
-            value={recentMatches.length.toString()}
+            label="Your Win Rate"
+            animatedValue={myWinRate}
+            suffix="%"
+            sublabel={isMember ? undefined : "Join to track"}
           />
           <DashboardStatCard
-            label="Members"
-            value={collection.members.length.toString()}
+            label="Your Best Deck"
+            animatedValue={myBestDeck?.stats.winRate ?? 0}
+            suffix="%"
+            sublabel={myBestDeck?.commanderName ?? (isMember ? "No games yet" : "Join to track")}
           />
           <DashboardStatCard
-            label="Top Commander WR"
-            value={topCommander ? `${topCommander.stats?.winRate ?? 0}%` : 'N/A'}
-            sublabel={topCommander ? topCommander.commanderName : undefined}
+            label="Top Player WR"
+            animatedValue={topWinRatePlayer?.winRate ?? 0}
+            suffix="%"
+            sublabel={topWinRatePlayer?.displayName ?? topWinRatePlayer?.username ?? "No data"}
           />
           <DashboardStatCard
-            label="Highest Win Rate"
-            value={topWinRatePlayer ? `${topWinRatePlayer.winRate}%` : 'N/A'}
-            sublabel={topWinRatePlayer?.username}
+            label="Top Commander"
+            animatedValue={topCommander?.stats?.winRate ?? 0}
+            suffix="%"
+            sublabel={topCommander ? topCommander.commanderName : "No data"}
           />
         </div>
       </Section>
@@ -233,61 +309,13 @@ export default async function CollectionPage({ params }: PageProps) {
       >
         <MembersList members={collection.members} />
       </Section>
-    </div>
+    </>
   );
 }
 
 // ============================================
 // Sub-components
 // ============================================
-
-type CollectionHeaderProps = {
-  collection: {
-    id: string;
-    name: string;
-    description: string | null;
-    isPublic: boolean;
-    matchAddPermission: string;
-  };
-  matchCount: number;
-  isMember: boolean;
-  isOwner: boolean;
-};
-
-function CollectionHeader({
-  collection,
-  matchCount: _matchCount,
-  isMember,
-  isOwner: _isOwner,
-}: CollectionHeaderProps) {
-  return (
-    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-display font-bold text-text-1">
-            {collection.name}
-          </h1>
-          <Badge variant={collection.isPublic ? "outline" : "default"}>
-            {collection.isPublic ? "Public" : "Private"}
-          </Badge>
-        </div>
-        {collection.description && (
-          <p className="text-text-2 max-w-2xl">{collection.description}</p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        {isMember ? (
-          <Button size="sm" asChild>
-            <Link href="/matches/new">Log Match</Link>
-          </Button>
-        ) : (
-          <Button size="sm">Request to Join</Button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function MembersList({ members }: { members: CollectionMemberWithProfile[] }) {
   return (
