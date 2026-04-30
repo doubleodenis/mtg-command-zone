@@ -5,7 +5,7 @@ import type { SubNavItem } from "@/components/layout";
  * Main navigation items shown when logged in (personal dashboard)
  */
 export const AUTHENTICATED_NAV: NavItem[] = [
-  { label: "Overview", href: "/" },
+  { label: "Home", href: "/" },
   { label: "Matches", href: "/matches" },
   { label: "Decks", href: "/decks" },
   { label: "Collections", href: "/collections" },
