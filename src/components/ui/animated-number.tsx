@@ -50,8 +50,8 @@ export function AnimatedNumber({
   // Use spring for smooth animation - starts at 0, animates to value
   // Lower stiffness = slower animation, higher damping = less bounce
   const spring = useSpring(0, {
-    stiffness: 30,
-    damping: 15,
+    stiffness: 55,
+    damping: 20,
     mass: 1,
   });
 
@@ -95,14 +95,14 @@ export function AnimatedNumber({
       : decimals > 0 ? value.toFixed(decimals) : String(value);
     
     return (
-      <span className={cn("tabular-nums", className)}>
+      <span className={className}>
         {prefix}{formattedValue}{suffix}
       </span>
     );
   }
 
   return (
-    <span className={cn("tabular-nums", className)}>
+    <span className={className}>
       {prefix}
       <motion.span>{display}</motion.span>
       {suffix}

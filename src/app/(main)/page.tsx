@@ -121,10 +121,10 @@ async function GlobalDashboard() {
       {/* Platform Stats */}
       <Section title="PLATFORM STATS">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <DashboardStatCard label="Total Matches" value={platformStats.totalMatches.toLocaleString()} animatedValue={platformStats.totalMatches} />
-          <DashboardStatCard label="Players" value={platformStats.totalPlayers.toLocaleString()} animatedValue={platformStats.totalPlayers} />
-          <DashboardStatCard label="Decks" value={platformStats.totalDecks.toLocaleString()} animatedValue={platformStats.totalDecks} />
-          <DashboardStatCard label="Collections" value={platformStats.totalCollections.toLocaleString()} animatedValue={platformStats.totalCollections} />
+          <DashboardStatCard label="Total Matches" animatedValue={platformStats.totalMatches} />
+          <DashboardStatCard label="Players" animatedValue={platformStats.totalPlayers} />
+          <DashboardStatCard label="Decks" animatedValue={platformStats.totalDecks} />
+          <DashboardStatCard label="Collections" animatedValue={platformStats.totalCollections} />
         </div>
       </Section>
 
@@ -271,10 +271,10 @@ async function PersonalDashboard({ userId }: { userId: string }) {
       {/* Quick Stats */}
       <Section title="YOUR STATS">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <DashboardStatCard label="Rating" value={primaryRating.toLocaleString()} sublabel={primaryFormatName} animatedValue={primaryRating} />
-          <DashboardStatCard label="Win Rate" value={`${stats.winRate}%`} />
-          <DashboardStatCard label="Matches" value={stats.totalMatches.toString()} animatedValue={stats.totalMatches} />
-          <DashboardStatCard label="Win Streak" value={stats.currentStreak.toString()} animatedValue={stats.currentStreak} />
+          <DashboardStatCard label="Rating" sublabel={primaryFormatName} animatedValue={primaryRating} />
+          <DashboardStatCard label="Win Rate" animatedValue={stats.winRate} suffix="%" />
+          <DashboardStatCard label="Matches" animatedValue={stats.totalMatches} />
+          <DashboardStatCard label="Win Streak" animatedValue={stats.currentStreak} />
         </div>
       </Section>
 

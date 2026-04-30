@@ -151,22 +151,22 @@ export default async function CollectionPage({ params }: PageProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <DashboardStatCard
             label="Total Matches"
-            value={recentMatches.length.toString()}
             animatedValue={recentMatches.length}
           />
           <DashboardStatCard
             label="Members"
-            value={collection.members.length.toString()}
             animatedValue={collection.members.length}
           />
           <DashboardStatCard
             label="Top Commander WR"
-            value={topCommander ? `${topCommander.stats?.winRate ?? 0}%` : 'N/A'}
+            animatedValue={topCommander?.stats?.winRate ?? 0}
+            suffix="%"
             sublabel={topCommander ? topCommander.commanderName : undefined}
           />
           <DashboardStatCard
             label="Highest Win Rate"
-            value={topWinRatePlayer ? `${topWinRatePlayer.winRate}%` : 'N/A'}
+            animatedValue={topWinRatePlayer?.winRate ?? 0}
+            suffix="%"
             sublabel={topWinRatePlayer?.username}
           />
         </div>

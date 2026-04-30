@@ -390,6 +390,7 @@ export function MatchPreviewCard({
                   delta={userParticipant.ratingDelta.delta} 
                   size="lg" 
                   isPreview={userParticipant.ratingDelta.isPreview}
+                  animated
                 />
               )}
             </div>
