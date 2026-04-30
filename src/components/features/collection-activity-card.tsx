@@ -17,7 +17,7 @@ export function CollectionActivityCard({ activity }: CollectionActivityCardProps
 
   return (
     <Link href={`/collections/${collection.id}`}>
-      <Card className="h-full hover:border-card-border-hover transition-colors">
+      <Card className="h-full hover:border-accent-ring hover:shadow-[0_0_12px_rgba(168,85,247,0.15)] transition-all">
         <CardContent className="p-5 space-y-4">
           {/* Collection header */}
           <div>
