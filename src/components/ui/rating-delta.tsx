@@ -52,7 +52,6 @@ export function RatingDelta({
     isPositive && "text-win",
     isNegative && "text-loss",
     isNeutral && "text-text-2",
-    isPreview && "opacity-50",
     className
   );
 

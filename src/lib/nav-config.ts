@@ -1,4 +1,5 @@
 import type { NavItem } from "@/components/layout";
+import type { SubNavItem } from "@/components/layout";
 
 /**
  * Main navigation items shown when logged in (personal dashboard)
@@ -20,3 +21,16 @@ export const PUBLIC_NAV: NavItem[] = [
   // { label: "Leaderboards", href: "/leaderboards" },
   { label: "FAQ", href: "/faq" },
 ];
+
+/**
+ * Sub-navigation items for collection detail pages
+ */
+export function getCollectionNavItems(collectionId: string): SubNavItem[] {
+  return [
+    { label: "Overview", href: `/collections/${collectionId}` },
+    { label: "Matches", href: `/collections/${collectionId}/matches` },
+    { label: "Leaderboard", href: `/collections/${collectionId}/leaderboard` },
+    { label: "Members", href: `/collections/${collectionId}/members` },
+    { label: "Settings", href: `/collections/${collectionId}/settings` },
+  ];
+}

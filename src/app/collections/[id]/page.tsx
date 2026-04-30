@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge, Avatar, Button } from "@/components/ui";
+import { Avatar, Badge } from "@/components/ui";
 import { Section } from "@/components/layout";
 import { MatchLog } from "@/components/match";
 import { PendingMatchApprovals } from "@/components/collection";
@@ -129,15 +129,7 @@ export default async function CollectionPage({ params }: PageProps) {
     : null;
 
   return (
-    <div className="space-y-6">
-      {/* Collection Header */}
-      <CollectionHeader
-        collection={collection}
-        matchCount={recentMatches.length}
-        isMember={isMember}
-        isOwner={isOwner}
-      />
-
+    <>
       {/* Pending Approvals (owner only) */}
       {showPendingApprovals && pendingApprovals.length > 0 && (
         <PendingMatchApprovals
@@ -235,61 +227,13 @@ export default async function CollectionPage({ params }: PageProps) {
       >
         <MembersList members={collection.members} />
       </Section>
-    </div>
+    </>
   );
 }
 
 // ============================================
 // Sub-components
 // ============================================
-
-type CollectionHeaderProps = {
-  collection: {
-    id: string;
-    name: string;
-    description: string | null;
-    isPublic: boolean;
-    matchAddPermission: string;
-  };
-  matchCount: number;
-  isMember: boolean;
-  isOwner: boolean;
-};
-
-function CollectionHeader({
-  collection,
-  matchCount: _matchCount,
-  isMember,
-  isOwner: _isOwner,
-}: CollectionHeaderProps) {
-  return (
-    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-display font-bold text-text-1">
-            {collection.name}
-          </h1>
-          <Badge variant={collection.isPublic ? "outline" : "default"}>
-            {collection.isPublic ? "Public" : "Private"}
-          </Badge>
-        </div>
-        {collection.description && (
-          <p className="text-text-2 max-w-2xl">{collection.description}</p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        {isMember ? (
-          <Button size="sm" asChild>
-            <Link href="/matches/new">Log Match</Link>
-          </Button>
-        ) : (
-          <Button size="sm">Request to Join</Button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function MembersList({ members }: { members: CollectionMemberWithProfile[] }) {
   return (

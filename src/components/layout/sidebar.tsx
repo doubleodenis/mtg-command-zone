@@ -63,8 +63,8 @@ function SidebarLink({ href, children, isActive, icon }: SidebarLinkProps) {
       className={cn(
         "text-ui flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
         isActive
-          ? "bg-accent-dim text-accent border-l-2 border-accent"
-          : "text-text-2 hover:text-text-1 hover:bg-bg-overlay"
+          ? "bg-accent/20 text-accent border-l-2 border-accent font-semibold"
+          : "text-text-2 hover:text-text-1 hover:bg-bg-overlay/50",
       )}
     >
       {icon && <span className="w-5 h-5 flex items-center justify-center">{icon}</span>}
