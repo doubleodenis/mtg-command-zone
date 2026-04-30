@@ -73,7 +73,7 @@ import {
   FormSuccessBanner,
   StatCard,
 } from "@/components/ui";
-import { toast, useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import { MatchLog } from "@/components/match";
 import { Sidebar, TabNav, PageHeader, type NavItem } from "@/components/layout";
 import { createMockUserMatches, generateMockId } from "@/lib/mock";
