@@ -45,14 +45,13 @@ export function ParticipantList({
   participants,
   currentUserId,
   userDecks,
-  matchCreatorId,
-  matchCreatorUsername,
 }: ParticipantListProps) {
   const router = useRouter();
   
   // Update deck modal state
   const [selectedParticipantId, setSelectedParticipantId] = React.useState<string | null>(null);
   const [selectedDeckId, setSelectedDeckId] = React.useState<string | null>(null);
+  const [selectedIsConfirmed, setSelectedIsConfirmed] = React.useState<boolean>(false);
   
   // Claim state
   const [claimingSlotId, setClaimingSlotId] = React.useState<string | null>(null);
@@ -66,14 +65,16 @@ export function ParticipantList({
     collections: Array<{ id: string; name: string }>;
   } | null>(null);
 
-  const handleOpenModal = (participantId: string, deckId: string | null) => {
+  const handleOpenModal = (participantId: string, deckId: string | null, isConfirmed: boolean) => {
     setSelectedParticipantId(participantId);
     setSelectedDeckId(deckId);
+    setSelectedIsConfirmed(isConfirmed);
   };
 
   const handleCloseModal = () => {
     setSelectedParticipantId(null);
     setSelectedDeckId(null);
+    setSelectedIsConfirmed(false);
     router.refresh();
   };
 
@@ -120,7 +121,7 @@ export function ParticipantList({
       <div className="space-y-3">
         {participants.map((participant, index) => {
           const isOwnSlot = currentUserId && participant.userId === currentUserId;
-          const canUpdateDeck = isOwnSlot && !participant.isConfirmed;
+          const canUpdateDeck = isOwnSlot;
           const hasPlaceholderDeck = participant.deck && 
             (participant.deck.deckName === PLACEHOLDER_DECK_NAME || 
              !participant.deck.deckName);
@@ -193,27 +194,24 @@ export function ParticipantList({
                 {canUpdateDeck && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant={participant.isConfirmed ? "outline" : "primary"}
                     onClick={() => handleOpenModal(
                       participant.id,
-                      participant.deck?.id ?? null
+                      participant.deck?.id ?? null,
+                      participant.isConfirmed
                     )}
                   >
-                    Update Deck
+                    {participant.isConfirmed ? "Update Deck" : "Update Deck & Confirm"}
                   </Button>
                 )}
                 
                 {participant.isWinner && (
                   <Badge variant="win">Winner</Badge>
                 )}
-                {!isUnclaimedSlot && (
-                  participant.isConfirmed ? (
-                    <Badge variant="outline" className="text-text-3">
-                      Confirmed
-                    </Badge>
-                  ) : (
-                    <Badge variant="default">Pending</Badge>
-                  )
+                {!isUnclaimedSlot && participant.isConfirmed && (
+                  <Badge variant="outline" className="text-text-3">
+                    Confirmed
+                  </Badge>
                 )}
               </div>
             </div>
@@ -228,6 +226,7 @@ export function ParticipantList({
         participantId={selectedParticipantId ?? ""}
         currentDeckId={selectedDeckId}
         decks={userDecks}
+        isConfirmed={selectedIsConfirmed}
       />
 
       {/* Post-Claim Modal */}

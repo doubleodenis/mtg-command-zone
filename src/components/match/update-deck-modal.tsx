@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ColorIdentity } from "@/components/ui/mana-pip";
 import { BracketIndicator } from "@/components/ui/bracket-indicator";
-import { updateMatchParticipantDeck } from "@/app/actions/match";
+import { updateMatchParticipantDeck, confirmMatch } from "@/app/actions/match";
 import type { DeckSummary } from "@/types";
 import type { ManaColor } from "@/app/_design-system";
 
@@ -16,6 +16,7 @@ interface UpdateDeckModalProps {
   participantId: string;
   currentDeckId: string | null;
   decks: DeckSummary[];
+  isConfirmed: boolean;
 }
 
 /**
@@ -28,6 +29,7 @@ export function UpdateDeckModal({
   participantId,
   currentDeckId,
   decks,
+  isConfirmed,
 }: UpdateDeckModalProps) {
   const [selectedDeckId, setSelectedDeckId] = React.useState<string | null>(currentDeckId);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -47,7 +49,8 @@ export function UpdateDeckModal({
       return;
     }
 
-    if (selectedDeckId === currentDeckId) {
+    // If already confirmed and deck hasn't changed, just close
+    if (isConfirmed && selectedDeckId === currentDeckId) {
       onClose();
       return;
     }
@@ -55,14 +58,24 @@ export function UpdateDeckModal({
     setIsSubmitting(true);
     setError(null);
 
-    const result = await updateMatchParticipantDeck(participantId, selectedDeckId);
-
-    setIsSubmitting(false);
-
-    if (result.success) {
-      onClose();
+    // If not confirmed, use confirmMatch which also updates deck
+    // If already confirmed, just update the deck
+    if (!isConfirmed) {
+      const result = await confirmMatch(participantId, selectedDeckId);
+      setIsSubmitting(false);
+      if (result.success) {
+        onClose();
+      } else {
+        setError(result.error);
+      }
     } else {
-      setError(result.error);
+      const result = await updateMatchParticipantDeck(participantId, selectedDeckId);
+      setIsSubmitting(false);
+      if (result.success) {
+        onClose();
+      } else {
+        setError(result.error);
+      }
     }
   };
 
@@ -80,10 +93,13 @@ export function UpdateDeckModal({
       <Card className="relative z-10 w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col">
         <CardHeader className="shrink-0">
           <h2 className="font-display text-lg font-semibold text-text-1">
-            Update Deck
+            {isConfirmed ? "Update Deck" : "Update Deck & Confirm"}
           </h2>
           <p className="text-sm text-text-2">
-            Select the deck you used in this match
+            {isConfirmed 
+              ? "Select the deck you used in this match"
+              : "Select your deck and confirm your participation"
+            }
           </p>
         </CardHeader>
 
@@ -152,7 +168,10 @@ export function UpdateDeckModal({
             onClick={handleSubmit} 
             disabled={isSubmitting || !selectedDeckId || decks.length === 0}
           >
-            {isSubmitting ? "Updating..." : "Update Deck"}
+            {isSubmitting 
+              ? (isConfirmed ? "Updating..." : "Confirming...") 
+              : (isConfirmed ? "Update Deck" : "Confirm & Update")
+            }
           </Button>
         </div>
       </Card>
