@@ -22,6 +22,7 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
   const { match, participantId } = confirmation
   const [isConfirming, setIsConfirming] = React.useState(false)
   const [showDeckSelect, setShowDeckSelect] = React.useState(false)
+  const [showNoDeckWarning, setShowNoDeckWarning] = React.useState(false)
   const [selectedDeck, setSelectedDeck] = React.useState<string>('')
   const [error, setError] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<{ previewDelta: number } | null>(null)
@@ -49,12 +50,20 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
   }
 
   const onConfirmClick = () => {
-    // Only show deck selector if user has no deck assigned AND has decks to choose from
-    if (!confirmation.hasDeckAssigned && userDecks.length > 0 && !selectedDeck) {
-      setShowDeckSelect(true)
-    } else {
-      handleConfirm(selectedDeck || undefined)
+    // If user has no deck assigned
+    if (!confirmation.hasDeckAssigned) {
+      // Show deck selector if they have decks to choose from
+      if (userDecks.length > 0 && !selectedDeck) {
+        setShowDeckSelect(true)
+        return
+      }
+      // Show warning if they have no decks at all
+      if (userDecks.length === 0) {
+        setShowNoDeckWarning(true)
+        return
+      }
     }
+    handleConfirm(selectedDeck || undefined)
   }
 
   // Show result state
@@ -104,6 +113,40 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
             </Button>
             <Button size="sm" onClick={() => handleConfirm(selectedDeck)} disabled={!selectedDeck || isConfirming}>
               {isConfirming ? 'Confirming...' : 'Confirm'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show warning when user has no deck
+  if (showNoDeckWarning) {
+    return (
+      <Card className="border-warning/30 bg-warning/5">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center shrink-0">
+              <span className="text-warning text-lg">⚠</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-text-1">No deck selected</p>
+              <p className="text-sm text-text-2 mt-1">
+                You don't have any decks yet. Add a deck first to track your stats properly, or confirm without one.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="secondary" onClick={() => setShowNoDeckWarning(false)}>
+              Cancel
+            </Button>
+            <Link href="/decks/new">
+              <Button size="sm" variant="outline">
+                Add Deck
+              </Button>
+            </Link>
+            <Button size="sm" onClick={() => handleConfirm()} disabled={isConfirming}>
+              {isConfirming ? 'Confirming...' : 'Confirm Anyway'}
             </Button>
           </div>
         </CardContent>

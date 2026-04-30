@@ -47,7 +47,13 @@ export default async function MatchDetailsPage({ params }: PageProps) {
   const [matchResult, userDecksResult, matchCreatorResult] = await Promise.all([
     getMatchById(supabase, matchId, user?.id),
     user ? getActiveDecks(supabase, user.id) : Promise.resolve({ success: true as const, data: [] }),
-    supabase.from('matches').select('created_by').eq('id', matchId).single(),
+    supabase.from('matches').select(`
+      created_by,
+      creator:profiles!matches_created_by_fkey (
+        id,
+        username
+      )
+    `).eq('id', matchId).single(),
   ])
   
   if (!matchResult.success) {
@@ -65,6 +71,11 @@ export default async function MatchDetailsPage({ params }: PageProps) {
         bracket: d.bracket,
       }))
     : []
+  
+  // Extract creator info
+  const creatorData = matchCreatorResult.data?.creator as { id: string; username: string } | null
+  const matchCreatorId = creatorData?.id ?? matchCreatorResult.data?.created_by ?? ''
+  const matchCreatorUsername = creatorData?.username ?? 'Unknown'
   
   // Determine if user is creator and if there are placeholder slots
   const isCreator = user && matchCreatorResult.data?.created_by === user.id
@@ -198,6 +209,8 @@ export default async function MatchDetailsPage({ params }: PageProps) {
               }))}
               currentUserId={user?.id ?? null}
               userDecks={userDecks}
+              matchCreatorId={matchCreatorId}
+              matchCreatorUsername={matchCreatorUsername}
             />
           </CardContent>
         </Card>

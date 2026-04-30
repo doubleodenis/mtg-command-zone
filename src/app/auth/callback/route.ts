@@ -44,8 +44,6 @@ export async function GET(request: Request) {
           logger.supabaseError('fetch profile', profileFetchError, { userId: user.id });
         }
 
-        let needsDisplayNameSetup = false;
-
         if (!existingProfile) {
           // Create new profile
           const username =
@@ -60,9 +58,6 @@ export async function GET(request: Request) {
             user.user_metadata?.full_name ||
             user.user_metadata?.name ||
             null;
-
-          // If no display name from OAuth, user needs to set one
-          needsDisplayNameSetup = !displayName;
 
           const newProfile: ProfileInsert = {
             id: user.id,
@@ -84,24 +79,17 @@ export async function GET(request: Request) {
           logger.auth('Existing profile found', { userId: user.id });
         }
 
-        // Build redirect URL
-        let redirectUrl = next;
-        if (needsDisplayNameSetup) {
-          const separator = next.includes('?') ? '&' : '?';
-          redirectUrl = `${next}${separator}setup=displayname`;
-        }
-
         const forwardedHost = request.headers.get("x-forwarded-host");
         const isLocalEnv = process.env.NODE_ENV === "development";
 
-        logger.auth('Redirecting after successful auth', { redirectUrl, isLocalEnv });
+        logger.auth('Redirecting after successful auth', { redirectUrl: next, isLocalEnv });
 
         if (isLocalEnv) {
-          return NextResponse.redirect(`${origin}${redirectUrl}`);
+          return NextResponse.redirect(`${origin}${next}`);
         } else if (forwardedHost) {
-          return NextResponse.redirect(`https://${forwardedHost}${redirectUrl}`);
+          return NextResponse.redirect(`https://${forwardedHost}${next}`);
         } else {
-          return NextResponse.redirect(`${origin}${redirectUrl}`);
+          return NextResponse.redirect(`${origin}${next}`);
         }
       } else {
         logger.auth('No user returned after session exchange');

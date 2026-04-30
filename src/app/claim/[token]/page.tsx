@@ -1,14 +1,11 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, Clock, AlertCircle, XCircle } from 'lucide-react'
+import { AlertTriangle, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getMatchByInviteToken } from '@/app/actions/match'
 import { Navbar } from '@/components/features/navbar'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FormatBadge } from '@/components/ui/format-badge'
-import { ClaimSlotForm } from './claim-slot-form'
-import type { FormatSlug } from '@/types'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -17,6 +14,11 @@ type PageProps = {
   params: Promise<{ token: string }>
 }
 
+/**
+ * Claim page via invite token.
+ * - Logged out users: redirected to login, then back here
+ * - Logged in users: redirected to match detail page to claim their slot
+ */
 export default async function ClaimByTokenPage({ params }: PageProps) {
   const { token } = await params
   const supabase = await createClient()
@@ -58,7 +60,7 @@ export default async function ClaimByTokenPage({ params }: PageProps) {
     )
   }
 
-  const { match, placeholderSlots, isExpired, isUsed: _isUsed } = result.data
+  const { match, isExpired } = result.data
 
   // Check for expired token
   if (isExpired) {
@@ -90,130 +92,6 @@ export default async function ClaimByTokenPage({ params }: PageProps) {
     )
   }
 
-  // Check if all slots are already claimed
-  const availableSlots = placeholderSlots.filter(s => s.claimStatus === 'none')
-  const allSlotsClaimed = availableSlots.length === 0
-
-  // Check if user is already in this match
-  const { data: existingParticipant } = await supabase
-    .from('match_participants')
-    .select('id')
-    .eq('match_id', match.id)
-    .eq('user_id', user.id)
-    .single()
-
-  const isAlreadyParticipant = !!existingParticipant
-
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="max-w-2xl md:mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="font-display text-2xl font-bold text-text-1">
-            Claim Your Spot
-          </h1>
-          <p className="mt-1 text-text-2">
-            You've been invited to claim a spot in this match
-          </p>
-        </div>
-
-        {/* Match Info Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Match Details</CardTitle>
-              <FormatBadge format={match.formatSlug as FormatSlug} />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-text-3">Created by</span>
-              <span className="text-text-1 font-medium">@{match.creatorUsername}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-text-3">Played</span>
-              <span className="text-text-1">
-                {new Date(match.playedAt).toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-text-3">Players</span>
-              <span className="text-text-1">{match.participantCount}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Status Messages */}
-        {isAlreadyParticipant ? (
-          <Card className="mb-6 border-yellow-500/30 bg-yellow-500/10">
-            <CardContent className="py-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4 text-yellow-500" />
-                </div>
-                <div>
-                  <p className="font-medium text-yellow-500">Already in this match</p>
-                  <p className="text-sm text-text-2 mt-1">
-                    You are already a participant in this match.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : allSlotsClaimed ? (
-          <Card className="mb-6 border-red-500/30 bg-red-500/10">
-            <CardContent className="py-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                  <XCircle className="w-4 h-4 text-red-500" />
-                </div>
-                <div>
-                  <p className="font-medium text-red-500">No slots available</p>
-                  <p className="text-sm text-text-2 mt-1">
-                    All placeholder slots in this match have been claimed or are pending approval.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {/* Claim Slots Section */}
-        {!isAlreadyParticipant && !allSlotsClaimed && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Select Your Slot</CardTitle>
-              <CardDescription>
-                Choose which placeholder name represents you in this match
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ClaimSlotForm 
-                slots={placeholderSlots}
-                matchId={match.id}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Actions */}
-        <div className="mt-6 flex justify-center gap-3">
-          <Button asChild variant="outline">
-            <Link href={`/match/${match.id}`}>View Match Details</Link>
-          </Button>
-          {(isAlreadyParticipant || allSlotsClaimed) && (
-            <Button asChild>
-              <Link href="/matches">Go to Matches</Link>
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+  // Redirect logged-in users to the match detail page to claim their slot
+  redirect(`/match/${match.id}`)
 }

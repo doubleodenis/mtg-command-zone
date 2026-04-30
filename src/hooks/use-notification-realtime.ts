@@ -114,6 +114,10 @@ function getNotificationDescription(
       return data.collection_name
         ? `Join "${data.collection_name}"`
         : undefined;
+    case "collection_join_request":
+      return data.requester_username && data.collection_name
+        ? `@${data.requester_username} wants to join "${data.collection_name}"`
+        : undefined;
     case "elo_milestone":
       return data.new_rating
         ? `New rating: ${data.new_rating}`
@@ -137,6 +141,7 @@ function getToastType(
     case "match_pending_confirmation":
     case "friend_request":
     case "collection_invite":
+    case "collection_join_request":
     case "claim_available":
       return "info";
     default:

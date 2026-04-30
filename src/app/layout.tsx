@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Barlow, Chakra_Petch, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { createClient } from "@/lib/supabase/server";
 import { Footer } from "@/components/layout/footer";
-import { DisplayNameSetupModal } from "@/components/features/display-name-setup-modal";
 
 const chakraPetch = Chakra_Petch({
   subsets: ['latin'],
@@ -42,17 +40,6 @@ export default async function RootLayout({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Fetch profile for display name check (only if logged in)
-  let profile: { display_name: string | null } | null = null;
-  if (user) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", user.id)
-      .single();
-    profile = data;
-  }
-
   return (
     <html lang="en" className="dark">
       <body className={`${barlow.variable} ${chakraPetch.variable} ${jetbrainsMono.variable} font-body antialiased bg-bg-base text-text-1 min-h-screen flex flex-col`}>
@@ -61,14 +48,6 @@ export default async function RootLayout({
             {children}
           </div>
           <Footer />
-          {user && (
-            <Suspense fallback={null}>
-              <DisplayNameSetupModal
-                userId={user.id}
-                currentDisplayName={profile?.display_name ?? null}
-              />
-            </Suspense>
-          )}
         </Providers>
       </body>
     </html>

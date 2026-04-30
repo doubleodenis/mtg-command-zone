@@ -320,6 +320,12 @@ function NotificationMessage({ notification }: { notification: NotificationWithA
           A match was added to your collection
         </>
       );
+    case "collection_join_request":
+      return (
+        <>
+          <span className="font-medium">{actorName}</span> wants to join your collection
+        </>
+      );
     case "claim_available":
       return (
         <>

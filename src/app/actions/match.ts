@@ -758,6 +758,127 @@ export async function submitClaimRequest(
 }
 
 /**
+ * Claim a placeholder slot with auto-approval.
+ * 
+ * The claim is immediately approved without requiring owner confirmation.
+ * Returns match/collection info for the post-claim modal.
+ */
+export async function claimSlotWithAutoApproval(
+  participantId: string
+): Promise<Result<{
+  matchId: string
+  matchCreatorId: string
+  matchCreatorUsername: string
+  collections: Array<{ id: string; name: string }>
+}>> {
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  // Verify the slot is claimable and get match/creator info
+  const { data: participant, error: fetchError } = await supabase
+    .from('match_participants')
+    .select(`
+      id, 
+      match_id, 
+      user_id, 
+      claim_status, 
+      claimed_by,
+      placeholder_name,
+      match:matches!inner (
+        id,
+        created_by,
+        creator:profiles!matches_created_by_fkey (
+          id,
+          username
+        )
+      )
+    `)
+    .eq('id', participantId)
+    .single()
+
+  if (fetchError || !participant) {
+    return { success: false, error: 'Participant slot not found' }
+  }
+
+  if (participant.user_id !== null) {
+    return { success: false, error: 'This slot is already claimed by a user' }
+  }
+
+  if (participant.claim_status === 'approved') {
+    return { success: false, error: 'This slot has already been claimed' }
+  }
+
+  // Check if user is already a participant in this match
+  const { data: existingParticipation } = await supabase
+    .from('match_participants')
+    .select('id')
+    .eq('match_id', participant.match_id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (existingParticipation) {
+    return { success: false, error: 'You are already a participant in this match' }
+  }
+
+  const match = participant.match as { id: string; created_by: string; creator: { id: string; username: string } }
+
+  // Auto-approve: directly set user_id and claim_status to approved
+  const { error: updateError } = await supabase
+    .from('match_participants')
+    .update({
+      user_id: user.id,
+      claimed_by: user.id,
+      claim_status: 'approved',
+      placeholder_name: null, // Clear placeholder name
+    })
+    .eq('id', participantId)
+    .is('user_id', null) // Safety check
+
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+
+  // Get collections this match belongs to
+  const { data: collectionLinks } = await supabase
+    .from('collection_matches')
+    .select(`
+      collection:collections!collection_matches_collection_id_fkey (
+        id,
+        name
+      )
+    `)
+    .eq('match_id', participant.match_id)
+    .eq('approval_status', 'approved')
+
+  const collections = (collectionLinks ?? [])
+    .filter(link => link.collection)
+    .map(link => ({
+      id: (link.collection as { id: string; name: string }).id,
+      name: (link.collection as { id: string; name: string }).name,
+    }))
+
+  // Revalidate pages
+  revalidatePath(`/match/${participant.match_id}`)
+  revalidatePath('/matches/claim')
+  revalidatePath('/matches')
+
+  return {
+    success: true,
+    data: {
+      matchId: match.id,
+      matchCreatorId: match.creator.id,
+      matchCreatorUsername: match.creator.username,
+      collections,
+    },
+  }
+}
+
+/**
  * Approve a claim request (match creator only)
  */
 export async function approveClaimRequest(

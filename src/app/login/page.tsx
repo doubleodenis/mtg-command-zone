@@ -25,7 +25,7 @@ function LoginContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(urlError ? "Authentication failed. Please try again." : null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [signupComplete, setSignupComplete] = useState(false);
 
   const handleOAuthLogin = async (provider: "google" | "discord") => {
     setIsLoading(provider);
@@ -54,7 +54,6 @@ function LoginContent() {
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccessMessage(null);
 
     if (!email || !password) {
       setError("Please enter both email and password.");
@@ -116,7 +115,7 @@ function LoginContent() {
         return;
       }
 
-      setSuccessMessage("Check your email for a confirmation link to complete your sign up.");
+      setSignupComplete(true);
       setIsLoading(null);
     } else {
       const { error } = await supabase.auth.signInWithPassword({
@@ -143,22 +142,98 @@ function LoginContent() {
   const toggleMode = () => {
     setMode(mode === "signin" ? "signup" : "signin");
     setError(null);
-    setSuccessMessage(null);
+    setSignupComplete(false);
   };
 
   return (
     <>
       <CardHeader style={{ textAlign: "center", padding: "0", paddingBottom: "1.5rem" }}>
         <CardTitle style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
-          {mode === "signin" ? "Welcome back" : "Create an account"}
+          {signupComplete ? "Check your email" : mode === "signin" ? "Welcome back" : "Create an account"}
         </CardTitle>
         <CardDescription>
-          {mode === "signin"
+          {signupComplete
+            ? "We sent you a confirmation link"
+            : mode === "signin"
             ? "Sign in to track your matches and compete with friends"
             : "Sign up to start tracking your Commander games"}
         </CardDescription>
       </CardHeader>
       <CardContent style={{ padding: "0" }}>
+        {signupComplete ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1.5rem", padding: "1rem 0" }}>
+            {/* Success icon */}
+            <div style={{
+              width: "4rem",
+              height: "4rem",
+              borderRadius: "50%",
+              backgroundColor: "rgba(34, 197, 94, 0.1)",
+              border: "2px solid rgba(34, 197, 94, 0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <svg
+                style={{ width: "2rem", height: "2rem", color: "#22c55e" }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            
+            {/* Email info */}
+            <div style={{ textAlign: "center" }}>
+              <p style={{ color: "#a1a1aa", fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+                We sent a confirmation link to
+              </p>
+              <p style={{ color: "#f4f4f5", fontWeight: "500" }}>
+                {email}
+              </p>
+            </div>
+            
+            {/* Instructions */}
+            <div style={{
+              padding: "1rem",
+              backgroundColor: "rgba(168, 85, 247, 0.1)",
+              border: "1px solid rgba(168, 85, 247, 0.2)",
+              borderRadius: "0.5rem",
+              width: "100%",
+            }}>
+              <p style={{ color: "#a1a1aa", fontSize: "0.875rem", textAlign: "center" }}>
+                Click the link in the email to verify your account.
+                {redirectTo !== "/" && (
+                  <span style={{ display: "block", marginTop: "0.5rem", color: "#a855f7" }}>
+                    You'll be redirected to continue where you left off.
+                  </span>
+                )}
+              </p>
+            </div>
+            
+            {/* Switch to sign in */}
+            <button
+              type="button"
+              onClick={toggleMode}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#a855f7",
+                fontSize: "0.875rem",
+                cursor: "pointer",
+                textAlign: "center",
+                padding: "0.25rem",
+              }}
+            >
+              Already verified? Sign in
+            </button>
+          </div>
+        ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           {error && (
             <div style={{
@@ -171,20 +246,6 @@ function LoginContent() {
               textAlign: "center",
             }}>
               {error}
-            </div>
-          )}
-
-          {successMessage && (
-            <div style={{
-              padding: "0.75rem",
-              backgroundColor: "rgba(34, 197, 94, 0.1)",
-              border: "1px solid rgba(34, 197, 94, 0.3)",
-              borderRadius: "0.5rem",
-              color: "#22c55e",
-              fontSize: "0.875rem",
-              textAlign: "center",
-            }}>
-              {successMessage}
             </div>
           )}
 
@@ -319,6 +380,7 @@ function LoginContent() {
             By signing in, you agree to our Terms of Service and Privacy Policy.
           </p>
         </div>
+        )}
       </CardContent>
     </>
   );

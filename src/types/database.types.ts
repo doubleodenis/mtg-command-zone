@@ -537,6 +537,7 @@ export type Database = {
           read_at: string | null
           recipient_id: string
           seen_at: string | null
+          triggered_by: string | null
           type: Database["public"]["Enums"]["notification_type"]
         }
         Insert: {
@@ -551,6 +552,7 @@ export type Database = {
           read_at?: string | null
           recipient_id: string
           seen_at?: string | null
+          triggered_by?: string | null
           type: Database["public"]["Enums"]["notification_type"]
         }
         Update: {
@@ -565,6 +567,7 @@ export type Database = {
           read_at?: string | null
           recipient_id?: string
           seen_at?: string | null
+          triggered_by?: string | null
           type?: Database["public"]["Enums"]["notification_type"]
         }
         Relationships: [
@@ -578,6 +581,13 @@ export type Database = {
           {
             foreignKeyName: "notifications_recipient_id_fkey"
             columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_triggered_by_fkey"
+            columns: ["triggered_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -957,6 +967,7 @@ export type Database = {
         | "rank_changed"
         | "collection_invite"
         | "collection_match_added"
+        | "collection_join_request"
         | "claim_available"
         | "claim_accepted"
         | "deck_retroactively_updated"
@@ -1113,6 +1124,7 @@ export const Constants = {
         "rank_changed",
         "collection_invite",
         "collection_match_added",
+        "collection_join_request",
         "claim_available",
         "claim_accepted",
         "deck_retroactively_updated",
