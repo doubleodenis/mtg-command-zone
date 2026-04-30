@@ -113,7 +113,7 @@ async function GlobalDashboard() {
     : [];
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       {/* Hero Section */}
       <LandingHero />
 
