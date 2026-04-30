@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { X, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -93,9 +94,11 @@ export function InviteMemberModal({
     setIsInviting(null)
   }
 
-  if (!isOpen) return null
+  // Don't render on server or when closed
+  if (!isOpen || typeof document === 'undefined') return null
 
-  return (
+  // Use portal to render at document.body level for proper viewport centering
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div 
@@ -189,6 +192,7 @@ export function InviteMemberModal({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
