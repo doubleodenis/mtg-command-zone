@@ -7,6 +7,8 @@ import { User, Layers, Users, FileText, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { useClickOutside } from "@/hooks/use-click-outside";
+import { useEscapeKey } from "@/hooks/use-escape-key";
 
 interface ProfileDropdownProps {
   username: string;
@@ -22,33 +24,9 @@ export function ProfileDropdown({ username, displayName, avatarUrl }: ProfileDro
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [isOpen]);
-
-  // Close dropdown on escape key
-  React.useEffect(() => {
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      return () => document.removeEventListener("keydown", handleEscape);
-    }
-  }, [isOpen]);
+  const closeDropdown = React.useCallback(() => setIsOpen(false), []);
+  useClickOutside(dropdownRef, closeDropdown, isOpen);
+  useEscapeKey(closeDropdown, isOpen);
 
   const handleSignOut = async () => {
     setIsOpen(false);

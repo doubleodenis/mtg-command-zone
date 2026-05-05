@@ -28,6 +28,16 @@ export { getUserCollectionActivities } from './collection'
 export { getTopCommanders } from './deck'
 export type { GetTopCommandersOptions } from './deck'
 
+// Leaderboard service
+export {
+  getLeaderboardData,
+  getLeaderboardByFormat,
+  aggregateLeaderboardEntries,
+  findPlayerInLeaderboard,
+  getTopPlayerBy,
+} from './leaderboard'
+export type { GetLeaderboardDataOptions, LeaderboardData } from './leaderboard'
+
 // Stats service
 export { getPlatformStats, getUserStats, getHeadToHeadComparison } from './stats'
 export type { PlatformStats, UserStats, GetUserStatsOptions, HeadToHeadComparison } from './stats'
