@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "ratings:recalculate": "tsx scripts/recalculate-ratings.ts"
+    "ratings:recalculate": "tsx scripts/recalculate-ratings.ts",
+    "ratings:recalculate-dirty": "tsx scripts/recalculate-dirty-matches.ts"
   },
   "repository": {
     "type": "git",

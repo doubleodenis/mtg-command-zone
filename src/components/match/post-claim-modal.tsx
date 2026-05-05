@@ -14,7 +14,9 @@ interface PostClaimModalProps {
   onClose: () => void;
   matchCreatorId: string;
   matchCreatorUsername: string;
-  collections: Array<{ id: string; name: string }>;
+  isAlreadyFriend: boolean;
+  hasPendingFriendRequest: boolean;
+  collections: Array<{ id: string; name: string; isMember: boolean; hasPendingRequest: boolean }>;
   currentUserId: string;
 }
 
@@ -29,6 +31,8 @@ export function PostClaimModal({
   onClose,
   matchCreatorId,
   matchCreatorUsername,
+  isAlreadyFriend,
+  hasPendingFriendRequest,
   collections,
   currentUserId,
 }: PostClaimModalProps) {
@@ -37,6 +41,9 @@ export function PostClaimModal({
   const [joinCollections, setJoinCollections] = React.useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Check if friend request option should be disabled
+  const friendDisabled = isAlreadyFriend || hasPendingFriendRequest;
 
   // Reset state when modal opens
   React.useEffect(() => {
@@ -139,45 +146,66 @@ export function PostClaimModal({
           {/* Optional actions */}
           <div className="space-y-3">
             {/* Friend request option */}
-            <label className="flex items-start gap-3 cursor-pointer group">
+            <label className={`flex items-start gap-3 ${friendDisabled ? 'cursor-default' : 'cursor-pointer group'}`}>
               <Checkbox
-                checked={sendFriendReq}
+                checked={isAlreadyFriend || hasPendingFriendRequest || sendFriendReq}
                 onCheckedChange={(checked: boolean) => setSendFriendReq(checked)}
+                disabled={friendDisabled}
                 className="mt-0.5"
               />
               <div className="flex-1">
-                <p className="text-sm text-text-1 group-hover:text-accent transition-colors">
-                  Send friend request to @{matchCreatorUsername}
+                <p className={`text-sm ${friendDisabled ? 'text-text-3' : 'text-text-1 group-hover:text-accent transition-colors'}`}>
+                  {isAlreadyFriend 
+                    ? `Already friends with @${matchCreatorUsername}`
+                    : hasPendingFriendRequest
+                    ? `Friend request pending with @${matchCreatorUsername}`
+                    : `Send friend request to @${matchCreatorUsername}`}
                 </p>
-                <p className="text-xs text-text-3">
-                  Connect with the match creator
-                </p>
+                {!friendDisabled && (
+                  <p className="text-xs text-text-3">
+                    Connect with the match creator
+                  </p>
+                )}
               </div>
             </label>
 
             {/* Collection join options */}
-            {collections.map((collection) => (
-              <label key={collection.id} className="flex items-start gap-3 cursor-pointer group">
-                <Checkbox
-                  checked={joinCollections[collection.id] ?? false}
-                  onCheckedChange={(checked: boolean) =>
-                    setJoinCollections((prev) => ({
-                      ...prev,
-                      [collection.id]: checked,
-                    }))
-                  }
-                  className="mt-0.5"
-                />
-                <div className="flex-1">
-                  <p className="text-sm text-text-1 group-hover:text-accent transition-colors">
-                    Request to join "{collection.name}"
-                  </p>
-                  <p className="text-xs text-text-3">
-                    Join this collection to track stats
-                  </p>
-                </div>
-              </label>
-            ))}
+            {collections.map((collection) => {
+              const isDisabled = collection.isMember || collection.hasPendingRequest;
+              
+              return (
+                <label 
+                  key={collection.id} 
+                  className={`flex items-start gap-3 ${isDisabled ? 'cursor-default' : 'cursor-pointer group'}`}
+                >
+                  <Checkbox
+                    checked={collection.isMember || collection.hasPendingRequest || (joinCollections[collection.id] ?? false)}
+                    onCheckedChange={(checked: boolean) =>
+                      setJoinCollections((prev) => ({
+                        ...prev,
+                        [collection.id]: checked,
+                      }))
+                    }
+                    disabled={isDisabled}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <p className={`text-sm ${isDisabled ? 'text-text-3' : 'text-text-1 group-hover:text-accent transition-colors'}`}>
+                      {collection.isMember
+                        ? `Already a member of "${collection.name}"`
+                        : collection.hasPendingRequest
+                        ? `Join request pending for "${collection.name}"`
+                        : `Request to join "${collection.name}"`}
+                    </p>
+                    {!isDisabled && (
+                      <p className="text-xs text-text-3">
+                        Join this collection to track stats
+                      </p>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
           </div>
 
           {/* Action buttons */}

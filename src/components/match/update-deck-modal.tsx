@@ -17,6 +17,8 @@ interface UpdateDeckModalProps {
   currentDeckId: string | null;
   decks: DeckSummary[];
   isConfirmed: boolean;
+  /** Whether ratings have already been applied to this match */
+  ratingsApplied?: boolean;
 }
 
 /**
@@ -30,6 +32,7 @@ export function UpdateDeckModal({
   currentDeckId,
   decks,
   isConfirmed,
+  ratingsApplied = false,
 }: UpdateDeckModalProps) {
   const [selectedDeckId, setSelectedDeckId] = React.useState<string | null>(currentDeckId);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -104,6 +107,17 @@ export function UpdateDeckModal({
         </CardHeader>
 
         <CardContent className="flex-1 overflow-y-auto py-0">
+          {/* Warning for post-rating changes */}
+          {ratingsApplied && isConfirmed && (
+            <div className="mb-4 rounded-md bg-accent-dim border border-accent-ring p-3">
+              <p className="text-sm font-medium text-accent">Ratings will be recalculated</p>
+              <p className="text-xs text-text-2 mt-1">
+                This match&apos;s ratings have already been applied. Changing your deck will 
+                trigger an overnight recalculation for all affected players from this match forward.
+              </p>
+            </div>
+          )}
+
           {/* Error message */}
           {error && (
             <div className="mb-4 rounded-md bg-danger-dim border border-danger-ring p-3 text-sm text-danger">

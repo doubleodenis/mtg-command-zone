@@ -34,6 +34,8 @@ interface ParticipantListProps {
   userDecks: DeckSummary[];
   matchCreatorId: string;
   matchCreatorUsername: string;
+  /** Whether ratings have already been applied to this match */
+  ratingsApplied?: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export function ParticipantList({
   participants,
   currentUserId,
   userDecks,
+  ratingsApplied = false,
 }: ParticipantListProps) {
   const router = useRouter();
   
@@ -62,7 +65,9 @@ export function ParticipantList({
   const [claimResult, setClaimResult] = React.useState<{
     matchCreatorId: string;
     matchCreatorUsername: string;
-    collections: Array<{ id: string; name: string }>;
+    isAlreadyFriend: boolean;
+    hasPendingFriendRequest: boolean;
+    collections: Array<{ id: string; name: string; isMember: boolean; hasPendingRequest: boolean }>;
   } | null>(null);
 
   const handleOpenModal = (participantId: string, deckId: string | null, isConfirmed: boolean) => {
@@ -94,6 +99,8 @@ export function ParticipantList({
     setClaimResult({
       matchCreatorId: result.data.matchCreatorId,
       matchCreatorUsername: result.data.matchCreatorUsername,
+      isAlreadyFriend: result.data.isAlreadyFriend,
+      hasPendingFriendRequest: result.data.hasPendingFriendRequest,
       collections: result.data.collections,
     });
     setShowPostClaimModal(true);
@@ -227,6 +234,7 @@ export function ParticipantList({
         currentDeckId={selectedDeckId}
         decks={userDecks}
         isConfirmed={selectedIsConfirmed}
+        ratingsApplied={ratingsApplied}
       />
 
       {/* Post-Claim Modal */}
@@ -236,6 +244,8 @@ export function ParticipantList({
           onClose={handleClosePostClaimModal}
           matchCreatorId={claimResult.matchCreatorId}
           matchCreatorUsername={claimResult.matchCreatorUsername}
+          isAlreadyFriend={claimResult.isAlreadyFriend}
+          hasPendingFriendRequest={claimResult.hasPendingFriendRequest}
           collections={claimResult.collections}
           currentUserId={currentUserId}
         />
