@@ -1,0 +1,19 @@
+/**
+ * Spellslinger — Design System Entry Point
+ *
+ * Import this single file in your project's globals.css to get
+ * the complete design system: tokens + typography utilities.
+ *
+ * Usage:
+ *   @import "tailwindcss";
+ *   @import "./_design-system/index.css";
+ *
+ * Contents:
+ *   theme.css      — Tailwind v4 @theme tokens (colors, spacing,
+ *                    fonts, radii, transitions, animations)
+ *   typography.css — @layer utilities composite text classes (text-elo,
+ *                    text-label, text-ui, text-wordmark, etc.)
+ */
+
+@import "./theme.css";
+@import "./typography.css";

@@ -1,0 +1,83 @@
+/**
+ * CommandZone — Typography Utilities
+ *
+ * Composite text utilities that combine font-family, size, weight,
+ * and tracking into single reusable classes. These are design system
+ * primitives — no color, no layout, no borders.
+ *
+ * Requires: tokens/theme.css (for font and size custom properties)
+ *
+ * Uses @utility (Tailwind v4) so all classes support variants:
+ *   hover:text-ui, md:text-label, etc.
+ */
+
+/* 56px Chakra Petch — ELO hero number */
+@utility text-elo {
+  font-family: var(--font-display);
+  font-size: var(--font-size-elo);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* 24px Chakra Petch — stat card values */
+@utility text-stat {
+  font-family: var(--font-display);
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 18px Chakra Petch — ELO delta numbers (+18, -12) */
+@utility text-delta {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 13px JetBrains Mono caps — section labels (OVERVIEW, MATCHES) */
+@utility text-label {
+  font-family: var(--font-data);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  letter-spacing: var(--letter-spacing-widest);
+  text-transform: uppercase;
+}
+
+/* 13px JetBrains Mono caps — stat sublabels (WIN RATE, ELO) */
+@utility text-sublabel {
+  font-family: var(--font-data);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+/* 11px JetBrains Mono — ELO trail (1829 → 1847), timestamps */
+@utility text-mono-xs {
+  font-family: var(--font-data);
+  font-size: var(--font-size-xs);
+}
+
+/* 13px JetBrains Mono — inline data values */
+@utility text-mono-sm {
+  font-family: var(--font-data);
+  font-size: var(--font-size-sm);
+}
+
+/* 15px Chakra Petch — wordmark */
+@utility text-wordmark {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+/* 13px Chakra Petch — nav items, buttons, tags */
+@utility text-ui {
+  font-family: var(--font-display);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: var(--letter-spacing-wide);
+}

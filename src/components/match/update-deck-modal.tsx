@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ColorIdentity } from "@/components/ui/mana-pip";
 import { BracketIndicator } from "@/components/ui/bracket-indicator";
-import { updateMatchParticipantDeck } from "@/app/actions/match";
+import { updateMatchParticipantDeck, confirmMatch } from "@/app/actions/match";
 import type { DeckSummary } from "@/types";
 import type { ManaColor } from "@/app/_design-system";
 
@@ -16,6 +16,9 @@ interface UpdateDeckModalProps {
   participantId: string;
   currentDeckId: string | null;
   decks: DeckSummary[];
+  isConfirmed: boolean;
+  /** Whether ratings have already been applied to this match */
+  ratingsApplied?: boolean;
 }
 
 /**
@@ -28,6 +31,8 @@ export function UpdateDeckModal({
   participantId,
   currentDeckId,
   decks,
+  isConfirmed,
+  ratingsApplied = false,
 }: UpdateDeckModalProps) {
   const [selectedDeckId, setSelectedDeckId] = React.useState<string | null>(currentDeckId);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -47,7 +52,8 @@ export function UpdateDeckModal({
       return;
     }
 
-    if (selectedDeckId === currentDeckId) {
+    // If already confirmed and deck hasn't changed, just close
+    if (isConfirmed && selectedDeckId === currentDeckId) {
       onClose();
       return;
     }
@@ -55,14 +61,24 @@ export function UpdateDeckModal({
     setIsSubmitting(true);
     setError(null);
 
-    const result = await updateMatchParticipantDeck(participantId, selectedDeckId);
-
-    setIsSubmitting(false);
-
-    if (result.success) {
-      onClose();
+    // If not confirmed, use confirmMatch which also updates deck
+    // If already confirmed, just update the deck
+    if (!isConfirmed) {
+      const result = await confirmMatch(participantId, selectedDeckId);
+      setIsSubmitting(false);
+      if (result.success) {
+        onClose();
+      } else {
+        setError(result.error);
+      }
     } else {
-      setError(result.error);
+      const result = await updateMatchParticipantDeck(participantId, selectedDeckId);
+      setIsSubmitting(false);
+      if (result.success) {
+        onClose();
+      } else {
+        setError(result.error);
+      }
     }
   };
 
@@ -80,14 +96,28 @@ export function UpdateDeckModal({
       <Card className="relative z-10 w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col">
         <CardHeader className="shrink-0">
           <h2 className="font-display text-lg font-semibold text-text-1">
-            Update Deck
+            {isConfirmed ? "Update Deck" : "Update Deck & Confirm"}
           </h2>
           <p className="text-sm text-text-2">
-            Select the deck you used in this match
+            {isConfirmed 
+              ? "Select the deck you used in this match"
+              : "Select your deck and confirm your participation"
+            }
           </p>
         </CardHeader>
 
         <CardContent className="flex-1 overflow-y-auto py-0">
+          {/* Warning for post-rating changes */}
+          {ratingsApplied && isConfirmed && (
+            <div className="mb-4 rounded-md bg-accent-dim border border-accent-ring p-3">
+              <p className="text-sm font-medium text-accent">Ratings will be recalculated</p>
+              <p className="text-xs text-text-2 mt-1">
+                This match&apos;s ratings have already been applied. Changing your deck will 
+                trigger an overnight recalculation for all affected players from this match forward.
+              </p>
+            </div>
+          )}
+
           {/* Error message */}
           {error && (
             <div className="mb-4 rounded-md bg-danger-dim border border-danger-ring p-3 text-sm text-danger">
@@ -152,7 +182,10 @@ export function UpdateDeckModal({
             onClick={handleSubmit} 
             disabled={isSubmitting || !selectedDeckId || decks.length === 0}
           >
-            {isSubmitting ? "Updating..." : "Update Deck"}
+            {isSubmitting 
+              ? (isConfirmed ? "Updating..." : "Confirming...") 
+              : (isConfirmed ? "Update Deck" : "Confirm & Update")
+            }
           </Button>
         </div>
       </Card>

@@ -264,6 +264,8 @@ export function createMockMatchCardData(
     ...createMockMatchSummary({ participantCount }),
     participants,
     userParticipant: null, // Default to no user participant for global view
+    isDirty: false,
+    ratingsAppliedAt: null,
     ...overrides,
   }
 }
@@ -402,6 +404,8 @@ export function createMockDashboardMatches(): MatchCardData[] {
       }),
       participants,
       userParticipant: null,
+      isDirty: false,
+      ratingsAppliedAt: null,
     };
   });
 }
@@ -476,6 +480,8 @@ export function createMockUserMatches(userId: string): MatchCardData[] {
       }),
       participants,
       userParticipant,
+      isDirty: false,
+      ratingsAppliedAt: null,
     };
   });
 }
@@ -633,6 +639,8 @@ export function createMockCollectionMatches(count = 10): MatchCardData[] {
       }),
       participants,
       userParticipant: null, // No specific user context
+      isDirty: false,
+      ratingsAppliedAt: null,
     }
   })
 }

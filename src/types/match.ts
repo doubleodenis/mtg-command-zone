@@ -129,6 +129,10 @@ export type MatchSummary = {
 export type MatchCardData = MatchSummary & {
   participants: ParticipantDisplayInfo[]
   userParticipant: ParticipantDisplayInfo | null // current user's slot if participating
+  /** Whether the match needs rating recalculation due to post-lock edits */
+  isDirty: boolean
+  /** When ratings were applied (null = not yet applied) */
+  ratingsAppliedAt: ISODateString | null
 }
 
 // ============================================

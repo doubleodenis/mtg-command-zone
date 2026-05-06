@@ -80,6 +80,9 @@ export async function getMatchById(
       id,
       played_at,
       format_id,
+      locks_at,
+      is_dirty,
+      ratings_applied_at,
       format:formats!matches_format_id_fkey(name, slug)
     `)
     .eq('id', matchId)
@@ -126,6 +129,9 @@ export async function getRecentMatchCards(
       id,
       played_at,
       format_id,
+      locks_at,
+      is_dirty,
+      ratings_applied_at,
       format:formats!matches_format_id_fkey(name, slug)
     `)
     .order('played_at', { ascending: false })
@@ -365,11 +371,14 @@ async function transformMatchToCardData(
   // Handle new lock window fields with fallback for legacy matches
   const matchRow = match as typeof match & {
     locks_at?: string;
+    is_dirty?: boolean;
     ratings_applied_at?: string | null;
   };
   const locksAt = matchRow.locks_at ?? match.played_at;
   const isLocked = new Date(locksAt) <= new Date();
   const ratingsApplied = matchRow.ratings_applied_at != null;
+  const isDirty = matchRow.is_dirty ?? false;
+  const ratingsAppliedAt = matchRow.ratings_applied_at ?? null;
 
   return {
     id: match.id,
@@ -383,6 +392,8 @@ async function transformMatchToCardData(
     locksAt,
     isLocked,
     ratingsApplied,
+    isDirty,
+    ratingsAppliedAt,
     participants: participantInfos,
     userParticipant,
   };

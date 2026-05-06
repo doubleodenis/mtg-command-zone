@@ -45,7 +45,7 @@ export function NotificationList({
         case "matches":
           return ["match_pending_confirmation", "match_confirmed", "match_disputed", "match_result_edited"].includes(n.type);
         case "social":
-          return ["friend_request", "friend_accepted", "collection_invite", "collection_match_added"].includes(n.type);
+          return ["friend_request", "friend_accepted", "collection_invite", "collection_match_added", "collection_join_request"].includes(n.type);
         default:
           return true;
       }
@@ -491,6 +491,12 @@ function NotificationMessage({ notification }: { notification: NotificationWithA
           A match was added to your collection
         </>
       );
+    case "collection_join_request":
+      return (
+        <>
+          <span className="font-medium">{actorName}</span> wants to join your collection
+        </>
+      );
     case "claim_available":
       return (
         <>
@@ -542,6 +548,7 @@ function NotificationTypeIcon({ type, className }: { type: NotificationType; cla
       return <UserIcon className={className} />;
     case "collection_invite":
     case "collection_match_added":
+    case "collection_join_request":
       return <CollectionIcon className={className} />;
     case "elo_milestone":
     case "rank_changed":

@@ -1,18 +1,16 @@
 /**
  * app/globals.css
  *
- * Foundation layer only. Three concerns:
- *   1. Tailwind + theme imports
- *   2. CSS resets
- *   3. Token-derived typography utilities that can't be
- *      expressed as a single Tailwind utility class
+ * Foundation layer only. Two concerns:
+ *   1. Tailwind + design system imports
+ *   2. CSS resets and app-level base styles
  *
  * Rules: NO component styles here. No .badge, .card, .btn, .pip, etc.
  * Those live in their component files using utility classes.
  */
 
 @import "tailwindcss";
-@import "./_design-system/tokens/theme.css";
+@import "./_design-system/index.css";
 
 @layer base {
   /* ─────────────────────────────────────────
@@ -35,7 +33,7 @@
   }
 
   body {
-    background-color: var(--color-bg-base);
+    /* background-color: transparent; */
     color: var(--color-text-1);
     font-family: var(--font-body);
     font-size: var(--font-size-base);
@@ -72,87 +70,7 @@
   }
 }
 
-@layer utilities {
-  /* ─────────────────────────────────────────
-     TYPOGRAPHY UTILITIES
-     These combine font-family + size + weight
-     + tracking into a single reusable class.
-     They are token primitives — no color,
-     no layout, no borders.
-  ───────────────────────────────────────── */
 
-  /* 56px Chakra Petch — ELO hero number */
-  .text-elo {
-    font-family: var(--font-display);
-    font-size: var(--font-size-elo);
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: var(--letter-spacing-tight);
-  }
-
-  /* 28px Chakra Petch — stat card values */
-  .text-stat {
-    font-family: var(--font-display);
-    font-size: var(--font-size-3xl);
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  /* 18px Chakra Petch — ELO delta numbers (+18, -12) */
-  .text-delta {
-    font-family: var(--font-display);
-    font-size: var(--font-size-2xl);
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  /* 13px JetBrains Mono caps — section labels (OVERVIEW, MATCHES) */
-  .text-label {
-    font-family: var(--font-data);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    letter-spacing: var(--letter-spacing-widest);
-    text-transform: uppercase;
-  }
-
-  /* 13px JetBrains Mono caps — stat sublabels (WIN RATE, ELO) */
-  .text-sublabel {
-    font-family: var(--font-data);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    letter-spacing: 0.10em;
-    text-transform: uppercase;
-  }
-
-  /* 11px JetBrains Mono — ELO trail (1829 → 1847), timestamps */
-  .text-mono-xs {
-    font-family: var(--font-data);
-    font-size: var(--font-size-xs);
-  }
-
-  /* 13px JetBrains Mono — inline data values */
-  .text-mono-sm {
-    font-family: var(--font-data);
-    font-size: var(--font-size-sm);
-  }
-
-  /* 15px Chakra Petch — wordmark */
-  .text-wordmark {
-    font-family: var(--font-display);
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: var(--letter-spacing-wider);
-  }
-
-  /* 13px Chakra Petch — nav items, buttons, tags */
-  .text-ui {
-    font-family: var(--font-display);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    letter-spacing: var(--letter-spacing-wide);
-  }
-
-}
 
 /* ─────────────────────────────────────────
    REDUCED MOTION

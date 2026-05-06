@@ -1,8 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { LeaderboardWithFilter } from "@/components/features/leaderboard-with-filter";
 import { createClient } from "@/lib/supabase/server";
-import { getLeaderboard, getFormats } from "@/lib/supabase";
-import type { LeaderboardEntry } from "@/types";
+import { getLeaderboardData } from "@/lib/services";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -15,48 +14,12 @@ export default async function CollectionLeaderboardPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
 
-  // Fetch leaderboards for all formats
-  const formatsResult = await getFormats(supabase);
-  const formats = formatsResult.success ? formatsResult.data : [];
-  const leaderboardPromises = formats.map((f) => 
-    getLeaderboard(supabase, f.id, 100, id).then(result => ({ format: f, result }))
-  );
-  const leaderboardResults = await Promise.all(leaderboardPromises);
+  const leaderboardResult = await getLeaderboardData(supabase, {
+    collectionId: id,
+    limitPerFormat: 100,
+  });
 
-  // Build entries with format slugs for filtering
-  const allEntries: LeaderboardEntry[] = [];
-  for (const { format, result } of leaderboardResults) {
-    if (!result.success) continue;
-    for (const entry of result.data) {
-      allEntries.push({ ...entry, formatSlug: format.slug });
-    }
-  }
-
-  // Aggregate for "All Formats" view
-  const userMap = new Map<string, LeaderboardEntry>();
-  for (const entry of allEntries) {
-    const existing = userMap.get(entry.id);
-    if (existing) {
-      // Combine stats - keep highest rating, sum matches/wins
-      existing.matchesPlayed += entry.matchesPlayed;
-      existing.wins += entry.wins;
-      existing.rating = Math.max(existing.rating, entry.rating);
-      existing.winRate = existing.matchesPlayed > 0
-        ? Math.round((existing.wins / existing.matchesPlayed) * 100)
-        : 0;
-    } else {
-      // "all" entries have no formatSlug
-      userMap.set(entry.id, { ...entry, formatSlug: undefined });
-    }
-  }
-
-  // Build aggregated entries
-  const aggregatedEntries = Array.from(userMap.values())
-    .sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.rating - a.rating)
-    .map((entry, index) => ({ ...entry, rank: index + 1 }));
-
-  // Combine: aggregated (for "All") + individual format entries (for filtering)
-  const leaderboard = [...aggregatedEntries, ...allEntries];
+  const leaderboard = leaderboardResult.success ? leaderboardResult.data.entries : [];
 
   return (
     <Card>

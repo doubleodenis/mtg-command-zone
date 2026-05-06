@@ -42,6 +42,16 @@ export function InviteLinkButton({ matchId, hasPlaceholderSlots }: InviteLinkBut
 
     setInviteUrl(result.data.inviteUrl)
     setIsGenerating(false)
+
+    // Auto-copy the generated link
+    try {
+      const fullUrl = `${window.location.origin}${result.data.inviteUrl}`
+      await navigator.clipboard.writeText(fullUrl)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    } catch {
+      // Silently fail copy - user can still manually copy
+    }
   }
 
   const handleCopyLink = async () => {

@@ -150,17 +150,30 @@
 ---
 
 ## Phase 8 — Rating System
-> Complete (except Edge Function)!
+> Complete (except full admin recalculation)!
 
 - [x] Wire rating calculation to match confirmation event
 - [x] Global rating update on confirmation
 - [x] Collection-scoped rating update on confirmation (all collections the match belongs to)
 - [x] Rating history logging with all snapshot fields (`player_bracket`, `opponent_avg_rating`, `opponent_avg_bracket`, `k_factor`, `algorithm_version`)
-- [ ] Rating recalculation as a Supabase Edge Function
-  - [ ] Reset all ratings to default
-  - [ ] Replay confirmed matches in chronological order
+- [x] Dirty match tracking (`is_dirty` flag set when deck updated post-confirmation)
+- [x] Nightly rating recalculation job
+  - [x] UI indicator on match detail when pending recalculation ("Pending Recalc" badge)
+  - [x] Warning in update-deck modal for confirmed matches ("will trigger overnight recalculation")
+  - [x] Dirty match recalculation script (`npm run ratings:recalculate-dirty`)
+  - [x] SQL helper functions (`get_rating_before_match`, `get_dirty_matches_batch`, etc.)
+  - [x] Recalculation logging table for monitoring
+  - [x] Pure PL/pgSQL stored procedure `recalculate_dirty_matches()` (no edge function needed)
+  - [ ] pg_cron scheduled job setup (enable via Supabase dashboard, 4am UTC)
+- [x] Rating recalculation debugging tools
+  - [x] Enhanced logging in `updateMatchParticipantDeck()` with bracket change tracking
+  - [x] Verbose logging in recalc script (bracket values, delta comparisons, upsert results)
+  - [x] Debug API endpoint `/api/debug/recalculate` (dev-only)
+  - [x] Match debug panel component showing `is_dirty`, bracket mismatches, manual recalc trigger
+- [ ] Full rating recalculation (admin tool)
+  - [x] Reset all ratings to default
+  - [x] Replay confirmed matches in chronological order
   - [ ] Stamp new `algorithm_version` on rewritten history rows
-  - [ ] Admin panel status indicator for recalculation progress
 
 ---
 
@@ -198,7 +211,7 @@
 > You are here.
 
 - [x] Vitest setup and configuration
-- [x] Rating system unit tests (37 tests)
+- [x] Rating system unit tests (50 tests)
   - [x] K factor calculation tests
   - [x] Expected score calculation tests
   - [x] Bracket modifier tests
@@ -206,6 +219,7 @@
   - [x] Full rating calculation tests
   - [x] Batch match rating tests
   - [x] Utility function tests
+  - [x] Dirty match recalculation tests (bracket change scenarios, delta differences)
 - [ ] Supabase query helpers tests
 - [ ] Database mappers tests
 - [ ] Integration tests for critical paths
@@ -224,3 +238,10 @@
 - [ ] Deck archetypes and power level tags (e.g. CEDH, Casual, 1–10 scale)
 - [ ] Tournaments (bracket or round-robin events within a collection)
 - [ ] Mobile app (React Native or PWA)
+
+---
+
+## Known Issues
+
+- [ ] Match details page missing bracket level visual for individual participant decks
+- [ ] Updating deck with different bracket isn't recalculating ratings correctly (debugging in progress — see debug panel on match detail page)

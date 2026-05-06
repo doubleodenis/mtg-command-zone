@@ -4,7 +4,7 @@ import { getMatchById } from '@/lib/services'
 import { getActiveDecks } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { MatchPreviewCard, InviteLinkButton } from '@/components/match'
+import { MatchPreviewCard, InviteLinkButton, MatchDebugPanel } from '@/components/match'
 import { AddToCollectionButton } from '@/components/match/add-to-collection-button'
 import { Navbar } from '@/components/features/navbar'
 import { ParticipantList } from './participant-list'
@@ -47,7 +47,13 @@ export default async function MatchDetailsPage({ params }: PageProps) {
   const [matchResult, userDecksResult, matchCreatorResult] = await Promise.all([
     getMatchById(supabase, matchId, user?.id),
     user ? getActiveDecks(supabase, user.id) : Promise.resolve({ success: true as const, data: [] }),
-    supabase.from('matches').select('created_by').eq('id', matchId).single(),
+    supabase.from('matches').select(`
+      created_by,
+      creator:profiles!matches_created_by_fkey (
+        id,
+        username
+      )
+    `).eq('id', matchId).single(),
   ])
   
   if (!matchResult.success) {
@@ -65,6 +71,11 @@ export default async function MatchDetailsPage({ params }: PageProps) {
         bracket: d.bracket,
       }))
     : []
+  
+  // Extract creator info
+  const creatorData = matchCreatorResult.data?.creator as { id: string; username: string } | null
+  const matchCreatorId = creatorData?.id ?? matchCreatorResult.data?.created_by ?? ''
+  const matchCreatorUsername = creatorData?.username ?? 'Unknown'
   
   // Determine if user is creator and if there are placeholder slots
   const isCreator = user && matchCreatorResult.data?.created_by === user.id
@@ -103,6 +114,15 @@ export default async function MatchDetailsPage({ params }: PageProps) {
                   matchId={matchId} 
                   hasPlaceholderSlots={hasPlaceholderSlots} 
                 />
+              )}
+              {match.isDirty && (
+                <Badge 
+                  variant="accent" 
+                  pulse
+                  title="This match was edited after ratings were applied. Ratings will be recalculated overnight."
+                >
+                  Pending Recalc
+                </Badge>
               )}
               <Badge variant="accent">
                 {match.formatSlug.toUpperCase()}
@@ -198,6 +218,9 @@ export default async function MatchDetailsPage({ params }: PageProps) {
               }))}
               currentUserId={user?.id ?? null}
               userDecks={userDecks}
+              matchCreatorId={matchCreatorId}
+              matchCreatorUsername={matchCreatorUsername}
+              ratingsApplied={match.ratingsApplied}
             />
           </CardContent>
         </Card>
@@ -211,6 +234,13 @@ export default async function MatchDetailsPage({ params }: PageProps) {
             <p className="text-text-3 italic">No notes for this match.</p>
           </CardContent>
         </Card>
+
+        {/* Debug Panel - DEV ONLY */}
+        <MatchDebugPanel 
+          matchId={matchId} 
+          isDirty={match.isDirty} 
+          ratingsAppliedAt={match.ratingsAppliedAt}
+        />
       </div>
     </div>
   )

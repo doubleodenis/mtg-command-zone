@@ -17,6 +17,7 @@ export type NotificationType =
   | 'rank_changed'
   | 'collection_invite'
   | 'collection_match_added'
+  | 'collection_join_request'
   | 'claim_available'
   | 'claim_accepted'
   | 'deck_retroactively_updated'
@@ -66,6 +67,7 @@ export type NotificationData =
   | FriendRequestData
   | FriendAcceptedData
   | CollectionInviteData
+  | CollectionJoinRequestData
   | ClaimAvailableData
   | ClaimAcceptedData
   | EloMilestoneData
@@ -127,6 +129,17 @@ export type CollectionInviteData = {
   owner_username: string
   owner_avatar_url: string | null
   role: 'owner' | 'member'
+}
+
+/**
+ * Collection join request notification data (for collection owner)
+ */
+export type CollectionJoinRequestData = {
+  collection_id: UUID
+  collection_name: string
+  requester_id: UUID
+  requester_username: string
+  requester_avatar_url: string | null
 }
 
 /**
@@ -199,6 +212,7 @@ export function getNotificationTitle(type: NotificationType): string {
     rank_changed: 'Rank Changed',
     collection_invite: 'Collection Invitation',
     collection_match_added: 'Match Added to Collection',
+    collection_join_request: 'Collection Join Request',
     claim_available: 'Placeholder Claim Request',
     claim_accepted: 'Claim Approved',
     deck_retroactively_updated: 'Deck Updated',
@@ -247,6 +261,7 @@ export const NOTIFICATION_TTL: Record<NotificationType, number | null> = {
   rank_changed: 90,
   collection_invite: 14,
   collection_match_added: 90,
+  collection_join_request: 30,
   claim_available: 30,
   claim_accepted: null, // never expires
   deck_retroactively_updated: 90,

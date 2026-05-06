@@ -7,6 +7,7 @@ export { FormatSelector } from "./format-selector";
 export { PlayerSlot } from "./player-slot";
 export { PentagramLayout } from "./pentagram-layout";
 export { UpdateDeckModal } from "./update-deck-modal";
+export { MatchDebugPanel } from "./match-debug-panel";
 export type {
   ParticipantSlot,
   SearchResult,

@@ -9,6 +9,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import type { NotificationWithActor, NotificationType } from "@/types/notification";
 import { getNotificationTitle, getNotificationUrl } from "@/types/notification";
+import { useClickOutside } from "@/hooks/use-click-outside";
+import { useEscapeKey } from "@/hooks/use-escape-key";
 
 interface NotificationDropdownProps {
   initialNotifications: NotificationWithActor[];
@@ -30,33 +32,9 @@ export function NotificationDropdown({
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [isOpen]);
-
-  // Close dropdown on escape key
-  React.useEffect(() => {
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      return () => document.removeEventListener("keydown", handleEscape);
-    }
-  }, [isOpen]);
+  const closeDropdown = React.useCallback(() => setIsOpen(false), []);
+  useClickOutside(dropdownRef, closeDropdown, isOpen);
+  useEscapeKey(closeDropdown, isOpen);
 
   // Mark notifications as seen when dropdown opens
   const handleOpen = async () => {
@@ -318,6 +296,12 @@ function NotificationMessage({ notification }: { notification: NotificationWithA
       return (
         <>
           A match was added to your collection
+        </>
+      );
+    case "collection_join_request":
+      return (
+        <>
+          <span className="font-medium">{actorName}</span> wants to join your collection
         </>
       );
     case "claim_available":

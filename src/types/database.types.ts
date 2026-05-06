@@ -7,34 +7,51 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
       app_settings: {
         Row: {
-          backdate_limit_days: number
-          created_at: string | null
+          description: string | null
           key: string
-          lock_window_hours: number
           updated_at: string | null
+          value: Json
         }
         Insert: {
-          backdate_limit_days?: number
-          created_at?: string | null
+          description?: string | null
           key: string
-          lock_window_hours?: number
           updated_at?: string | null
+          value: Json
         }
         Update: {
-          backdate_limit_days?: number
-          created_at?: string | null
+          description?: string | null
           key?: string
-          lock_window_hours?: number
           updated_at?: string | null
+          value?: Json
         }
         Relationships: []
       }
@@ -298,68 +315,48 @@ export type Database = {
           },
         ]
       }
-      group_matches: {
-        Row: {
-          added_at: string | null
-          added_by: string
-          group_id: string
-          id: string
-          match_id: string
-          notes: string | null
-        }
-        Insert: {
-          added_at?: string | null
-          added_by: string
-          group_id: string
-          id?: string
-          match_id: string
-          notes?: string | null
-        }
-        Update: {
-          added_at?: string | null
-          added_by?: string
-          group_id?: string
-          id?: string
-          match_id?: string
-          notes?: string | null
-        }
-        Relationships: []
-      }
       match_invite_tokens: {
         Row: {
+          created_at: string
+          created_by: string
+          expires_at: string
           id: string
           match_id: string
           participant_id: string | null
           token: string
-          created_by: string
-          created_at: string
-          expires_at: string
           used_at: string | null
           used_by: string | null
         }
         Insert: {
+          created_at?: string
+          created_by: string
+          expires_at?: string
           id?: string
           match_id: string
           participant_id?: string | null
           token: string
-          created_by: string
-          created_at?: string
-          expires_at?: string
           used_at?: string | null
           used_by?: string | null
         }
         Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string
           id?: string
           match_id?: string
           participant_id?: string | null
           token?: string
-          created_by?: string
-          created_at?: string
-          expires_at?: string
           used_at?: string | null
           used_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "match_invite_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "match_invite_tokens_match_id_fkey"
             columns: ["match_id"]
@@ -372,13 +369,6 @@ export type Database = {
             columns: ["participant_id"]
             isOneToOne: false
             referencedRelation: "match_participants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "match_invite_tokens_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -475,7 +465,7 @@ export type Database = {
           id: string
           is_dirty: boolean
           last_recalculated_at: string | null
-          locks_at: string
+          locks_at: string | null
           match_data: Json
           notes: string | null
           played_at: string
@@ -488,7 +478,7 @@ export type Database = {
           id?: string
           is_dirty?: boolean
           last_recalculated_at?: string | null
-          locks_at?: string
+          locks_at?: string | null
           match_data?: Json
           notes?: string | null
           played_at?: string
@@ -501,7 +491,7 @@ export type Database = {
           id?: string
           is_dirty?: boolean
           last_recalculated_at?: string | null
-          locks_at?: string
+          locks_at?: string | null
           match_data?: Json
           notes?: string | null
           played_at?: string
@@ -537,6 +527,7 @@ export type Database = {
           read_at: string | null
           recipient_id: string
           seen_at: string | null
+          triggered_by: string | null
           type: Database["public"]["Enums"]["notification_type"]
         }
         Insert: {
@@ -551,6 +542,7 @@ export type Database = {
           read_at?: string | null
           recipient_id: string
           seen_at?: string | null
+          triggered_by?: string | null
           type: Database["public"]["Enums"]["notification_type"]
         }
         Update: {
@@ -565,6 +557,7 @@ export type Database = {
           read_at?: string | null
           recipient_id?: string
           seen_at?: string | null
+          triggered_by?: string | null
           type?: Database["public"]["Enums"]["notification_type"]
         }
         Relationships: [
@@ -578,6 +571,13 @@ export type Database = {
           {
             foreignKeyName: "notifications_recipient_id_fkey"
             columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_triggered_by_fkey"
+            columns: ["triggered_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -624,6 +624,7 @@ export type Database = {
           player_bracket: number
           rating_after: number
           rating_before: number
+          recalculated_at: string | null
           user_id: string
         }
         Insert: {
@@ -641,6 +642,7 @@ export type Database = {
           player_bracket: number
           rating_after: number
           rating_before: number
+          recalculated_at?: string | null
           user_id: string
         }
         Update: {
@@ -658,6 +660,7 @@ export type Database = {
           player_bracket?: number
           rating_after?: number
           rating_before?: number
+          recalculated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -746,12 +749,108 @@ export type Database = {
           },
         ]
       }
+      recalculation_log: {
+        Row: {
+          batch_size: number
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          matches_failed: number
+          matches_processed: number
+          started_at: string
+          triggered_by: string
+        }
+        Insert: {
+          batch_size: number
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          matches_failed?: number
+          matches_processed?: number
+          started_at?: string
+          triggered_by?: string
+        }
+        Update: {
+          batch_size?: number
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          matches_failed?: number
+          matches_processed?: number
+          started_at?: string
+          triggered_by?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      apply_rating_change: {
+        Args: {
+          p_algorithm_version: number
+          p_collection_id: string
+          p_delta: number
+          p_format_id: string
+          p_is_win: boolean
+          p_k_factor: number
+          p_match_id: string
+          p_new_rating: number
+          p_opponent_avg_bracket: number
+          p_opponent_avg_rating: number
+          p_player_bracket: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      auto_confirm_match_participants: {
+        Args: { p_match_id: string }
+        Returns: undefined
+      }
+      calculate_bracket_modifier: {
+        Args: { p_opponent_avg_bracket: number; p_player_bracket: number }
+        Returns: number
+      }
+      calculate_expected_score: {
+        Args: { p_all_ratings: number[]; p_player_rating: number }
+        Returns: number
+      }
+      calculate_rating_delta: {
+        Args: {
+          p_is_winner: boolean
+          p_opponent_brackets: number[]
+          p_opponent_ratings: number[]
+          p_player_bracket: number
+          p_player_match_count: number
+          p_player_rating: number
+        }
+        Returns: {
+          bracket_modifier: number
+          delta: number
+          expected_score: number
+          k_factor: number
+          opponent_avg_bracket: number
+          opponent_avg_rating: number
+        }[]
+      }
       cleanup_expired_notifications: { Args: never; Returns: number }
+      clear_match_dirty_flag: {
+        Args: { p_match_id: string }
+        Returns: undefined
+      }
+      complete_recalculation_log: {
+        Args: {
+          p_error_message?: string
+          p_log_id: string
+          p_matches_failed?: number
+          p_matches_processed: number
+        }
+        Returns: undefined
+      }
       create_notification: {
         Args: {
           p_actor_id: string
@@ -773,6 +872,7 @@ export type Database = {
           read_at: string | null
           recipient_id: string
           seen_at: string | null
+          triggered_by: string | null
           type: Database["public"]["Enums"]["notification_type"]
         }
         SetofOptions: {
@@ -782,9 +882,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_match_rating_history: {
+        Args: { p_match_id: string }
+        Returns: number
+      }
       dismiss_notifications: {
         Args: { p_notification_ids?: string[]; p_recipient_id: string }
         Returns: number
+      }
+      generate_invite_token: { Args: { length?: number }; Returns: string }
+      get_app_setting: {
+        Args: { p_key: string; p_path?: string }
+        Returns: Json
       }
       get_deck_stats: {
         Args: { p_deck_id: string }
@@ -795,74 +904,53 @@ export type Database = {
           wins: number
         }[]
       }
-      get_group_match_count: { Args: { group_uuid: string }; Returns: number }
-      get_group_matches: {
-        Args: { group_uuid: string; limit_count?: number }
+      get_dirty_matches: {
+        Args: never
         Returns: {
-          added_at: string
-          added_by_username: string
-          date_played: string
-          format: string
+          format_id: string
           match_id: string
+          participant_count: number
+          played_at: string
         }[]
       }
-      get_group_participants: {
-        Args: { group_uuid: string }
+      get_dirty_matches_batch: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_by: string
+          format_id: string
+          match_id: string
+          played_at: string
+        }[]
+      }
+      get_k_factor: { Args: { p_matches_played: number }; Returns: number }
+      get_leaderboard: {
+        Args: {
+          p_collection_id?: string
+          p_format_id: string
+          p_limit?: number
+        }
         Returns: {
           avatar_url: string
           display_name: string
-          matches_in_group: number
+          matches_played: number
+          rank: number
+          rating: number
           user_id: string
           username: string
-          wins_in_group: number
+          win_rate: number
+          wins: number
         }[]
       }
-      get_group_stats: {
-        Args: { group_uuid: string }
+      get_lock_window_hours: { Args: never; Returns: number }
+      get_match_participants_for_recalc: {
+        Args: { p_match_id: string }
         Returns: {
-          date_range_end: string
-          date_range_start: string
-          total_matches: number
-          total_participants: number
-        }[]
-      }
-      get_leaderboard:
-        | {
-            Args: { limit_count?: number }
-            Returns: {
-              avatar_url: string
-              display_name: string
-              total_matches: number
-              user_id: string
-              username: string
-              win_rate: number
-              wins: number
-            }[]
-          }
-        | {
-            Args: {
-              p_collection_id?: string
-              p_format_id: string
-              p_limit?: number
-            }
-            Returns: {
-              avatar_url: string
-              matches_played: number
-              rank: number
-              rating: number
-              user_id: string
-              username: string
-              win_rate: number
-              wins: number
-            }[]
-          }
-      get_match_groups: {
-        Args: { match_uuid: string }
-        Returns: {
-          added_at: string
-          color: string
-          group_id: string
-          group_name: string
+          deck_bracket: number
+          deck_id: string
+          is_winner: boolean
+          participant_id: string
+          team: string
+          user_id: string
         }[]
       }
       get_notification_ttl: {
@@ -892,15 +980,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      get_top_commanders: {
-        Args: { limit_count?: number }
-        Returns: {
-          commander_image_uri: string
-          commander_name: string
-          times_played: number
-          win_rate: number
-          wins: number
-        }[]
+      get_rating_before_match: {
+        Args: {
+          p_collection_id: string
+          p_format_id: string
+          p_match_played_at: string
+          p_user_id: string
+        }
+        Returns: number
       }
       get_unread_notification_count: {
         Args: { p_recipient_id: string }
@@ -910,25 +997,29 @@ export type Database = {
         Args: { p_recipient_id: string }
         Returns: number
       }
-      get_user_stats:
-        | {
-            Args: { p_format_id?: string; p_user_id: string }
-            Returns: {
-              losses: number
-              total_matches: number
-              win_rate: number
-              wins: number
-            }[]
-          }
-        | {
-            Args: { user_uuid: string }
-            Returns: {
-              losses: number
-              total_matches: number
-              win_rate: number
-              wins: number
-            }[]
-          }
+      get_user_stats: {
+        Args: { p_format_id?: string; p_user_id: string }
+        Returns: {
+          losses: number
+          total_matches: number
+          win_rate: number
+          wins: number
+        }[]
+      }
+      is_collection_member: {
+        Args: { p_collection_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_collection_owner: {
+        Args: { p_collection_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_collection_public: {
+        Args: { p_collection_id: string }
+        Returns: boolean
+      }
+      is_match_locked: { Args: { p_match_id: string }; Returns: boolean }
+      mark_match_dirty: { Args: { p_match_id: string }; Returns: boolean }
       mark_notifications_read: {
         Args: { p_notification_ids?: string[]; p_recipient_id: string }
         Returns: number
@@ -936,6 +1027,69 @@ export type Database = {
       mark_notifications_seen: {
         Args: { p_recipient_id: string }
         Returns: number
+      }
+      mark_ratings_applied: { Args: { p_match_id: string }; Returns: undefined }
+      process_expired_lock_windows: {
+        Args: never
+        Returns: {
+          match_id: string
+          participant_count: number
+        }[]
+      }
+      reset_ratings_for_recalculation: {
+        Args: { confirm_reset?: boolean }
+        Returns: undefined
+      }
+      start_recalculation_log: {
+        Args: { p_batch_size: number; p_triggered_by?: string }
+        Returns: string
+      }
+      update_rating_history: {
+        Args: {
+          p_algorithm_version: number
+          p_collection_id: string
+          p_delta: number
+          p_format_id: string
+          p_is_win: boolean
+          p_k_factor: number
+          p_match_id: string
+          p_opponent_avg_bracket: number
+          p_opponent_avg_rating: number
+          p_player_bracket: number
+          p_rating_after: number
+          p_rating_before: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      update_user_rating: {
+        Args: {
+          p_adjust_matches?: number
+          p_adjust_wins?: number
+          p_collection_id: string
+          p_format_id: string
+          p_new_rating: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      upsert_rating_history: {
+        Args: {
+          p_algorithm_version: number
+          p_collection_id: string
+          p_delta: number
+          p_format_id: string
+          p_is_win: boolean
+          p_k_factor: number
+          p_match_id: string
+          p_opponent_avg_bracket: number
+          p_opponent_avg_rating: number
+          p_player_bracket: number
+          p_rating_after: number
+          p_rating_before: number
+          p_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
@@ -962,6 +1116,7 @@ export type Database = {
         | "deck_retroactively_updated"
         | "friend_request"
         | "friend_accepted"
+        | "collection_join_request"
       participant_status: "pending" | "confirmed" | "auto_confirmed"
       win_condition_type:
         | "last_standing"
@@ -1092,6 +1247,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       approval_status: ["approved", "pending", "rejected"],
@@ -1118,7 +1276,9 @@ export const Constants = {
         "deck_retroactively_updated",
         "friend_request",
         "friend_accepted",
+        "collection_join_request",
       ],
+      participant_status: ["pending", "confirmed", "auto_confirmed"],
       win_condition_type: [
         "last_standing",
         "eliminate_team",
@@ -1127,3 +1287,4 @@ export const Constants = {
     },
   },
 } as const
+

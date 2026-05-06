@@ -533,6 +533,8 @@ export async function applyRatingChange(
     algorithmVersion: number
   }
 ): Promise<Result<null>> {
+  const scope = params.collectionId ? `collection:${params.collectionId}` : 'global';
+  console.log(`[RATING] applyRatingChange: user=${params.userId}, match=${params.matchId}, scope=${scope}, delta=${params.delta}, newRating=${params.newRating}`);
   // apply_rating_change is not yet in the generated Database types.
   // Cast through unknown (not any) to an explicit typed shim.
   type RpcShim = {

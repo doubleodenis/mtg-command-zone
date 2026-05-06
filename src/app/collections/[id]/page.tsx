@@ -12,12 +12,16 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getCollectionWithMembers,
   isCollectionMember,
-  getLeaderboard,
-  getFormats,
   getPendingMatchApprovalsWithDetails,
 } from "@/lib/supabase";
-import { getRecentMatchCards, getTopCommanders, getUserStats } from "@/lib/services";
-import type { CollectionMemberWithProfile, PendingMatchApproval, LeaderboardEntry } from "@/types";
+import {
+  getRecentMatchCards,
+  getTopCommanders,
+  getUserStats,
+  getLeaderboardData,
+  getTopPlayerBy,
+} from "@/lib/services";
+import type { CollectionMemberWithProfile, PendingMatchApproval } from "@/types";
 import type { DeckWithStats } from "@/types/deck";
 
 // Force dynamic rendering
@@ -58,54 +62,15 @@ export default async function CollectionPage({ params }: PageProps) {
   }
 
   // Fetch additional data in parallel
-  const [formatsResult, matchesResult, commandersResult] = await Promise.all([
-    getFormats(supabase),
+  const [leaderboardResult, matchesResult, commandersResult] = await Promise.all([
+    getLeaderboardData(supabase, { collectionId: id, limitPerFormat: 50, aggregatedLimit: 10 }),
     getRecentMatchCards(supabase, { limit: 8, collectionId: id, viewerUserId: user?.id }),
     getTopCommanders(supabase, { limit: 5, collectionId: id }),
   ]);
 
-  // Fetch leaderboards for all formats
-  const formats = formatsResult.success ? formatsResult.data : [];
-  const leaderboardPromises = formats.map((f) => 
-    getLeaderboard(supabase, f.id, 50, id).then(result => ({ format: f, result }))
-  );
-  const leaderboardResults = await Promise.all(leaderboardPromises);
-
-  // Build entries with format slugs for filtering
-  const allEntries: LeaderboardEntry[] = [];
-  for (const { format, result } of leaderboardResults) {
-    if (!result.success) continue;
-    for (const entry of result.data) {
-      allEntries.push({ ...entry, formatSlug: format.slug });
-    }
-  }
-
-  // Aggregate for "All Formats" view and compute rankings
-  const userMap = new Map<string, LeaderboardEntry>();
-  for (const entry of allEntries) {
-    const existing = userMap.get(entry.id);
-    if (existing) {
-      // Combine stats - keep highest rating, sum matches/wins
-      existing.matchesPlayed += entry.matchesPlayed;
-      existing.wins += entry.wins;
-      existing.rating = Math.max(existing.rating, entry.rating);
-      existing.winRate = existing.matchesPlayed > 0
-        ? Math.round((existing.wins / existing.matchesPlayed) * 100)
-        : 0;
-    } else {
-      // "all" entries have no formatSlug
-      userMap.set(entry.id, { ...entry, formatSlug: undefined });
-    }
-  }
-
-  // Build final leaderboard with both aggregated and per-format entries
-  const aggregatedEntries = Array.from(userMap.values())
-    .sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.rating - a.rating)
-    .slice(0, 10)
-    .map((entry, index) => ({ ...entry, rank: index + 1 }));
-
-  // Combine: aggregated (for "All") + individual format entries (for filtering)
-  const leaderboard = [...aggregatedEntries, ...allEntries];
+  const { entries: leaderboard, aggregatedEntries } = leaderboardResult.success
+    ? leaderboardResult.data
+    : { entries: [], aggregatedEntries: [] };
 
   const recentMatches = matchesResult.success ? matchesResult.data : [];
   const topCommanders = commandersResult.success ? commandersResult.data : [];
@@ -125,9 +90,7 @@ export default async function CollectionPage({ params }: PageProps) {
   const topCommander = topCommanders.length > 0 ? topCommanders[0] : null;
   
   // Get highest win rate player from aggregated leaderboard
-  const topWinRatePlayer = aggregatedEntries.length > 0 
-    ? aggregatedEntries.reduce((best, entry) => entry.winRate > best.winRate ? entry : best, aggregatedEntries[0])
-    : null;
+  const topWinRatePlayer = getTopPlayerBy(aggregatedEntries, 'winRate') ?? null;
 
   // Get current user's stats for this collection
   let myWinRate = 0;

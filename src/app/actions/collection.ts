@@ -542,3 +542,82 @@ export async function rejectCollectionMatch(
 
   return { success: true, data: null }
 }
+
+/**
+ * Request to join a collection.
+ * Creates a notification for the collection owner with the requester's info.
+ */
+export async function requestCollectionMembership(
+  collectionId: string
+): Promise<Result<null>> {
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  // Check if already a member
+  const memberCheck = await isCollectionMember(supabase, collectionId, user.id)
+  if (memberCheck.success && memberCheck.data) {
+    return { success: false, error: 'You are already a member of this collection' }
+  }
+
+  // Get collection to verify it exists and get owner
+  const collectionResult = await getCollectionById(supabase, collectionId)
+  if (!collectionResult.success) {
+    return { success: false, error: 'Collection not found' }
+  }
+
+  // Get the requester's profile for notification data
+  const { data: requesterProfile } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_url')
+    .eq('id', user.id)
+    .single()
+
+  if (!requesterProfile) {
+    return { success: false, error: 'Profile not found' }
+  }
+
+  // Check if there's already a pending request (check notifications)
+  const { data: existingNotif } = await supabase
+    .from('notifications')
+    .select('id')
+    .eq('recipient_id', collectionResult.data.ownerId)
+    .eq('type', 'collection_join_request')
+    .eq('entity_id', collectionId)
+    .eq('triggered_by', user.id)
+    .is('dismissed_at', null)
+    .maybeSingle()
+
+  if (existingNotif) {
+    return { success: false, error: 'You already have a pending request to join this collection' }
+  }
+
+  // Create notification for collection owner
+  const { error: notifError } = await supabase
+    .from('notifications')
+    .insert({
+      recipient_id: collectionResult.data.ownerId,
+      actor_id: user.id,
+      triggered_by: user.id,
+      type: 'collection_join_request',
+      entity_type: 'collection',
+      entity_id: collectionId,
+      data: {
+        collection_id: collectionId,
+        collection_name: collectionResult.data.name,
+        requester_id: user.id,
+        requester_username: requesterProfile.username,
+        requester_avatar_url: requesterProfile.avatar_url,
+      },
+    })
+
+  if (notifError) {
+    return { success: false, error: notifError.message }
+  }
+
+  return { success: true, data: null }
+}
