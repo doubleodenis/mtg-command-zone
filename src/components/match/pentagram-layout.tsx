@@ -200,9 +200,9 @@ function PentagonPlayerCard({
   // Empty slot
   if (slot.type === "empty") {
     return (
-      <div 
+      <div
         className={cn(
-          "w-full p-3 rounded-lg border border-dashed bg-card-raised/30 transition-colors",
+          "w-full p-3 rounded-xl border border-dashed bg-card-raised/30 transition-colors",
           isEnemyHighlighted ? "border-loss/70 bg-loss/5" : "border-card-border"
         )}
         onFocus={() => onFocusChange?.(true)}
@@ -360,19 +360,19 @@ function PentagonPlayerCard({
     );
   }
 
-  // Filled slot
-  const displayName = slot.type === "registered" 
+  // Filled slot - two-zone card: identity header, then details below a divider
+  const displayName = slot.type === "registered"
     ? (slot.displayName || slot.username || "Player")
     : (slot.placeholderName || "Guest");
 
   return (
     <div
       className={cn(
-        "w-full p-3 rounded-lg border transition-all",
-        isEnemyHighlighted 
-          ? "bg-loss/10 border-loss/50" 
-          : slot.isWinner 
-            ? "bg-win/10 border-win/50" 
+        "w-full rounded-xl border transition-all",
+        isEnemyHighlighted
+          ? "bg-loss/10 border-loss/50"
+          : slot.isWinner
+            ? "bg-win/10 border-win/50"
             : "bg-card border-card-border"
       )}
       onFocus={() => onFocusChange?.(true)}
@@ -380,11 +380,12 @@ function PentagonPlayerCard({
     >
       {/* Enemy indicator for mobile */}
       {isEnemyHighlighted && (
-        <div className="text-xs text-loss font-medium mb-2 text-center">⚔️ Enemy</div>
+        <div className="text-xs text-loss font-medium text-center pt-2">⚔️ Enemy</div>
       )}
-      {/* Top row: avatar and actions */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
+
+      {/* Header zone: avatar, name/guest-input, action icons */}
+      <div className="flex items-center gap-2 p-3">
+        <div className="shrink-0">
           {slot.type === "registered" && slot.avatarUrl ? (
             <img src={slot.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
           ) : (
@@ -392,11 +393,22 @@ function PentagonPlayerCard({
               {slot.type === "registered" ? displayName.charAt(0).toUpperCase() : "👤"}
             </div>
           )}
-          {slot.type === "registered" && (
-            <span className="text-sm font-medium text-text-1 truncate">{displayName}</span>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {slot.type === "registered" ? (
+            <span className="text-sm font-medium text-text-1 truncate block">{displayName}</span>
+          ) : (
+            <Input
+              value={slot.placeholderName || ""}
+              onChange={(e) => onChangePlaceholderName(e.target.value)}
+              placeholder="Guest name"
+              className="h-8 text-sm"
+            />
           )}
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="shrink-0 flex items-center gap-1">
           <button
             type="button"
             onClick={onToggleWinner}
@@ -417,83 +429,74 @@ function PentagonPlayerCard({
         </div>
       </div>
 
-      {/* Name input for guests */}
-      {slot.type === "placeholder" && (
-        <Input
-          value={slot.placeholderName || ""}
-          onChange={(e) => onChangePlaceholderName(e.target.value)}
-          placeholder="Guest name"
-          className="h-9 text-sm mb-2"
-        />
-      )}
+      {/* Details zone: deck picker (registered) or commander search (guest) */}
+      <div className="border-t border-card-border p-3 pt-2.5">
+        {slot.type === "registered" && availableDecks.length > 0 && (
+          <Select
+            value={slot.deckId || ""}
+            onChange={(value) => onSelectDeck(value)}
+            placeholder="Commander..."
+            options={availableDecks.map((deck) => ({
+              value: deck.id,
+              label: deck.commanderName,
+            }))}
+          />
+        )}
 
-      {/* Deck/Commander selection */}
-      {slot.type === "registered" && availableDecks.length > 0 && (
-        <Select
-          value={slot.deckId || ""}
-          onChange={(value) => onSelectDeck(value)}
-          placeholder="Commander..."
-          options={availableDecks.map((deck) => ({
-            value: deck.id,
-            label: deck.commanderName,
-          }))}
-        />
-      )}
+        {slot.type === "registered" && availableDecks.length === 0 && (
+          <div className="p-1.5 rounded bg-card-raised border border-card-border">
+            <p className="text-xs text-text-2 text-center">Deck TBD</p>
+          </div>
+        )}
 
-      {/* No decks message for registered users */}
-      {slot.type === "registered" && availableDecks.length === 0 && (
-        <div className="p-1.5 rounded bg-card-raised border border-card-border">
-          <p className="text-xs text-text-2 text-center">Deck TBD</p>
-        </div>
-      )}
-
-      {slot.type === "placeholder" && (
-        <div className="relative">
-          {slot.commanderName ? (
-            <div className="flex items-center gap-2">
-              <span className="flex-1 h-8 text-sm rounded border px-2 flex items-center bg-accent/10 border-accent/30 text-text-1 truncate">
-                {slot.commanderName}
-              </span>
-              <button
-                type="button"
-                onClick={() => onChangeCommanderName("")}
-                className="text-sm text-text-2 hover:text-loss"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <>
-              <Input
-                value={commanderQuery}
-                onChange={(e) => setCommanderQuery(e.target.value)}
-                onFocus={() => commanderResults.length > 0 && setIsCommanderOpen(true)}
-                onBlur={() => setTimeout(() => setIsCommanderOpen(false), 200)}
-                placeholder="Commander..."
-                className="h-8 text-sm px-2"
-              />
-              {isCommanderOpen && commanderResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl max-h-40 overflow-y-auto">
-                  {commanderResults.map((card) => (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => {
-                        onChangeCommanderName(card.name);
-                        setCommanderQuery("");
-                        setIsCommanderOpen(false);
-                      }}
-                      className="w-full p-2 text-left hover:bg-accent/10 transition-colors text-sm text-text-1 truncate"
-                    >
-                      {card.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
+        {slot.type === "placeholder" && (
+          <div className="relative">
+            {slot.commanderName ? (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 h-8 text-sm rounded border px-2 flex items-center bg-accent/10 border-accent/30 text-text-1 truncate">
+                  {slot.commanderName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onChangeCommanderName("")}
+                  className="text-sm text-text-2 hover:text-loss"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <>
+                <Input
+                  value={commanderQuery}
+                  onChange={(e) => setCommanderQuery(e.target.value)}
+                  onFocus={() => commanderResults.length > 0 && setIsCommanderOpen(true)}
+                  onBlur={() => setTimeout(() => setIsCommanderOpen(false), 200)}
+                  placeholder="Commander..."
+                  className="h-8 text-sm px-2"
+                />
+                {isCommanderOpen && commanderResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl max-h-40 overflow-y-auto">
+                    {commanderResults.map((card) => (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => {
+                          onChangeCommanderName(card.name);
+                          setCommanderQuery("");
+                          setIsCommanderOpen(false);
+                        }}
+                        className="w-full p-2 text-left hover:bg-accent/10 transition-colors text-sm text-text-1 truncate"
+                      >
+                        {card.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
