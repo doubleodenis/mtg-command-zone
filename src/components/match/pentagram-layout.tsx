@@ -209,7 +209,7 @@ function PentagonPlayerCard({
         onBlur={() => onFocusChange?.(false)}
       >
         <div className={cn(
-          "text-sm mb-2 text-center font-medium",
+          "text-sm mb-2.5 text-center font-medium",
           isEnemyHighlighted ? "text-loss" : "text-text-2"
         )}>
           Seat {index + 1}{isEnemyHighlighted && " — Enemy"}
@@ -380,11 +380,16 @@ function PentagonPlayerCard({
     >
       {/* Enemy indicator for mobile */}
       {isEnemyHighlighted && (
-        <div className="text-xs text-loss font-medium text-center pt-2">⚔️ Enemy</div>
+        <div className="text-xs text-loss font-medium text-center pt-1.5">⚔️ Enemy</div>
       )}
 
       {/* Header zone: avatar, name/guest-input, action icons */}
-      <div className="flex items-center gap-2 p-3">
+      <div
+        className={cn(
+          "flex items-center gap-2 px-3 pb-3",
+          isEnemyHighlighted ? "pt-1.5" : "pt-3"
+        )}
+      >
         <div className="shrink-0">
           {slot.type === "registered" && slot.avatarUrl ? (
             <img src={slot.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
