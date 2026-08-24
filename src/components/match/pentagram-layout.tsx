@@ -536,7 +536,7 @@ export function PentagramLayout({
 
   return (
     <>
-      <p className="text-xs text-text-2 text-center mb-2">
+      <p className="hidden md:block text-xs text-text-2 text-center mb-2">
         Drop replaces the seated player.
       </p>
       {/* Desktop: Pentagram visual layout */}
