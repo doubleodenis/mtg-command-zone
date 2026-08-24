@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { createClient } from "@/lib/supabase/client";
+import { getFriends } from "@/lib/supabase/profiles";
+import { getCollectionMembers } from "@/lib/supabase/collections";
 import { logMatch } from "@/app/actions/match";
 import type { FormatSummary, FormatSlug, MatchData } from "@/types/format";
 import type { DeckSummary, ParticipantInput, ColorIdentity, CollectionWithMembership } from "@/types";
@@ -67,6 +69,87 @@ export function MatchForm({
   const [userDecks, setUserDecks] = React.useState<
     Record<string, DeckSummary[]>
   >({ [currentUserId]: currentUserDecks });
+
+  // Friends list for the player sidebar (fetched once)
+  const [friends, setFriends] = React.useState<SearchResult[]>([]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const supabase = createClient();
+      const result = await getFriends(supabase, currentUserId);
+      if (cancelled || !result.success) return;
+
+      setFriends(
+        result.data.map((f) => ({
+          id: f.id,
+          username: f.username,
+          displayName: f.displayName,
+          avatarUrl: f.avatarUrl,
+          isFriend: true,
+          friendshipStatus: "accepted" as const,
+        }))
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  // Collection members for the player sidebar, cached per collection id
+  const [collectionMembersCache, setCollectionMembersCache] = React.useState<
+    Record<string, SearchResult[]>
+  >({});
+
+  React.useEffect(() => {
+    const idsToFetch = selectedCollectionIds.filter(
+      (id) => !(id in collectionMembersCache)
+    );
+    if (idsToFetch.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const supabase = createClient();
+      const results = await Promise.all(
+        idsToFetch.map((id) => getCollectionMembers(supabase, id))
+      );
+      if (cancelled) return;
+
+      setCollectionMembersCache((prev) => {
+        const next = { ...prev };
+        idsToFetch.forEach((id, i) => {
+          const result = results[i];
+          next[id] = result.success
+            ? result.data.map((m) => ({
+                id: m.profile.id,
+                username: m.profile.username,
+                displayName: m.profile.displayName,
+                avatarUrl: m.profile.avatarUrl,
+              }))
+            : [];
+        });
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCollectionIds, collectionMembersCache]);
+
+  // Deduplicated union of members across every selected collection
+  const collectionTabMembers = React.useMemo(() => {
+    const seen = new Map<string, SearchResult>();
+    selectedCollectionIds.forEach((id) => {
+      (collectionMembersCache[id] || []).forEach((member) => {
+        if (!seen.has(member.id)) seen.set(member.id, member);
+      });
+    });
+    return Array.from(seen.values());
+  }, [selectedCollectionIds, collectionMembersCache]);
 
   // Initialize participants when format changes
   React.useEffect(() => {
