@@ -27,10 +27,10 @@ export function replaceParticipant(
 
 /**
  * Inserts `newSlot` at `targetIndex`, shifting every occupant strictly
- * between `targetIndex` and the nearest empty slot within `scopeIndices`
- * by one position toward that empty slot. Falls back to a plain replace
- * (dropping the previous occupant) when `scopeIndices` has no empty slot
- * other than `targetIndex` itself.
+ * between `targetIndex` and the nearest empty slot (by distance) within
+ * `scopeIndices` by one position toward that empty slot. Falls back to a
+ * plain replace (dropping the previous occupant) when `scopeIndices` has
+ * no empty slot other than `targetIndex` itself.
  */
 export function shiftInsertParticipant(
   participants: ParticipantSlot[],
@@ -38,12 +38,19 @@ export function shiftInsertParticipant(
   newSlot: ParticipantSlot,
   scopeIndices: number[]
 ): ParticipantSlot[] {
-  const otherScopeIndices = scopeIndices.filter((i) => i !== targetIndex);
-  const emptyIndex = findFirstEmptyIndex(participants, otherScopeIndices);
+  const emptyCandidates = scopeIndices.filter(
+    (i) => i !== targetIndex && participants[i]?.type === "empty"
+  );
 
-  if (emptyIndex === null) {
+  if (emptyCandidates.length === 0) {
     return replaceParticipant(participants, targetIndex, newSlot);
   }
+
+  const emptyIndex = emptyCandidates.reduce((nearest, candidate) =>
+    Math.abs(candidate - targetIndex) < Math.abs(nearest - targetIndex)
+      ? candidate
+      : nearest
+  );
 
   const sorted = [...scopeIndices].sort((a, b) => a - b);
   const targetPos = sorted.indexOf(targetIndex);

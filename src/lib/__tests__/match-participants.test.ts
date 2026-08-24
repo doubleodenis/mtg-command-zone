@@ -74,6 +74,30 @@ describe("shiftInsertParticipant", () => {
 
     expect(next).toEqual([player("p0"), player("x"), player("p2"), empty()]);
   });
+
+  it("picks the nearest empty by distance when multiple empties exist in scope", () => {
+    // scope [0,1,2,3,4] = [empty, p1, p2, empty, p4]; drop at index 2
+    // empty at 0 is distance 2 away, empty at 3 is distance 1 away (nearest)
+    // should shift only p2 into the empty at 3, not p1 and p2 into the empty at 0
+    const participants = [
+      empty(),
+      player("p1"),
+      player("p2"),
+      empty(),
+      player("p4"),
+    ];
+    const next = shiftInsertParticipant(participants, 2, player("x"), [
+      0, 1, 2, 3, 4,
+    ]);
+
+    expect(next).toEqual([
+      empty(),
+      player("p1"),
+      player("x"),
+      player("p2"),
+      player("p4"),
+    ]);
+  });
 });
 
 describe("moveParticipant", () => {
