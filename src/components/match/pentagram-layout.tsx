@@ -519,8 +519,26 @@ export function PentagramLayout({
   // Compute which indices are enemies of the focused card
   const enemyIndices = focusedIndex !== null ? PENTAGRAM_ENEMIES[focusedIndex] : null;
 
+  // Briefly highlight every seat after any participants change, so an
+  // ally/enemy relabel caused by a drag elsewhere reads as intentional.
+  const [recentlyChanged, setRecentlyChanged] = React.useState(false);
+  const isFirstRender = React.useRef(true);
+
+  React.useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setRecentlyChanged(true);
+    const timeout = setTimeout(() => setRecentlyChanged(false), 600);
+    return () => clearTimeout(timeout);
+  }, [participants]);
+
   return (
     <>
+      <p className="text-xs text-text-2 text-center mb-2">
+        Drop replaces the seated player.
+      </p>
       {/* Desktop: Pentagram visual layout */}
       <div className="hidden md:block relative w-full aspect-square max-w-xl mx-auto">
         {/* SVG for pentagram lines */}
@@ -584,7 +602,7 @@ export function PentagramLayout({
                   excludeIds={excludeIds}
                   enemies={PENTAGRAM_ENEMIES[index]}
                   currentUser={currentUser}
-                  isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
+                  isEnemyHighlighted={enemyIndices?.includes(index) ?? recentlyChanged}
                   onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
                 />
               </DndSlot>
@@ -616,7 +634,7 @@ export function PentagramLayout({
             excludeIds={excludeIds}
             enemies={PENTAGRAM_ENEMIES[index]}
             currentUser={currentUser}
-            isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
+            isEnemyHighlighted={enemyIndices?.includes(index) ?? recentlyChanged}
             onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
           />
         ))}
