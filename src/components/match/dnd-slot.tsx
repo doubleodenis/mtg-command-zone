@@ -55,7 +55,7 @@ export function DndSlot({ index, draggable, children, className }: DndSlotProps)
           {...attributes}
           {...listeners}
           aria-label="Drag to move this player"
-          className="absolute top-1 right-1 z-10 p-1 rounded text-text-2 hover:text-text-1 hover:bg-card-raised cursor-grab active:cursor-grabbing touch-none"
+          className="absolute -top-2 left-2 z-10 p-1 rounded bg-card border border-card-border text-text-2 hover:text-text-1 hover:bg-card-raised cursor-grab active:cursor-grabbing touch-none"
         >
           <GripVertical className="w-4 h-4" />
         </button>
