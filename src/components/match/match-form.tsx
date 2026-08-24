@@ -89,13 +89,21 @@ export function MatchForm({
   // Friends list for the player sidebar (fetched once)
   const [friends, setFriends] = React.useState<SearchResult[]>([]);
 
+  // Surfaces sidebar-related failures (fetch errors, full roster, etc.) to the user
+  const [sidebarMessage, setSidebarMessage] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     let cancelled = false;
 
     (async () => {
       const supabase = createClient();
       const result = await getFriends(supabase, currentUserId);
-      if (cancelled || !result.success) return;
+      if (cancelled) return;
+
+      if (!result.success) {
+        setSidebarMessage("Couldn't load friends list.");
+        return;
+      }
 
       setFriends(
         result.data.map((f) => ({
@@ -134,21 +142,35 @@ export function MatchForm({
       );
       if (cancelled) return;
 
-      setCollectionMembersCache((prev) => {
-        const next = { ...prev };
-        idsToFetch.forEach((id, i) => {
-          const result = results[i];
-          next[id] = result.success
-            ? result.data.map((m) => ({
-                id: m.profile.id,
-                username: m.profile.username,
-                displayName: m.profile.displayName,
-                avatarUrl: m.profile.avatarUrl,
-              }))
-            : [];
-        });
-        return next;
+      let hadFailure = false;
+      const succeededEntries: Record<string, SearchResult[]> = {};
+      idsToFetch.forEach((id, i) => {
+        const result = results[i];
+        if (!result.success) {
+          // Don't cache the failure — leave the id out so the next
+          // effect run retries the fetch instead of treating it as
+          // permanently empty.
+          hadFailure = true;
+          return;
+        }
+        succeededEntries[id] = result.data.map((m) => ({
+          id: m.profile.id,
+          username: m.profile.username,
+          displayName: m.profile.displayName,
+          avatarUrl: m.profile.avatarUrl,
+        }));
       });
+
+      // Only update state (and thus re-trigger this effect) when there's
+      // actually new data to merge in — otherwise, if every fetch failed,
+      // creating a new cache object reference here would immediately
+      // re-trigger the effect and retry forever in a tight loop.
+      if (Object.keys(succeededEntries).length > 0) {
+        setCollectionMembersCache((prev) => ({ ...prev, ...succeededEntries }));
+      }
+      if (hadFailure) {
+        setSidebarMessage("Couldn't load collection members. Try again.");
+      }
     })();
 
     return () => {
@@ -229,7 +251,6 @@ export function MatchForm({
   );
 
   // Add a sidebar player to the first empty slot; no-op if the roster is full
-  const [sidebarMessage, setSidebarMessage] = React.useState<string | null>(null);
   const handleSidebarClickAdd = React.useCallback(
     (player: SearchResult) => {
       const emptyIndex = findFirstEmptyIndex(participants);
@@ -708,7 +729,7 @@ export function MatchForm({
       {selectedFormat && (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="md:grid md:grid-cols-[1fr_280px] gap-4">
-          <div className="mt-4 md:mt-0 md:order-2">
+          <div className="mb-4 md:mb-0 md:order-2">
             <PlayerSidebar
               friends={friends}
               collectionMembers={collectionTabMembers}
