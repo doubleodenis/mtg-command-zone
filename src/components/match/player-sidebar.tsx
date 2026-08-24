@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SearchResult } from "./match-form-types";
@@ -114,40 +116,52 @@ function DraggableSidebarRow({
   player: SearchResult;
   onClickAdd: (player: SearchResult) => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `sidebar:${player.id}`,
-  });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
+    useDraggable({ id: `sidebar:${player.id}` });
 
   return (
-    <button
+    <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      type="button"
-      onClick={() => onClickAdd(player)}
+      style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
-        "hover:bg-card-raised flex w-full items-center gap-2 rounded-md p-2 text-left transition-colors",
+        "hover:bg-card-raised flex w-full items-center gap-1 rounded-md transition-colors",
         isDragging && "opacity-50"
       )}
     >
-      {player.avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={player.avatarUrl}
-          alt=""
-          className="h-6 w-6 shrink-0 rounded-full"
-        />
-      ) : (
-        <div className="bg-card-raised h-6 w-6 shrink-0 rounded-full" />
-      )}
-      <div className="min-w-0">
-        <p className="text-text-1 truncate text-sm">
-          {playerLabel(player)}
-        </p>
-        <p className="text-text-2 truncate text-xs">
-          @{player.username}
-        </p>
-      </div>
-    </button>
+      <button
+        type="button"
+        onClick={() => onClickAdd(player)}
+        className="flex flex-1 items-center gap-2 p-2 text-left"
+      >
+        {player.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={player.avatarUrl}
+            alt=""
+            className="h-6 w-6 shrink-0 rounded-full"
+          />
+        ) : (
+          <div className="bg-card-raised h-6 w-6 shrink-0 rounded-full" />
+        )}
+        <div className="min-w-0">
+          <p className="text-text-1 truncate text-sm">
+            {playerLabel(player)}
+          </p>
+          <p className="text-text-2 truncate text-xs">
+            @{player.username}
+          </p>
+        </div>
+      </button>
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to add this player"
+        className="text-text-2 hover:text-text-1 shrink-0 cursor-grab p-2 touch-none active:cursor-grabbing"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
