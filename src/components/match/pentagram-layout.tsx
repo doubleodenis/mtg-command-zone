@@ -596,30 +596,29 @@ export function PentagramLayout({
       {/* Mobile: Stacked list layout */}
       <div className="md:hidden space-y-3">
         {participants.slice(0, 5).map((slot, index) => (
-          <DndSlot key={index} index={index} draggable={slot.type !== "empty"}>
-            <PentagonPlayerCard
-              slot={slot}
-              index={index}
-              currentUserId={currentUserId}
-              onSelectPlayer={(player) => onSelectPlayer(index, player)}
-              onSetAsGuest={() => onSetAsGuest(index)}
-              onRemove={() => onRemove(index)}
-              onToggleWinner={() => onToggleWinner(index)}
-              onSelectDeck={(deckId) => onSelectDeck(index, deckId)}
-              onChangePlaceholderName={(name) => onChangePlaceholderName(index, name)}
-              onChangeCommanderName={(name) => onChangeCommanderName(index, name)}
-              availableDecks={
-                slot.type === "registered" && slot.userId
-                  ? userDecks[slot.userId] || []
-                  : []
-              }
-              excludeIds={excludeIds}
-              enemies={PENTAGRAM_ENEMIES[index]}
-              currentUser={currentUser}
-              isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
-              onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
-            />
-          </DndSlot>
+          <PentagonPlayerCard
+            key={index}
+            slot={slot}
+            index={index}
+            currentUserId={currentUserId}
+            onSelectPlayer={(player) => onSelectPlayer(index, player)}
+            onSetAsGuest={() => onSetAsGuest(index)}
+            onRemove={() => onRemove(index)}
+            onToggleWinner={() => onToggleWinner(index)}
+            onSelectDeck={(deckId) => onSelectDeck(index, deckId)}
+            onChangePlaceholderName={(name) => onChangePlaceholderName(index, name)}
+            onChangeCommanderName={(name) => onChangeCommanderName(index, name)}
+            availableDecks={
+              slot.type === "registered" && slot.userId
+                ? userDecks[slot.userId] || []
+                : []
+            }
+            excludeIds={excludeIds}
+            enemies={PENTAGRAM_ENEMIES[index]}
+            currentUser={currentUser}
+            isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
+            onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
+          />
         ))}
       </div>
     </>
