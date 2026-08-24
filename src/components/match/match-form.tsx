@@ -708,7 +708,19 @@ export function MatchForm({
       {selectedFormat && (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="md:grid md:grid-cols-[1fr_280px] gap-4">
-          <Card>
+          <div className="mt-4 md:mt-0 md:order-2">
+            <PlayerSidebar
+              friends={friends}
+              collectionMembers={collectionTabMembers}
+              hasSelectedCollections={selectedCollectionIds.length > 0}
+              excludeIds={excludeIds}
+              onClickAdd={handleSidebarClickAdd}
+            />
+            {sidebarMessage && (
+              <p className="text-xs text-loss mt-2">{sidebarMessage}</p>
+            )}
+          </div>
+          <Card className="md:order-1">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Players</CardTitle>
@@ -930,18 +942,6 @@ export function MatchForm({
               )}
             </CardContent>
           </Card>
-          <div className="mt-4 md:mt-0">
-            <PlayerSidebar
-              friends={friends}
-              collectionMembers={collectionTabMembers}
-              hasSelectedCollections={selectedCollectionIds.length > 0}
-              excludeIds={excludeIds}
-              onClickAdd={handleSidebarClickAdd}
-            />
-            {sidebarMessage && (
-              <p className="text-xs text-loss mt-2">{sidebarMessage}</p>
-            )}
-          </div>
         </div>
         </DndContext>
       )}
