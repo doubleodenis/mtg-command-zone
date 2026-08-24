@@ -59,6 +59,7 @@ export type PentagonPlayerCardProps = {
   enemies: [number, number];
   currentUser?: SearchResult;
   isEnemyHighlighted?: boolean;
+  isRecentlyChanged?: boolean;
   onFocusChange?: (focused: boolean) => void;
 };
 
