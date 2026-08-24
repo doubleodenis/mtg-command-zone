@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SearchResult } from "./match-form-types";
@@ -98,34 +99,55 @@ export function PlayerSidebar({
             </p>
           )}
           {visiblePlayers.map((player) => (
-            <button
-              key={player.id}
-              type="button"
-              onClick={() => onClickAdd(player)}
-              className="hover:bg-card-raised flex w-full items-center gap-2 rounded-md p-2 text-left transition-colors"
-            >
-              {player.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={player.avatarUrl}
-                  alt=""
-                  className="h-6 w-6 shrink-0 rounded-full"
-                />
-              ) : (
-                <div className="bg-card-raised h-6 w-6 shrink-0 rounded-full" />
-              )}
-              <div className="min-w-0">
-                <p className="text-text-1 truncate text-sm">
-                  {playerLabel(player)}
-                </p>
-                <p className="text-text-2 truncate text-xs">
-                  @{player.username}
-                </p>
-              </div>
-            </button>
+            <DraggableSidebarRow key={player.id} player={player} onClickAdd={onClickAdd} />
           ))}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DraggableSidebarRow({
+  player,
+  onClickAdd,
+}: {
+  player: SearchResult;
+  onClickAdd: (player: SearchResult) => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `sidebar:${player.id}`,
+  });
+
+  return (
+    <button
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      type="button"
+      onClick={() => onClickAdd(player)}
+      className={cn(
+        "hover:bg-card-raised flex w-full items-center gap-2 rounded-md p-2 text-left transition-colors",
+        isDragging && "opacity-50"
+      )}
+    >
+      {player.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={player.avatarUrl}
+          alt=""
+          className="h-6 w-6 shrink-0 rounded-full"
+        />
+      ) : (
+        <div className="bg-card-raised h-6 w-6 shrink-0 rounded-full" />
+      )}
+      <div className="min-w-0">
+        <p className="text-text-1 truncate text-sm">
+          {playerLabel(player)}
+        </p>
+        <p className="text-text-2 truncate text-xs">
+          @{player.username}
+        </p>
+      </div>
+    </button>
   );
 }

@@ -2,6 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { Check, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -19,8 +27,14 @@ import { FormatSelector } from "./format-selector";
 import { PlayerSlot } from "./player-slot";
 import { PentagramLayout } from "./pentagram-layout";
 import { PlayerSidebar } from "./player-sidebar";
+import { DndSlot } from "./dnd-slot";
 import type { ParticipantSlot, SearchResult } from "./match-form-types";
-import { findFirstEmptyIndex } from "@/lib/match-participants";
+import {
+  findFirstEmptyIndex,
+  replaceParticipant,
+  shiftInsertParticipant,
+  moveParticipant,
+} from "@/lib/match-participants";
 import Link from "next/link";
 
 // ============================================
@@ -260,6 +274,79 @@ export function MatchForm({
     }
     return undefined;
   };
+
+  // Re-stamp every slot's team from its current index (used after drag moves)
+  const restampTeams = (list: ParticipantSlot[]): ParticipantSlot[] =>
+    list.map((p, i) => ({ ...p, team: getTeamForIndex(i) }));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const handleDropFromSidebar = React.useCallback(
+    async (player: SearchResult, targetIndex: number) => {
+      const targetSlot = participants[targetIndex];
+      await fetchDecksForUser(player.id);
+
+      const newSlot: ParticipantSlot = {
+        type: "registered",
+        userId: player.id,
+        username: player.username,
+        displayName: player.displayName || undefined,
+        avatarUrl: player.avatarUrl || undefined,
+        isWinner: false,
+        team: getTeamForIndex(targetIndex),
+      };
+
+      const isPentagram = selectedFormat?.slug === "pentagram";
+
+      if (targetSlot.type === "empty" || isPentagram) {
+        setParticipants(replaceParticipant(participants, targetIndex, newSlot));
+        return;
+      }
+
+      const scopeIndices = selectedFormat?.hasTeams
+        ? participants
+            .map((_, i) => i)
+            .filter((i) => getTeamForIndex(i) === getTeamForIndex(targetIndex))
+        : participants.map((_, i) => i);
+
+      const next = shiftInsertParticipant(participants, targetIndex, newSlot, scopeIndices);
+      setParticipants(restampTeams(next));
+    },
+    [participants, fetchDecksForUser, selectedFormat]
+  );
+
+  const handleDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+
+      const activeId = String(active.id);
+      const overId = String(over.id);
+      if (!overId.startsWith("slot:")) return;
+      const targetIndex = Number(overId.slice("slot:".length));
+
+      if (activeId.startsWith("sidebar:")) {
+        const userId = activeId.slice("sidebar:".length);
+        const player =
+          friends.find((f) => f.id === userId) ||
+          collectionTabMembers.find((m) => m.id === userId);
+        if (!player) return;
+        handleDropFromSidebar(player, targetIndex);
+        return;
+      }
+
+      if (activeId.startsWith("seat:")) {
+        const fromIndex = Number(activeId.slice("seat:".length));
+        if (fromIndex === targetIndex) return;
+        const next = moveParticipant(participants, fromIndex, targetIndex);
+        setParticipants(restampTeams(next));
+      }
+    },
+    [friends, collectionTabMembers, participants, handleDropFromSidebar]
+  );
 
   // Remove a participant
   const removeParticipant = (index: number) => {
@@ -619,6 +706,7 @@ export function MatchForm({
 
       {/* Participants */}
       {selectedFormat && (
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="md:grid md:grid-cols-[1fr_280px] gap-4">
           <Card>
             <CardHeader>
@@ -689,33 +777,34 @@ export function MatchForm({
                       .map((slot, index) => ({ slot, index }))
                       .filter(({ index }) => getTeamForIndex(index) === "A")
                       .map(({ slot, index }) => (
-                        <PlayerSlot
-                          key={index}
-                          slot={slot}
-                          index={index}
-                          currentUserId={currentUserId}
-                          onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
-                          onSetAsGuest={() => setAsGuestAt(index)}
-                          onRemove={() => removeParticipant(index)}
-                          onToggleWinner={() => toggleWinner(index)}
-                          onSelectDeck={(deckId) => selectDeck(index, deckId)}
-                          onChangePlaceholderName={(name) =>
-                            updatePlaceholderName(index, name)
-                          }
-                          onChangeCommanderName={(name) =>
-                            updateCommanderName(index, name)
-                          }
-                          availableDecks={
-                            slot.type === "registered" && slot.userId
-                              ? userDecks[slot.userId] || []
-                              : []
-                          }
-                          isTeamFormat={true}
-                          team="A"
-                          excludeIds={excludeIds}
-                          currentUser={currentUser}
-                          hideWinnerButton={true}
-                        />
+                        <DndSlot key={index} index={index} draggable={slot.type !== "empty"}>
+                          <PlayerSlot
+                            slot={slot}
+                            index={index}
+                            currentUserId={currentUserId}
+                            onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
+                            onSetAsGuest={() => setAsGuestAt(index)}
+                            onRemove={() => removeParticipant(index)}
+                            onToggleWinner={() => toggleWinner(index)}
+                            onSelectDeck={(deckId) => selectDeck(index, deckId)}
+                            onChangePlaceholderName={(name) =>
+                              updatePlaceholderName(index, name)
+                            }
+                            onChangeCommanderName={(name) =>
+                              updateCommanderName(index, name)
+                            }
+                            availableDecks={
+                              slot.type === "registered" && slot.userId
+                                ? userDecks[slot.userId] || []
+                                : []
+                            }
+                            isTeamFormat={true}
+                            team="A"
+                            excludeIds={excludeIds}
+                            currentUser={currentUser}
+                            hideWinnerButton={true}
+                          />
+                        </DndSlot>
                       ))}
                   </div>
 
@@ -758,33 +847,34 @@ export function MatchForm({
                       .map((slot, index) => ({ slot, index }))
                       .filter(({ index }) => getTeamForIndex(index) === "B")
                       .map(({ slot, index }) => (
-                        <PlayerSlot
-                          key={index}
-                          slot={slot}
-                          index={index}
-                          currentUserId={currentUserId}
-                          onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
-                          onSetAsGuest={() => setAsGuestAt(index)}
-                          onRemove={() => removeParticipant(index)}
-                          onToggleWinner={() => toggleWinner(index)}
-                          onSelectDeck={(deckId) => selectDeck(index, deckId)}
-                          onChangePlaceholderName={(name) =>
-                            updatePlaceholderName(index, name)
-                          }
-                          onChangeCommanderName={(name) =>
-                            updateCommanderName(index, name)
-                          }
-                          availableDecks={
-                            slot.type === "registered" && slot.userId
-                              ? userDecks[slot.userId] || []
-                              : []
-                          }
-                          isTeamFormat={true}
-                          team="B"
-                          excludeIds={excludeIds}
-                          currentUser={currentUser}
-                          hideWinnerButton={true}
-                        />
+                        <DndSlot key={index} index={index} draggable={slot.type !== "empty"}>
+                          <PlayerSlot
+                            slot={slot}
+                            index={index}
+                            currentUserId={currentUserId}
+                            onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
+                            onSetAsGuest={() => setAsGuestAt(index)}
+                            onRemove={() => removeParticipant(index)}
+                            onToggleWinner={() => toggleWinner(index)}
+                            onSelectDeck={(deckId) => selectDeck(index, deckId)}
+                            onChangePlaceholderName={(name) =>
+                              updatePlaceholderName(index, name)
+                            }
+                            onChangeCommanderName={(name) =>
+                              updateCommanderName(index, name)
+                            }
+                            availableDecks={
+                              slot.type === "registered" && slot.userId
+                                ? userDecks[slot.userId] || []
+                                : []
+                            }
+                            isTeamFormat={true}
+                            team="B"
+                            excludeIds={excludeIds}
+                            currentUser={currentUser}
+                            hideWinnerButton={true}
+                          />
+                        </DndSlot>
                       ))}
                   </div>
                 </div>
@@ -808,32 +898,33 @@ export function MatchForm({
                 /* Non-team layout (FFA) */
                 <div className="space-y-3">
                   {participants.map((slot, index) => (
-                    <PlayerSlot
-                      key={index}
-                      slot={slot}
-                      index={index}
-                      currentUserId={currentUserId}
-                      onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
-                      onSetAsGuest={() => setAsGuestAt(index)}
-                      onRemove={() => removeParticipant(index)}
-                      onToggleWinner={() => toggleWinner(index)}
-                      onSelectDeck={(deckId) => selectDeck(index, deckId)}
-                      onChangePlaceholderName={(name) =>
-                        updatePlaceholderName(index, name)
-                      }
-                      onChangeCommanderName={(name) =>
-                        updateCommanderName(index, name)
-                      }
-                      availableDecks={
-                        slot.type === "registered" && slot.userId
-                          ? userDecks[slot.userId] || []
-                          : []
-                      }
-                      isTeamFormat={false}
-                      team={undefined}
-                      excludeIds={excludeIds}
-                      currentUser={currentUser}
-                    />
+                    <DndSlot key={index} index={index} draggable={slot.type !== "empty"}>
+                      <PlayerSlot
+                        slot={slot}
+                        index={index}
+                        currentUserId={currentUserId}
+                        onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
+                        onSetAsGuest={() => setAsGuestAt(index)}
+                        onRemove={() => removeParticipant(index)}
+                        onToggleWinner={() => toggleWinner(index)}
+                        onSelectDeck={(deckId) => selectDeck(index, deckId)}
+                        onChangePlaceholderName={(name) =>
+                          updatePlaceholderName(index, name)
+                        }
+                        onChangeCommanderName={(name) =>
+                          updateCommanderName(index, name)
+                        }
+                        availableDecks={
+                          slot.type === "registered" && slot.userId
+                            ? userDecks[slot.userId] || []
+                            : []
+                        }
+                        isTeamFormat={false}
+                        team={undefined}
+                        excludeIds={excludeIds}
+                        currentUser={currentUser}
+                      />
+                    </DndSlot>
                   ))}
                 </div>
               )}
@@ -852,6 +943,7 @@ export function MatchForm({
             )}
           </div>
         </div>
+        </DndContext>
       )}
 
       {/* Match Details */}
