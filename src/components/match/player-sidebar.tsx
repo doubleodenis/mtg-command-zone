@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,18 +115,27 @@ function DraggableSidebarRow({
   player: SearchResult;
   onClickAdd: (player: SearchResult) => void;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
     useDraggable({ id: `sidebar:${player.id}` });
 
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
         "hover:bg-card-raised flex w-full items-center gap-1 rounded-md transition-colors",
         isDragging && "opacity-50"
       )}
     >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to add this player"
+        className="text-text-2 hover:text-text-1 shrink-0 cursor-grab p-2 touch-none active:cursor-grabbing"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
       <button
         type="button"
         onClick={() => onClickAdd(player)}
@@ -151,16 +159,6 @@ function DraggableSidebarRow({
             @{player.username}
           </p>
         </div>
-      </button>
-      <button
-        type="button"
-        ref={setActivatorNodeRef}
-        {...attributes}
-        {...listeners}
-        aria-label="Drag to add this player"
-        className="text-text-2 hover:text-text-1 shrink-0 cursor-grab p-2 touch-none active:cursor-grabbing"
-      >
-        <GripVertical className="h-4 w-4" />
       </button>
     </div>
   );

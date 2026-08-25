@@ -1,14 +1,17 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { Check, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -305,6 +308,55 @@ export function MatchForm({
     useSensor(KeyboardSensor)
   );
 
+  // Preview shown in the DragOverlay while a drag is active
+  type DragPreview = { label: string; avatarUrl?: string; isGuest?: boolean };
+  const [dragPreview, setDragPreview] = React.useState<DragPreview | null>(null);
+  // DragOverlay is portaled to document.body once mounted, so the drag
+  // ghost renders above every ancestor's stacking context instead of
+  // being clipped by a Card's rounded corners or a parent's overflow.
+  const [isMounted, setIsMounted] = React.useState(false);
+  React.useEffect(() => setIsMounted(true), []);
+
+  const handleDragStart = React.useCallback(
+    (event: DragStartEvent) => {
+      const id = String(event.active.id);
+
+      if (id.startsWith("sidebar:")) {
+        const userId = id.slice("sidebar:".length);
+        const player =
+          friends.find((f) => f.id === userId) ||
+          collectionTabMembers.find((m) => m.id === userId);
+        if (player) {
+          setDragPreview({
+            label: player.displayName || player.username,
+            avatarUrl: player.avatarUrl || undefined,
+          });
+        }
+        return;
+      }
+
+      if (id.startsWith("seat:")) {
+        const index = Number(id.slice("seat:".length));
+        const slot = participants[index];
+        if (!slot) return;
+        if (slot.type === "registered") {
+          setDragPreview({
+            label: slot.displayName || slot.username || "Player",
+            avatarUrl: slot.avatarUrl,
+          });
+        } else if (slot.type === "placeholder") {
+          setDragPreview({
+            label: slot.placeholderName || "Guest",
+            isGuest: true,
+          });
+        }
+      }
+    },
+    [friends, collectionTabMembers, participants]
+  );
+
+  const handleDragCancel = React.useCallback(() => setDragPreview(null), []);
+
   const handleDropFromSidebar = React.useCallback(
     async (player: SearchResult, targetIndex: number) => {
       const targetSlot = participants[targetIndex];
@@ -341,6 +393,8 @@ export function MatchForm({
 
   const handleDragEnd = React.useCallback(
     (event: DragEndEvent) => {
+      setDragPreview(null);
+
       const { active, over } = event;
       if (!over) return;
 
@@ -727,7 +781,12 @@ export function MatchForm({
 
       {/* Participants */}
       {selectedFormat && (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
         <div className="md:grid md:grid-cols-[1fr_280px] gap-4">
           <div className="mb-4 md:mb-0 md:order-2">
             <PlayerSidebar
@@ -964,6 +1023,33 @@ export function MatchForm({
             </CardContent>
           </Card>
         </div>
+        {isMounted &&
+          createPortal(
+            <DragOverlay>
+              {dragPreview && (
+                <div className="flex items-center gap-2 rounded-lg border border-accent bg-card px-3 py-2 shadow-xl">
+                  {dragPreview.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={dragPreview.avatarUrl}
+                      alt=""
+                      className="h-8 w-8 rounded-full"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-card-raised text-sm text-text-2">
+                      {dragPreview.isGuest
+                        ? "👤"
+                        : dragPreview.label.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-text-1">
+                    {dragPreview.label}
+                  </span>
+                </div>
+              )}
+            </DragOverlay>,
+            document.body
+          )}
         </DndContext>
       )}
 
