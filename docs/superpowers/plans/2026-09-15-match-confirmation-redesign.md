@@ -14,7 +14,7 @@
 
 - This codebase has no integration/DB test harness today (`ROADMAP.md` Phase 11 lists "Integration tests for critical paths" as not yet started; only pure functions in `src/lib/rating.ts` have Vitest coverage). Tasks that touch Supabase are verified manually (local `supabase start` + `npm run dev` + direct SQL checks via `psql`), matching how every existing server action in this codebase is verified today. Only the one new pure function in this plan gets a real Vitest TDD cycle.
 - Test credentials for manual verification: local Supabase seeded users `player1@gmail.com` / `player2@gmail.com` (see `scripts/seed.ts`); reset their passwords locally if needed with `UPDATE auth.users SET encrypted_password = crypt('<pw>', gen_salt('bf')) WHERE email = '...'` via `psql -h 127.0.0.1 -p 54322 -U postgres -d postgres`.
-- Every migration file goes in `supabase/migrations/`, numbered after the highest existing one (`019_mark_match_dirty_function.sql` is the current highest — this plan's migration is `020_...`). Apply locally with `supabase db reset` (re-runs all migrations + seed) or `supabase migration up` for just the new one, per `supabase:supabase` skill conventions.
+- Every migration file goes in `supabase/migrations/`, numbered after the highest existing one (`020_delete_rating_history_function.sql` is the current highest — this plan's migration is `021_...`). Apply locally with `supabase db reset` (re-runs all migrations + seed) or `supabase migration up` for just the new one, per `supabase:supabase` skill conventions.
 - After any migration that adds/removes/changes an RPC function signature, regenerate `src/types/database.types.ts` per `CLAUDE.md`: `npx supabase gen types typescript --local > src/types/database.types.ts` (local project) — **never hand-edit this file**.
 - `RATING_CONFIG.defaultBracket` (`2`) and `RATING_CONFIG.defaultRating` (`1000`) live in `src/types/rating.ts` — use these constants, don't hardcode the numbers.
 - Commit after each task.
@@ -134,7 +134,7 @@ git commit -m "feat: add friendship-based auto-confirm policy helper"
 ### Task 2: Migration — remove abandoned lock-window infra, fix mark_match_dirty guard
 
 **Files:**
-- Create: `supabase/migrations/020_remove_lock_window.sql`
+- Create: `supabase/migrations/021_remove_lock_window.sql`
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
@@ -143,7 +143,7 @@ git commit -m "feat: add friendship-based auto-confirm policy helper"
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- supabase/migrations/020_remove_lock_window.sql
+-- supabase/migrations/021_remove_lock_window.sql
 
 -- ============================================
 -- Remove Abandoned Lock-Window Infrastructure
@@ -206,7 +206,7 @@ WHERE key = 'match_settings';
 - [ ] **Step 2: Apply the migration locally**
 
 Run: `supabase db reset` (rebuilds the local DB from all migrations + seed) or, if you don't want to lose local test data, `supabase migration up`.
-Expected: no errors; migration `020_remove_lock_window` appears when you run `supabase migration list`.
+Expected: no errors; migration `021_remove_lock_window` appears when you run `supabase migration list`.
 
 - [ ] **Step 3: Verify the mark_match_dirty fix manually**
 
@@ -226,7 +226,7 @@ Expected: diff shows `mark_match_dirty` return type unchanged (still `boolean`),
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/020_remove_lock_window.sql src/types/database.types.ts
+git add supabase/migrations/021_remove_lock_window.sql src/types/database.types.ts
 git commit -m "fix: remove abandoned lock-window SQL infra, fix mark_match_dirty guard"
 ```
 
