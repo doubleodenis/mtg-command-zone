@@ -1,0 +1,126 @@
+# CommandZone — Core Feature Acceptance Criteria
+
+Regression-test list covering the main user-facing features per REQUIREMENTS.md and ROADMAP.md. Each story maps to a real route/flow in the app. Use this to click through and flag anything broken or rough.
+
+---
+
+## 1. Auth
+**As a visitor, I can create an account and sign in, and my session persists across the app.**
+- [x] Signing up (email) creates a `profiles` row and lands me on the dashboard — OAuth (Google/Discord) not tested, no creds available. Email signup works and does land on the dashboard, but found two real bugs in the process:
+  1. **The "Display name" field entered at signup is never saved.** Signed up with display name "QA Claim Target"; the resulting `profiles` row has `display_name = NULL` and `username` defaulted to the raw email local-part instead ("devbydenis+qaclaim"). The dashboard then greets you by that raw string ("Welcome back, devbydenis+qaclaim!") rather than the name you chose.
+  2. **Consequence of #1:** since usernames fall back to the email local-part unsanitized, an email containing a `+` (a very common "tagged address" convention, e.g. Gmail `+aliases`) produces a username with a `+` in it, and `/player/[username]` 404s for that user — `/player/devbydenis+qaclaim` renders "Page not found" even though the profile exists and the user can view their own dashboard fine. Their public profile is effectively unreachable.
+  3. Separately, local Supabase auto-confirms the email immediately (`email_confirmed_at` set at signup, `confirmation_sent_at` null, nothing arrives in Mailpit) even though the UI shows a "Check your email — we sent a confirmation link" screen. This is likely just local-dev SMTP config and not a real bug, but worth a sanity check against staging/prod where email delivery is presumably wired up.
+- [x] Logging in with valid credentials succeeds; invalid credentials show a clear error — wrong password shows "Invalid login credentials"; correct password redirects to originally-requested route
+- [x] Visiting an auth-required route (`/matches`, `/decks`, `/settings`, etc.) while logged out redirects to `/login` — confirmed on `/decks`, redirect preserves `?redirectTo=`
+- [x] Signing out clears my session and returns me to the logged-out dashboard
+- [x] Reloading any page keeps me logged in (session persists via middleware)
+
+## 2. Dashboard (`/`)
+**As a visitor or player, the home page shows the right content for my auth state.**
+- [x] Logged out: global leaderboards, recent platform matches, most-played commanders, platform stats, and a sign-up CTA all render
+- [x] Logged in: my rating, pending confirmations, recent matches with rating deltas, win rate, and collections activity all render — **note:** the stat tiles (win rate, best deck %, top commander %) animate as a count-up on load; if you snapshot/screenshot immediately after navigation you'll catch them mid-animation (e.g. "0%") — this looked like a bug at first but settles to the correct value within ~2s
+- [x] Pending confirmation prompts on the dashboard link to the correct match and let me confirm — exercised via the claim flow (§11): once a claimed slot was pending, the notification and match detail page both correctly showed "1/2 Pending" with a confirm action; see §11 for the full trace
+- [x] "Log a new match" quick action is present and goes to `/matches/new`
+
+## 3. Match Creation (`/matches/new`)
+**As a player, I can log a match in any supported format and it saves correctly.**
+- [ ] I can create a match in each format: 1v1, 2v2, 3v3, FFA, Pentagram — **FAIL (data config, not code):** the format picker only offers 1v1, Free For All, and Pentagram. `2v2` and `3v3` rows exist in the `formats` table but have `is_active = false`, so they never appear in the UI. Worth confirming with the team whether that's intentional (not yet launched) or a seed/config oversight, since the acceptance criteria and CLAUDE.md both list 2v2/3v3 as supported.
+- [x] I can add participants as linked friends or as name-only placeholders — tested via the new drag/click player-picker sidebar (`player-picker-sidebar` branch): clicking a friend seats them, typing a name + "Guest" button adds a placeholder. Minor rough edge (reproduced twice, in both 1v1 and Pentagram): the text you type into the seat's search box does **not** carry over into the "Guest name" field once you click Guest — you have to retype the name.
+- [x] I can assign a deck per participant, or fall back to the "Unknown Deck" placeholder — completed two full 1v1 matches. A real deck can be selected via the "Select commander..." dropdown for any participant, and leaving a friend/guest's deck unset is allowed. **Note:** there is no literal "Unknown Deck" label anywhere — an unset deck just renders with no deck name/art at all (an avatar placeholder like "PL"/"👤" and nothing else). Functionally equivalent to a fallback, just not surfaced with that specific label. **Also found:** the form requires *the submitting user's own* deck to be selected — trying to submit with your own slot deck-less shows "Please select a deck for yourself" — but does not require this for any other participant (friend or guest). This is a reasonable design but isn't what the criteria's wording implies (uniform per-participant requirement); worth confirming intent.
+- [x] I can mark the winner (or winning team); the match won't save without one — confirmed: submitting with 2/2 players seated but no winner selected shows "Please select at least one winner" and blocks the request; selecting a winner clears the error and allows submission
+- [x] Pentagram participants show correct ally/enemy adjacency (2 allies, 2 enemies per player) — seating in Seat 1 correctly marked Seats 3 & 4 "— Enemy" and left Seats 2 & 5 unlabeled (implied ally), matching the documented adjacency map exactly
+- [x] On save: my own slot is auto-confirmed; every other linked participant gets a confirmation notification — **partially fails, and this is the single biggest finding of this pass.** `logMatch()` (the server action behind "Log Match") auto-confirms *every real participant*, not just the creator, and immediately calculates and writes ratings for all of them synchronously at creation — `ratings_applied_at` gets stamped at the exact same instant as `confirmed_at`, with no wait for `locks_at` (24h later) at all. A friend added to a match therefore has nothing to confirm: they still receive a `match_pending_confirmation` notification (fired by a DB trigger on participant insert) and it says "needs your confirmation," but clicking through to the match shows them already `Confirmed` with no confirm action available — the notification is stale by the time they see it. This directly contradicts CLAUDE.md's documented Confirmation model ("A player's rating only moves when *they* confirm... Others confirm via notification") and criteria items in §4. The one flow where genuine unconfirmed-then-confirm behavior *does* work correctly is claim approval (§11) — a claimed slot really does sit `pending` until the claimant confirms it. Recommend the team clarify whether `logMatch()`'s auto-confirm-everyone behavior is an intentional simplification (optimistic instant rating, with the lock-window/dirty-recalc system meant only for later corrections) or a regression from the documented per-participant confirmation model.
+
+## 4. Match Confirmation & Rating
+**As a participant, my rating only changes when I personally confirm.**
+- [x] A pending match shows "unconfirmed" for participants who haven't confirmed yet, even if others have — reachable via the claim flow only (see §3, §11): after a placeholder slot is claimed and approved, the match detail page correctly shows "Confirmations: 1/2 Pending" with a per-participant confirm action, while the already-real participant shows "Confirmed". Not reachable through ordinary match creation, since `logMatch()` auto-confirms every real participant at creation (§3).
+- [ ] Confirming a match updates my global rating and every collection rating for collections that match belongs to — **partial fail, two distinct bugs:**
+  1. For a normal created match, rating already got applied to the real participants at *creation* time (§3), not at confirmation — so "confirming" doesn't do the rating work the criteria describes, it's already done.
+  2. For the one flow that *does* have a genuine pending→confirm transition (claiming a placeholder slot, §11), confirming it does **not** trigger a rating update at all: after the claimant clicked "Confirm & Update" and picked a deck, `match_participants.participant_status` correctly became `confirmed`, but no `rating_history` row was ever written for them and `matches.ratings_applied_at` stayed frozen at its original (pre-claim) timestamp. The UI still shows their delta as "Estimated" (computed live for display) since nothing was ever persisted. This is the clearest, most direct violation of "my rating only changes when I personally confirm" found in this pass — confirming does nothing to their rating, ever, in the one place confirmation is a real gate.
+  3. On top of both: neither seeded match originally had `ratings`/`rating_history` populated at all, tracing back to `applyMatchRatings()` being "called by a cron job / edge function when locks_at has passed" per its own doc comment — a job not configured locally (same gap as the documented nightly dirty-match job). This only matters for matches inserted directly via SQL/seed rather than through the app's own `logMatch()`, which bypasses it entirely (see above).
+- [x] The rating delta shown matches the documented formula (K × (Actual − Expected) × BracketModifier) — manually verified for the Atraxa(bracket 3, winner) vs Krenko(bracket 2, loser) match at 1000/1000 starting ratings: expected 32×(1−0.5)×0.88=+14 and 32×(0−0.5)×1.12=−18, exactly matching both the UI's displayed deltas and what got written to `rating_history` after forcing the apply path via the debug recalc tool
+- [x] A deck with no bracket set is treated as bracket 2 in the calculation — confirmed in code (`applyMatchRatings`: `(participant.deck?.bracket as Bracket) ?? 2`)
+- [x] Updating a confirmed match's deck to a different bracket flags the match for recalculation — "Pending Recalc" badge and debug panel both correctly reflected `is_dirty` state
+- [x] **Known issue re-verified:** the recalculated rating *is* now numerically correct — running "Run Recalc Now" against a dirty match produced rating_history/ratings values that exactly matched the manual formula calculation. However note the recalc path does **not** update `matches_played`/`wins` counters on the `ratings` row (only the dirty-recalc code path — the real nightly job may differ), so per-user win-rate counters can drift from the true record if the only rating writes a user gets come via recalculation.
+
+## 5. Match Log & Match Detail (`/matches`, `/match/[id]`)
+**As a player, I can browse my match history and drill into any match.**
+- [x] `/matches` lists my matches with working format and result filters, grouped by date — tested format filter (1v1) and result filter (Wins) together, list correctly narrowed to 1 match
+- [x] Opening a match from the list goes to `/match/[id]`
+- [x] Match detail shows all participants, their decks, win/loss, and rating deltas
+- [ ] Match detail shows each participant's deck bracket — **known issue confirmed still present.** Participants list shows commander name only ("player1 / Atraxa, Praetors' Voice") with no bracket badge/number anywhere, even though the same bracket indicator component is used correctly on `/decks`. Screenshot taken for reference.
+- [x] Match detail is publicly viewable when logged out or by a non-participant — verified: signed out entirely and loaded a match URL directly; winner, power level, confirmations, participants, and rating deltas all rendered correctly for an anonymous visitor (nav shows "Log in"/"Sign up" instead of the authed nav, as expected)
+- **New bug found:** a match's Notes field is saved correctly to the database (verified via direct query) but the match detail page always renders "No notes for this match." regardless — reproduced on a freshly created match with notes typed in, viewed from both the creator's and the other participant's account. The notes display is disconnected from the actual data.
+
+## 6. Deck Manager (`/decks`)
+**As a player, I can manage my decks and each deck tracks its own stats.**
+- [x] `/decks` shows active and retired decks in separate sections — Active Decks section confirmed with correct count/list; no seeded deck was retired, so the retired section (and its empty state, if it renders one when empty) wasn't exercised
+- [ ] Creating a deck requires commander and bracket (1–4); it can't be saved without a bracket — **FAIL, real bug.** The "Create Deck" button enables as soon as Commander + Deck Name are filled — no bracket needs to be selected, and no bracket button shows any selected/active state. Submitting anyway succeeds and silently saves with `bracket = 2` (the column's DB default), even though the user never chose "Casual". The "Bracket *" required-field marker on the form is not actually enforced.
+- [x] Editing a deck's bracket, name, or active status saves and reflects immediately — verified: changed an unused deck's bracket from 2→3 in the edit form, saved, and the decks list immediately showed "Bracket 3: Upgraded" with no reload needed. (Side note: the edit form for that deck didn't show any bracket as pre-selected before I changed it, which is a minor display gap for editing an existing bracket value, but the save itself worked correctly.)
+- [x] A deck already used in a match has its commander/bracket-defining fields locked from editing — verified on the Atraxa deck: Commander and Bracket both show a "Locked" badge with disabled controls and an explanatory note; Name and Retire remain editable
+- [x] Retiring a deck removes it from the active list but keeps its match history intact — verified: retiring an unused test deck immediately moved it from "Active Decks" into a new "Retired Decks" section with a "Retired" badge and a "Reactivate Deck" option in its edit form; its (empty) 0W/0L stats stayed attached to it correctly
+- [x] Per-deck stats (win rate, games played, W/L record) match what the match log shows for that deck — Atraxa deck correctly showed "1 games, 1W/0L, 100%" matching its one logged win; Yuriko showed "1 games, 0W/1L, 0%" matching its one logged loss
+
+## 7. Collections (`/collections`)
+**As a player, I can create and manage collections, and permissions are enforced.**
+- [x] Creating a collection lets me set name, description, visibility, and match-add permission — completed end-to-end: created "QA Private Pod" with visibility unchecked (private) and permission set to "Members with approval"; verified in the database that `is_public = false` and `match_add_permission = 'any_member_approval_required'` saved correctly. The "Create Collection" button also correctly stayed disabled until a name was entered (unlike the deck-creation bug in §6).
+- [ ] `owner_only` blocks non-owners from adding matches; `any_member` allows it freely; `any_member_approval_required` puts it in a pending state until I approve/reject — **not exercised** (created a collection with approval-required permission but didn't test a second member adding a match to it)
+- [x] A private collection 404s for non-members; a public one is viewable by anyone — verified both directions: the new private collection correctly 404s ("Page not found") when visited signed out; the seeded public collection renders normally signed out
+- [x] Collection leaderboard and activity feed reflect only matches belonging to that collection — Overview tab for "Friday Night Commander" correctly showed collection stats (50% win rate, 100% best deck), a leaderboard tab, and the 2 matches belonging to it. Note: rating column here reads a **collection-scoped** rating row, which — like the global rating — only gets populated once a match's rating is actually applied to that collection (see §4); it showed the 1000 default here since no collection-scoped application had happened for these matches.
+- [ ] Inviting and removing members works, and only the owner sees settings/member-management controls — **not exercised** ("Invite Member" button present, not clicked through)
+
+## 8. Friends (`/friends`)
+**As a player, I can build a friends list and use it when logging matches.**
+- [x] Sending, accepting, and rejecting a friend request all work and notify the other user — completed the full loop: removed the existing player1↔player2 friendship, searched and sent a new request from player2, saw it land on player1's `/notifications` as "player2 sent you a friend request" with inline Accept/Ignore, clicked Accept, and the notification disappeared immediately (no reload) while the friends list updated on both sides. Rejection specifically ("Ignore") not clicked through, only accept. One rough edge: right after typing a search query the results briefly flashed "No users found matching ..." before the debounced search resolved and found the real match — cosmetic, not blocking.
+- [x] Blocking/removing a friend removes them from my list — verified: clicking "Remove" instantly updated the list to "YOUR FRIENDS (0)" with a proper "No friends yet" empty state, no reload needed
+- [x] Friends are quick-addable as participants directly from the match creation form — confirmed on the new player-picker sidebar: player2 shows in the "Friends" tab and a single click seats them immediately
+
+## 9. Notifications (`/notifications`)
+**As a player, I get notified for anything requiring my action.**
+- [x] Match confirmation requests, claim requests, collection approval requests, and friend requests all generate a notification — verified match-confirmation (`match_pending_confirmation`, though see §3 for why it's stale on arrival), friend requests, and claim requests (`claim_available` to the owner, `claim_accepted` to the claimant) all fire correctly with the right recipient/actor. Collection approval-required notification not exercised (didn't have a second member add a match to test it).
+- [x] Notification dropdown and `/notifications` page show the same items, and unread state is distinguishable — page renders with All/Unread/Matches/Social filter tabs and a correct "No notifications yet" empty state; unread count badge on the bell icon updated correctly (e.g. "Notifications (1 new)")
+- [x] Acting on a notification (confirm, approve, accept) updates its state without a page reload — verified for both friend-request Accept and claim Approve: clicking either instantly removed the notification and showed "No notifications yet" / the updated list, same URL, no reload
+
+## 10. Player Profile (`/player/[username]`)
+**As anyone, I can view a player's public stats and history.**
+- [x] Profile shows rating by format, win rate, and deck breakdown — stat tiles use the same count-up animation as the dashboard (see §2 note); after settling, player2's profile correctly showed Overall Rating 994, Win Rate 50%, Total Matches 2
+- [ ] Match history is paginated and filterable — **not exercised**
+- [x] Viewing another player's profile while logged in shows head-to-head (record as enemies, as teammates, per-format, best commander vs. their decks) — viewed player1 → player2: "As Enemies 50% win rate (1W-1L)", "As Teammates: No matches yet", per-format breakdown (1v1: 1W-1L, 50%), and "Best Commander vs player2: Atraxa, Praetors' Voice, 100%" all rendered correctly
+
+## 11. Placeholder & Claim
+**As a new user, I can claim matches logged under my name before I had an account.**
+- [x] I can search `/matches/claim` for matches with my placeholder name — ran the full flow: created a match as player1 with a guest slot named "Jamie Testplayer", signed up a brand-new account, searched "Jamie Testplayer" on `/matches/claim`, and it correctly found "1 claimable slot" with the right match/date/creator info
+- [x] Submitting a claim notifies the match creator, who can approve or reject — clicking "Claim" showed "Claim submitted!" immediately, and player1 (the creator) received a `claim_available` notification with inline Approve/Reject actions
+- [x] **partial:** On approval, the slot becomes mine and I can confirm it — **but confirming does not trigger a rating update, which is a real bug.** After player1 approved, the slot's `user_id`/`claimed_by` correctly became the new account and it sat "1/2 Pending" as expected. The new user then confirmed via "Update Deck & Confirm" (had to create a deck first — the modal offers no "Unknown Deck"/skip option, it just disables Confirm with "No decks available" until you do). `participant_status` became `confirmed`, but **no `rating_history` row was ever written for them** and the match's `ratings_applied_at` stayed frozen at its original pre-claim timestamp — their displayed delta stays labeled "Estimated" forever because it's only ever computed live for display, never persisted. This is the clearest reproduction in this whole pass of "confirming doesn't actually update my rating."
+- [ ] I can retroactively update a placeholder deck on any match I'm linked to, and deck stats recalculate — **not exercised**
+
+## 12. Cross-cutting polish
+- [x] Every data-dependent view has a sensible empty state and loading skeleton (no blank flashes or raw "undefined") — good empty states seen on Notifications ("No notifications yet") and Collection leaderboard ("No players ranked yet — Play some matches to see the leaderboard"); no raw "undefined"/blank flashes observed
+- [x] Core flows (dashboard, matches, decks, collections, match creation) are usable on a mobile-width viewport (390px) — dashboard, match detail, and match creation all reflowed correctly with no horizontal scroll or overlap; collections/decks not spot-checked at mobile width in this pass
+- [ ] Errors (network failure, bad input) show a user-friendly message, not a raw stack trace — **not exercised** (only auth error path tested, see §1, which was clean)
+
+**Process note:** several dashboard/profile stat tiles ("Your Win Rate", "Overall Rating", etc.) run a count-up animation on mount. Automated snapshots/screenshots taken immediately after navigation will catch them at 0 or a mid-animation value — this is not a bug, just wait ~2s before asserting on those numbers in any future E2E/Playwright suite.
+
+---
+
+**Known issues to specifically re-verify while testing:**
+1. Match detail page is missing the bracket-level visual for individual participant decks. — **STILL PRESENT.** Confirmed via screenshot: the Participants list on `/match/[id]` shows name + commander only, no bracket badge, even though the deck manager renders the same bracket badge correctly elsewhere.
+2. Updating a deck's bracket on a confirmed match doesn't correctly recalculate ratings. — **Recalc math is correct** when actually run (verified the dirty-match "Run Recalc Now" debug action produces exactly the formula-predicted delta/rating). The bigger issue is upstream: **ratings never get applied in the first place** in this local environment, confirmed or not, dirty or not — see §4 for details. It's possible the original bug report was actually describing symptoms of this same missing-cron gap rather than a math error in the recalc itself; worth double-checking with whoever filed it.
+
+---
+
+## Summary of confirmed bugs (ranked by significance)
+
+1. **Match confirmation doesn't gate ratings the way it's documented to.** `logMatch()` auto-confirms every real participant and applies ratings synchronously at creation — there's effectively no "pending confirmation" state reachable through normal match logging, contradicting CLAUDE.md's Confirmation model and criteria §3/§4. See §3 for the full trace.
+2. **Confirming a claimed slot never triggers a rating update**, even though this is the one flow where a genuine pending→confirmed transition exists. See §11.
+3. **Deck creation doesn't actually require a bracket** despite the UI marking it required — the button enables without one and the DB silently defaults to bracket 2. See §6.
+4. **Signup's Display Name field is discarded**, and the resulting email-derived username can contain characters (like `+`) that break `/player/[username]`. See §1.
+5. **Match notes are saved but never displayed** on the match detail page. See §5.
+6. **Bracket badge is still missing on match detail** (previously known issue, re-confirmed). See §5.
+7. **2v2 and 3v3 formats are configured inactive** (`is_active = false`) and don't appear in match creation at all. See §3.
+
+## Minor / cosmetic
+
+- Guest-name text typed while searching a seat doesn't carry over to the "Guest name" field once you click "Guest" — has to be retyped. (§3)
+- Friend search briefly flashes "No users found" before the debounced query resolves. (§8)
+- Dashboard/profile stat tiles run a count-up animation on mount — wait ~2s before asserting on these values in any automated suite, don't read them immediately after navigation. (§2)
