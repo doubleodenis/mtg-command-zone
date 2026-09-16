@@ -1,4 +1,4 @@
--- supabase/migrations/021_remove_lock_window.sql
+-- supabase/migrations/022_remove_lock_window.sql
 
 -- ============================================
 -- Remove Abandoned Lock-Window Infrastructure
