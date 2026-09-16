@@ -196,8 +196,8 @@ export function PlayerSlot({
   // Empty slot - show search with integrated guest option
   if (slot.type === "empty") {
     return (
-      <div className="p-3 rounded-lg border border-dashed border-card-border bg-card-raised/30">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="p-3 rounded-xl border border-dashed border-card-border bg-card-raised/30">
+        <div className="flex items-center gap-2 mb-2.5">
           <span className="text-xs font-medium text-text-2">
             Player {index + 1}
             {isTeamFormat && team && ` • Team ${team}`}
@@ -394,18 +394,18 @@ export function PlayerSlot({
     );
   }
 
-  // Filled slot - show player card
+  // Filled slot - two-zone card: identity header, then details below a divider
   return (
     <div
       className={cn(
-        "w-full min-w-0 max-w-full p-3 rounded-lg border transition-all",
+        "w-full min-w-0 max-w-full rounded-xl border transition-all",
         slot.isWinner
           ? "bg-win/10 border-win/50"
           : "bg-card border-card-border"
       )}
     >
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
+      {/* Header zone: avatar, name/guest-input, action icons */}
+      <div className="flex items-center gap-3 p-3">
         <div className="shrink-0">
           {slot.type === "registered" && slot.avatarUrl ? (
             <img
@@ -424,7 +424,6 @@ export function PlayerSlot({
           )}
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           {slot.type === "registered" ? (
             <>
@@ -442,87 +441,9 @@ export function PlayerSlot({
               autoFocus
             />
           )}
-
-          {/* Commander search for placeholder/guest players */}
-          {slot.type === "placeholder" && (
-            <div className="relative mt-2">
-              {slot.commanderName ? (
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "flex-1 h-8 text-sm rounded-md border px-2 flex items-center",
-                    "bg-accent/10 border-accent/30 text-text-1"
-                  )}>
-                    {slot.commanderName}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onChangeCommanderName("")}
-                    className="p-1 text-text-2 hover:text-loss transition-colors"
-                    title="Clear commander"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    value={commanderQuery}
-                    onChange={(e) => setCommanderQuery(e.target.value)}
-                    onFocus={() => commanderResults.length > 0 && setIsCommanderOpen(true)}
-                    onBlur={() => setTimeout(() => setIsCommanderOpen(false), 200)}
-                    placeholder="Search commander..."
-                    className="h-8 text-sm"
-                  />
-                  {isCommanderLoading && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                      <div className="h-3 w-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                    </div>
-                  )}
-                  {isCommanderOpen && commanderResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl max-h-48 overflow-y-auto">
-                      {commanderResults.map((card) => (
-                        <button
-                          key={card.id}
-                          type="button"
-                          onClick={() => handleCommanderSelect(card)}
-                          className="w-full p-2 text-left hover:bg-accent/10 transition-colors text-sm text-text-1 truncate"
-                        >
-                          {card.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Deck selector for registered users */}
-          {slot.type === "registered" && availableDecks.length > 0 && (
-            <Select
-              value={slot.deckId || ""}
-              onChange={(value) => onSelectDeck(value)}
-              placeholder="Select commander..."
-              options={availableDecks.map((deck) => ({
-                value: deck.id,
-                label: `${deck.commanderName}${deck.deckName ? ` (${deck.deckName})` : ''}`,
-              }))}
-              className="mt-2"
-            />
-          )}
-
-          {/* No decks message for registered users */}
-          {slot.type === "registered" && availableDecks.length === 0 && (
-            <div className="mt-2 p-2 rounded-md bg-card-raised border border-card-border">
-              <p className="text-xs text-text-2">
-                Deck TBD • Player will set during confirmation
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* Actions */}
-        <div className="shrink-0 flex flex-col gap-1">
+        <div className="shrink-0 flex items-center gap-1">
           {!hideWinnerButton && (
             <button
               type="button"
@@ -547,6 +468,85 @@ export function PlayerSlot({
             ✕
           </button>
         </div>
+      </div>
+
+      {/* Details zone: deck picker (registered) or commander search (guest) */}
+      <div className="border-t border-card-border p-3 pt-2.5">
+        {/* Commander search for guest players */}
+        {slot.type === "placeholder" && (
+          <div className="relative">
+            {slot.commanderName ? (
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "flex-1 h-8 text-sm rounded-md border px-2 flex items-center",
+                  "bg-accent/10 border-accent/30 text-text-1"
+                )}>
+                  {slot.commanderName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onChangeCommanderName("")}
+                  className="p-1 text-text-2 hover:text-loss transition-colors"
+                  title="Clear commander"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <>
+                <Input
+                  value={commanderQuery}
+                  onChange={(e) => setCommanderQuery(e.target.value)}
+                  onFocus={() => commanderResults.length > 0 && setIsCommanderOpen(true)}
+                  onBlur={() => setTimeout(() => setIsCommanderOpen(false), 200)}
+                  placeholder="Search commander..."
+                  className="h-8 text-sm"
+                />
+                {isCommanderLoading && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <div className="h-3 w-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                  </div>
+                )}
+                {isCommanderOpen && commanderResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg overflow-hidden bg-card-raised border border-accent/30 shadow-xl max-h-48 overflow-y-auto">
+                    {commanderResults.map((card) => (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => handleCommanderSelect(card)}
+                        className="w-full p-2 text-left hover:bg-accent/10 transition-colors text-sm text-text-1 truncate"
+                      >
+                        {card.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Deck selector for registered users */}
+        {slot.type === "registered" && availableDecks.length > 0 && (
+          <Select
+            value={slot.deckId || ""}
+            onChange={(value) => onSelectDeck(value)}
+            placeholder="Select commander..."
+            options={availableDecks.map((deck) => ({
+              value: deck.id,
+              label: `${deck.commanderName}${deck.deckName ? ` (${deck.deckName})` : ''}`,
+            }))}
+          />
+        )}
+
+        {/* No decks message for registered users */}
+        {slot.type === "registered" && availableDecks.length === 0 && (
+          <div className="p-2 rounded-md bg-card-raised border border-card-border">
+            <p className="text-xs text-text-2">
+              Deck TBD • Player will set during confirmation
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
