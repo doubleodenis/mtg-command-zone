@@ -7,6 +7,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import type { Result } from '@/types'
+import {
+  buildMeetings,
+  calculateRivalryStreak,
+  calculateRatingGapTrend,
+} from './head-to-head-meetings'
+import type {
+  SharedMatchInfo,
+  RatingHistoryRow,
+  Meeting,
+  RivalryStreak,
+  RatingGapTrend,
+} from './head-to-head-meetings'
 
 // ============================================
 // Types
@@ -211,15 +223,6 @@ type FormatVsRecord = {
   winRate: number
 }
 
-type CommanderVsRecord = {
-  commanderName: string
-  colorIdentity: ('W' | 'U' | 'B' | 'R' | 'G')[]
-  wins: number
-  losses: number
-  matchesPlayed: number
-  winRate: number
-}
-
 export type HeadToHeadComparison = {
   you: {
     id: string
@@ -240,7 +243,11 @@ export type HeadToHeadComparison = {
   asEnemies: RelationshipRecord
   asTeammates: RelationshipRecord
   byFormat: FormatVsRecord[]
-  bestCommander: CommanderVsRecord | null
+  firstMetAt: string | null
+  mostRecentMatchAt: string | null
+  currentStreak: RivalryStreak | null
+  meetings: Meeting[]
+  ratingGapTrend: RatingGapTrend | null
 }
 
 /**
@@ -289,12 +296,7 @@ export async function getHeadToHeadComparison(
     .select(`
       match_id,
       is_winner,
-      team,
-      deck_id,
-      decks (
-        commander_name,
-        color_identity
-      )
+      team
     `)
     .eq('user_id', currentUserId)
     .in('match_id', targetMatchIds)
@@ -315,6 +317,8 @@ export async function getHeadToHeadComparison(
     .select(`
       id,
       format_id,
+      played_at,
+      is_dirty,
       formats (
         slug,
         name
@@ -326,6 +330,17 @@ export async function getHeadToHeadComparison(
     return { success: false, error: matchError.message }
   }
 
+  // Fetch rating history for both players on the shared matches, used to build the rivalry timeline
+  const { data: ratingHistoryRows, error: ratingHistoryError } = await client
+    .from('rating_history')
+    .select('match_id, user_id, rating_after')
+    .in('match_id', sharedMatchIds)
+    .in('user_id', [currentUserId, targetUserId])
+
+  if (ratingHistoryError) {
+    return { success: false, error: ratingHistoryError.message }
+  }
+
   // Create lookup maps
   const targetTeamByMatch = new Map(
     targetParticipations
@@ -333,12 +348,14 @@ export async function getHeadToHeadComparison(
       .map((p) => [p.match_id, p.team])
   )
 
-  const matchFormatLookup = new Map(
+  const matchInfoLookup = new Map(
     matchDetails?.map((m) => [
       m.id,
       {
         formatSlug: (m.formats as { slug: string } | null)?.slug ?? 'unknown',
         formatName: (m.formats as { name: string } | null)?.name ?? 'Unknown',
+        playedAt: m.played_at,
+        isDirty: m.is_dirty,
       },
     ])
   )
@@ -347,16 +364,10 @@ export async function getHeadToHeadComparison(
   const asEnemies = { wins: 0, losses: 0, matchesPlayed: 0, winRate: 0 }
   const asTeammates = { wins: 0, losses: 0, matchesPlayed: 0, winRate: 0 }
   const formatMap = new Map<string, { slug: string; name: string; wins: number; losses: number }>()
-  const commanderMap = new Map<string, {
-    name: string
-    colors: string[]
-    wins: number
-    losses: number
-  }>()
 
   for (const p of currentParticipations ?? []) {
     const targetTeam = targetTeamByMatch.get(p.match_id)
-    const formatInfo = matchFormatLookup.get(p.match_id)
+    const formatInfo = matchInfoLookup.get(p.match_id)
     const isWin = p.is_winner
     const isSameTeam = p.team !== null && p.team === targetTeam
 
@@ -386,25 +397,6 @@ export async function getHeadToHeadComparison(
         })
       }
     }
-
-    // Commander tracking (only count as enemies)
-    if (!isSameTeam && p.decks) {
-      const deck = p.decks as { commander_name: string | null; color_identity: string[] | null }
-      if (deck.commander_name) {
-        const existing = commanderMap.get(deck.commander_name)
-        if (existing) {
-          if (isWin) existing.wins++
-          else existing.losses++
-        } else {
-          commanderMap.set(deck.commander_name, {
-            name: deck.commander_name,
-            colors: deck.color_identity ?? [],
-            wins: isWin ? 1 : 0,
-            losses: isWin ? 0 : 1,
-          })
-        }
-      }
-    }
   }
 
   // Calculate win rates
@@ -425,42 +417,35 @@ export async function getHeadToHeadComparison(
     }))
     .sort((a, b) => b.matchesPlayed - a.matchesPlayed)
 
-  // Best commander (highest win rate with at least 2 games)
-  let bestCommander: CommanderVsRecord | null = null
-  let bestWinRate = -1
-
-  for (const [, cmd] of commanderMap) {
-    const total = cmd.wins + cmd.losses
-    const winRate = calcWinRate(cmd.wins, total)
-    if (total >= 2 && winRate > bestWinRate) {
-      bestWinRate = winRate
-      bestCommander = {
-        commanderName: cmd.name,
-        colorIdentity: cmd.colors as ('W' | 'U' | 'B' | 'R' | 'G')[],
-        wins: cmd.wins,
-        losses: cmd.losses,
-        matchesPlayed: total,
-        winRate,
+  // Build the rivalry-timeline inputs and compute meetings/streak/rating-gap trend
+  const sharedMatchInfos: SharedMatchInfo[] = (currentParticipations ?? [])
+    .map((p) => {
+      const info = matchInfoLookup.get(p.match_id)
+      if (!info) return null
+      return {
+        matchId: p.match_id,
+        playedAt: info.playedAt,
+        isDirty: info.isDirty,
+        formatSlug: info.formatSlug,
+        formatName: info.formatName,
+        isWin: p.is_winner,
       }
-    }
-  }
+    })
+    .filter((m): m is SharedMatchInfo => m !== null)
 
-  // If no commander has 2+ games, just pick the one with most games
-  if (!bestCommander && commanderMap.size > 0) {
-    const sorted = Array.from(commanderMap.values()).sort(
-      (a, b) => (b.wins + b.losses) - (a.wins + a.losses)
-    )
-    const cmd = sorted[0]
-    const total = cmd.wins + cmd.losses
-    bestCommander = {
-      commanderName: cmd.name,
-      colorIdentity: cmd.colors as ('W' | 'U' | 'B' | 'R' | 'G')[],
-      wins: cmd.wins,
-      losses: cmd.losses,
-      matchesPlayed: total,
-      winRate: calcWinRate(cmd.wins, total),
-    }
-  }
+  const ratingRows: RatingHistoryRow[] = (ratingHistoryRows ?? []).map((r) => ({
+    matchId: r.match_id,
+    userId: r.user_id,
+    ratingAfter: r.rating_after,
+  }))
+
+  const meetings = buildMeetings(sharedMatchInfos, ratingRows, currentUserId, targetUserId)
+  const currentStreak = calculateRivalryStreak(sharedMatchInfos)
+  const ratingGapTrend = calculateRatingGapTrend(meetings)
+
+  const playedDates = sharedMatchInfos.map((m) => new Date(m.playedAt).getTime())
+  const firstMetAt = playedDates.length > 0 ? new Date(Math.min(...playedDates)).toISOString() : null
+  const mostRecentMatchAt = playedDates.length > 0 ? new Date(Math.max(...playedDates)).toISOString() : null
 
   // Get overall stats for both users
   const [currentStats, targetStats, currentRatings, targetRatings] = await Promise.all([
@@ -510,7 +495,11 @@ export async function getHeadToHeadComparison(
         winRate: asTeammates.winRate,
       },
       byFormat,
-      bestCommander,
+      firstMetAt,
+      mostRecentMatchAt,
+      currentStreak,
+      meetings,
+      ratingGapTrend,
     },
   }
 }
@@ -568,7 +557,11 @@ async function buildEmptyComparison(
       asEnemies: emptyRecord,
       asTeammates: emptyRecord,
       byFormat: [],
-      bestCommander: null,
+      firstMetAt: null,
+      mostRecentMatchAt: null,
+      currentStreak: null,
+      meetings: [],
+      ratingGapTrend: null,
     },
   }
 }
