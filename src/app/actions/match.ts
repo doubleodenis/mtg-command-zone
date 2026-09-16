@@ -13,6 +13,7 @@ import {
 import {
   getRating,
   applyRatingChange,
+  applyParticipantRating,
   updateCollectionRatings,
 } from "@/lib/supabase/ratings";
 import {
@@ -23,6 +24,7 @@ import {
   isCollectionMember,
 } from "@/lib/supabase/collections";
 import { getFriendshipStatus } from "@/lib/supabase/profiles";
+import { shouldAutoConfirmParticipant } from "@/lib/confirmation";
 import { calculateRating } from "@/lib/rating";
 import type {
   Result,
@@ -34,6 +36,7 @@ import type {
   ParticipantInput,
   ApprovalStatus,
   ParticipantStatus,
+  FriendshipStatus,
 } from "@/types";
 
 /**
@@ -41,12 +44,18 @@ import type {
  *
  * This action:
  * 1. Creates the match and participant records
- * 2. Auto-confirms all real participants
- * 3. Calculates and APPLIES ratings immediately
- * 4. Returns the actual rating delta for creator
+ * 2. Adds the match to any selected collections
+ * 3. Auto-confirms and rates the reporter, plus any other real participant
+ *    who is already an accepted friend of the reporter (see
+ *    shouldAutoConfirmParticipant / REQUIREMENTS.md §3.2). Everyone else
+ *    stays pending -- they confirm themselves later (confirmMatch), or the
+ *    match resolves automatically when they become friends with the
+ *    reporter (see acceptFriendRequest's pending-match sweep).
+ * 4. Returns the reporter's actual rating delta.
  *
  * Winner cannot be changed after match creation.
- * Deck updates are allowed but will trigger nightly recalculation.
+ * Deck updates are allowed but will trigger dirty-match recalculation if
+ * a rating was already applied.
  */
 export async function logMatch(payload: {
   formatId: string;
@@ -59,7 +68,6 @@ export async function logMatch(payload: {
 }): Promise<Result<{ matchId: string; delta: number }>> {
   const supabase = await createClient();
 
-  // Get current user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -67,7 +75,6 @@ export async function logMatch(payload: {
     return { success: false, error: "Not authenticated" };
   }
 
-  // Create match via the supabase helper
   const matchResult = await createMatch(
     supabase,
     user.id,
@@ -78,198 +85,20 @@ export async function logMatch(payload: {
   }
 
   const match = matchResult.data;
-  console.log(
-    `[RATING] logMatch: Match ${match.id} created, starting rating calculations`,
-  );
-  const now = new Date().toISOString();
 
-  // Get all real participants (not placeholders)
-  const { data: participants, error: participantsError } = await supabase
-    .from("match_participants")
-    .select(
-      `
-      id,
-      user_id,
-      is_winner,
-      deck:decks!match_participants_deck_id_fkey(id, bracket)
-    `,
-    )
-    .eq("match_id", match.id)
-    .not("user_id", "is", null);
-
-  if (participantsError) {
-    return {
-      success: false,
-      error: `Failed to fetch participants: ${participantsError.message}`,
-    };
-  }
-
-  const realParticipants = participants ?? [];
-
-  // Auto-confirm all real participants
-  for (const p of realParticipants) {
-    await supabase
-      .from("match_participants")
-      .update({
-        participant_status: "confirmed" as ParticipantStatus,
-        confirmed_at: now,
-      })
-      .eq("id", p.id);
-  }
-
-  // Get format info
-  const { data: format, error: formatError } = await supabase
-    .from("formats")
-    .select("id")
-    .eq("id", payload.formatId)
-    .single();
-
-  if (formatError || !format) {
-    revalidatePath("/matches");
-    revalidatePath(`/match/${match.id}`);
-    return { success: true, data: { matchId: match.id, delta: 0 } };
-  }
-
-  // Build participant ratings map (snapshot BEFORE applying any changes)
-  const participantRatings: Map<
-    string,
-    { rating: number; matchesPlayed: number }
-  > = new Map();
-
-  for (const p of realParticipants) {
-    if (p.user_id) {
-      const ratingResult = await getRating(supabase, p.user_id, format.id);
-      if (ratingResult.success) {
-        participantRatings.set(p.user_id, ratingResult.data);
-      } else {
-        participantRatings.set(p.user_id, { rating: 1000, matchesPlayed: 0 });
-      }
-    }
-  }
-
-  // Calculate and apply ratings for each real participant
-  let creatorDelta = 0;
-
-  for (const participant of realParticipants) {
-    if (!participant.user_id) continue;
-
-    const currentRating = participantRatings.get(participant.user_id)!;
-    const playerBracket: Bracket = (participant.deck?.bracket as Bracket) ?? 2;
-
-    // Build opponents array (excluding this participant)
-    const opponents: Array<{ rating: number; bracket: Bracket }> = [];
-    for (const p of realParticipants) {
-      if (p.user_id && p.user_id !== participant.user_id) {
-        const oppRating = participantRatings.get(p.user_id)!.rating;
-        const bracket: Bracket = (p.deck?.bracket as Bracket) ?? 2;
-        opponents.push({ rating: oppRating, bracket });
-      }
-    }
-
-    // Calculate rating change
-    const ratingCalc = calculateRating({
-      playerId: participant.user_id,
-      playerRating: currentRating.rating,
-      playerBracket,
-      playerMatchCount: currentRating.matchesPlayed,
-      isWinner: participant.is_winner,
-      opponents,
-      formatId: format.id,
-      collectionId: null,
-    });
-
-    // Apply global rating change
-    const newRating = currentRating.rating + ratingCalc.delta;
-    console.log(
-      `[RATING] logMatch: Applying rating for user ${participant.user_id} - before: ${currentRating.rating}, delta: ${ratingCalc.delta}, after: ${newRating}, isWinner: ${participant.is_winner}`,
-    );
-    await applyRatingChange(supabase, {
-      userId: participant.user_id,
-      matchId: match.id,
-      formatId: format.id,
-      newRating,
-      delta: ratingCalc.delta,
-      isWin: participant.is_winner,
-      playerBracket,
-      opponentAvgRating: ratingCalc.opponentAvgRating,
-      opponentAvgBracket: ratingCalc.opponentAvgBracket,
-      kFactor: ratingCalc.kFactor,
-      algorithmVersion: 1,
-    });
-
-    // Track creator's delta for return value
-    if (participant.user_id === user.id) {
-      creatorDelta = ratingCalc.delta;
-    }
-
-    // Update collection-scoped ratings
-    const matchCollectionsResult = await getMatchCollections(
-      supabase,
-      match.id,
-    );
-    if (
-      matchCollectionsResult.success &&
-      matchCollectionsResult.data.length > 0
-    ) {
-      const userMemberCollectionsResult = await getUserMemberCollections(
-        supabase,
-        participant.user_id,
-        matchCollectionsResult.data,
-      );
-
-      if (
-        userMemberCollectionsResult.success &&
-        userMemberCollectionsResult.data.length > 0
-      ) {
-        console.log(
-          `[RATING] logMatch: Applying collection-scoped ratings for user ${participant.user_id} in ${userMemberCollectionsResult.data.length} collections`,
-        );
-        await updateCollectionRatings(supabase, {
-          userId: participant.user_id,
-          matchId: match.id,
-          formatId: format.id,
-          playerBracket,
-          isWinner: participant.is_winner,
-          opponents,
-          collectionIds: userMemberCollectionsResult.data,
-          algorithmVersion: 1,
-        });
-      }
-    }
-  }
-
-  // Mark match as ratings applied immediately
-  console.log(
-    `[RATING] logMatch: Setting ratings_applied_at for match ${match.id}`,
-  );
-  const { error: applyError } = await supabase
-    .from("matches")
-    .update({
-      ratings_applied_at: now,
-      is_dirty: false,
-    })
-    .eq("id", match.id);
-
-  if (applyError) {
-    console.error(`[RATING] logMatch: FAILED to set ratings_applied_at - ${applyError.message}`);
-  } else {
-    console.log(`[RATING] logMatch: Successfully set ratings_applied_at for match ${match.id}`);
-  }
-
-  // Add match to selected collections
+  // Add match to selected collections BEFORE applying ratings, so
+  // applyParticipantRating (which reads getMatchCollections) sees them.
   if (payload.collectionIds && payload.collectionIds.length > 0) {
     for (const collectionId of payload.collectionIds) {
-      // Verify user is a member of the collection
       const memberCheck = await isCollectionMember(
         supabase,
         collectionId,
         user.id,
       );
       if (!memberCheck.success || !memberCheck.data) {
-        continue; // Skip collections the user is not a member of
+        continue;
       }
 
-      // Get collection details for permission check
       const collectionResult = await getCollectionById(supabase, collectionId);
       if (!collectionResult.success) {
         continue;
@@ -279,18 +108,15 @@ export async function logMatch(payload: {
       const isOwner = collection.ownerId === user.id;
       const permission = collection.matchAddPermission;
 
-      // Check permissions
       if (permission === "owner_only" && !isOwner) {
-        continue; // User doesn't have permission
+        continue;
       }
 
-      // Determine approval status
       let approvalStatus: ApprovalStatus = "approved";
       if (!isOwner && permission === "any_member_approval_required") {
         approvalStatus = "pending";
       }
 
-      // Add match to collection
       await addMatchToCollection(
         supabase,
         collectionId,
@@ -302,7 +128,63 @@ export async function logMatch(payload: {
     }
   }
 
-  // Revalidate pages
+  // Get all real participants (not placeholders)
+  const { data: participants, error: participantsError } = await supabase
+    .from("match_participants")
+    .select("id, user_id")
+    .eq("match_id", match.id)
+    .not("user_id", "is", null);
+
+  if (participantsError) {
+    return {
+      success: false,
+      error: `Failed to fetch participants: ${participantsError.message}`,
+    };
+  }
+
+  const now = new Date().toISOString();
+  let creatorDelta = 0;
+
+  for (const participant of participants ?? []) {
+    if (!participant.user_id) continue;
+
+    const isReporter = participant.user_id === user.id;
+    let friendshipStatus: FriendshipStatus | null = null;
+
+    if (!isReporter) {
+      const friendshipResult = await getFriendshipStatus(
+        supabase,
+        user.id,
+        participant.user_id,
+      );
+      friendshipStatus =
+        friendshipResult.success && friendshipResult.data
+          ? friendshipResult.data.status
+          : null;
+    }
+
+    const shouldConfirm = shouldAutoConfirmParticipant({
+      reporterId: user.id,
+      participantUserId: participant.user_id,
+      friendshipStatus,
+    });
+
+    if (!shouldConfirm) continue; // stays 'pending' -- notification already fires via DB trigger
+
+    await supabase
+      .from("match_participants")
+      .update({
+        participant_status: "confirmed" as ParticipantStatus,
+        confirmed_at: now,
+      })
+      .eq("id", participant.id);
+
+    const applyResult = await applyParticipantRating(supabase, participant.id);
+    if (applyResult.success && isReporter) {
+      creatorDelta = applyResult.data.delta;
+    }
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/matches");
   revalidatePath(`/match/${match.id}`);
