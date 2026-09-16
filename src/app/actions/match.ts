@@ -1203,6 +1203,35 @@ export async function approveClaimRequest(
     return { success: false, error: result.error };
   }
 
+  const friendshipResult = await getFriendshipStatus(
+    supabase,
+    participant.claimed_by!,
+    match.created_by,
+  );
+  const friendshipStatus =
+    friendshipResult.success && friendshipResult.data
+      ? friendshipResult.data.status
+      : null;
+
+  const shouldConfirm = shouldAutoConfirmParticipant({
+    reporterId: match.created_by,
+    participantUserId: participant.claimed_by!,
+    friendshipStatus,
+  });
+
+  if (shouldConfirm) {
+    await supabase
+      .from("match_participants")
+      .update({
+        participant_status: "confirmed" as ParticipantStatus,
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq("id", participantId);
+
+    await applyParticipantRating(supabase, participantId);
+  }
+  // else: stays pending -- the claimant confirms themselves via confirmMatch()
+
   // Revalidate pages
   revalidatePath(`/match/${participant.match_id}`);
   revalidatePath("/dashboard");
