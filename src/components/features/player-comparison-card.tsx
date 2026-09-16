@@ -22,13 +22,18 @@ type FormatVsRecord = {
   winRate: number;
 };
 
-type CommanderVsRecord = {
-  commanderName: string;
-  colorIdentity: ("W" | "U" | "B" | "R" | "G")[];
-  wins: number;
-  losses: number;
-  matchesPlayed: number;
-  winRate: number;
+type RivalryStreak = { count: number; result: "W" | "L" };
+
+type RatingGapTrend = { current: number; past: number; daysSpan: number };
+
+type Meeting = {
+  matchId: string;
+  playedAt: string;
+  formatSlug: string;
+  formatName: string;
+  isWin: boolean;
+  yourRating: number;
+  opponentRating: number;
 };
 
 type ComparisonData = {
@@ -37,7 +42,11 @@ type ComparisonData = {
   asEnemies: RelationshipRecord;
   asTeammates: RelationshipRecord;
   byFormat: FormatVsRecord[];
-  bestCommander: CommanderVsRecord | null;
+  firstMetAt: string | null;
+  mostRecentMatchAt: string | null;
+  currentStreak: RivalryStreak | null;
+  meetings: Meeting[];
+  ratingGapTrend: RatingGapTrend | null;
 };
 
 type PlayerComparisonCardProps = {
@@ -161,94 +170,11 @@ function RelationshipCard({ title, icon, record }: RelationshipCardProps) {
   );
 }
 
-type FormatVsRowProps = {
-  format: FormatVsRecord;
-};
-
-function FormatVsRow({ format }: FormatVsRowProps) {
-  const winRateColor =
-    format.winRate >= 50
-      ? "text-win"
-      : format.winRate < 40
-      ? "text-loss"
-      : "text-text-1";
-
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-card-border last:border-0">
-      <div className="flex items-center gap-3">
-        <span className="font-medium text-text-1 w-24">{format.formatName}</span>
-        <span className="text-sm text-text-2">
-          {format.wins}W - {format.losses}L
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        {/* Win rate bar */}
-        <div className="w-16 h-1.5 bg-surface rounded-full overflow-hidden">
-          <div
-            className={cn(
-              "h-full rounded-full",
-              format.winRate >= 50 ? "bg-win" : "bg-loss"
-            )}
-            style={{ width: `${format.winRate}%` }}
-          />
-        </div>
-        <span
-          className={cn(
-            "font-display font-semibold w-10 text-right",
-            winRateColor
-          )}
-        >
-          {format.winRate}%
-        </span>
-      </div>
-    </div>
-  );
-}
-
-type BestCommanderCardProps = {
-  commander: CommanderVsRecord;
-};
-
-function BestCommanderCard({ commander }: BestCommanderCardProps) {
-  const winRateColor =
-    commander.winRate >= 50
-      ? "text-win"
-      : commander.winRate < 40
-      ? "text-loss"
-      : "text-text-1";
-
-  return (
-    <div className="bg-surface rounded-lg p-4 flex items-center gap-4">
-      {/* Color Identity */}
-      <div className="shrink-0">
-        <ColorIdentity colors={commander.colorIdentity} size="md" />
-      </div>
-
-      {/* Commander Info */}
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-text-1 truncate">
-          {commander.commanderName}
-        </p>
-        <p className="text-sm text-text-2">
-          {commander.wins}W - {commander.losses}L ({commander.matchesPlayed}{" "}
-          matches)
-        </p>
-      </div>
-
-      {/* Win Rate */}
-      <div className="text-right shrink-0">
-        <span className={cn("font-display text-xl font-bold", winRateColor)}>
-          {commander.winRate}%
-        </span>
-        <p className="text-xs text-text-3">win rate</p>
-      </div>
-    </div>
-  );
-}
-
 export type {
   ComparisonData,
   RelationshipRecord,
   FormatVsRecord,
-  CommanderVsRecord,
+  RivalryStreak,
+  RatingGapTrend,
+  Meeting,
 };
