@@ -325,6 +325,12 @@ Immutable append-only log of every rating change, for audit trail and charting. 
   in which participants confirm doesn't affect the math. This is
   reconstructed via `get_rating_before_match()` at the moment each
   participant's rating is applied, not stored separately.
+- That play-time snapshot only feeds the expected-score/fairness comparison
+  used to calculate the delta -- the resulting delta is then applied on top
+  of the player's LIVE current rating at write time, not replayed from the
+  historical snapshot, so resolving an old backlogged pending match late
+  (e.g. via the friend-acceptance sweep) can never silently erase rating
+  progress from other matches applied in the meantime.
 - When a placeholder slot is claimed and approved, the same friendship rule
   applies: if the claimant is already a friend of the match's reporter, they
   auto-confirm immediately; otherwise they confirm themselves afterward,
