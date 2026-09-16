@@ -1,7 +1,18 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { Check, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,6 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { createClient } from "@/lib/supabase/client";
+import { getFriends } from "@/lib/supabase/profiles";
+import { getCollectionMembers } from "@/lib/supabase/collections";
 import { logMatch } from "@/app/actions/match";
 import type { FormatSummary, FormatSlug, MatchData } from "@/types/format";
 import type { DeckSummary, ParticipantInput, ColorIdentity, CollectionWithMembership } from "@/types";
@@ -16,7 +29,15 @@ import type { DeckSummary, ParticipantInput, ColorIdentity, CollectionWithMember
 import { FormatSelector } from "./format-selector";
 import { PlayerSlot } from "./player-slot";
 import { PentagramLayout } from "./pentagram-layout";
+import { PlayerSidebar } from "./player-sidebar";
+import { DndSlot } from "./dnd-slot";
 import type { ParticipantSlot, SearchResult } from "./match-form-types";
+import {
+  findFirstEmptyIndex,
+  replaceParticipant,
+  shiftInsertParticipant,
+  moveParticipant,
+} from "@/lib/match-participants";
 import Link from "next/link";
 
 // ============================================
@@ -67,6 +88,109 @@ export function MatchForm({
   const [userDecks, setUserDecks] = React.useState<
     Record<string, DeckSummary[]>
   >({ [currentUserId]: currentUserDecks });
+
+  // Friends list for the player sidebar (fetched once)
+  const [friends, setFriends] = React.useState<SearchResult[]>([]);
+
+  // Surfaces sidebar-related failures (fetch errors, full roster, etc.) to the user
+  const [sidebarMessage, setSidebarMessage] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const supabase = createClient();
+      const result = await getFriends(supabase, currentUserId);
+      if (cancelled) return;
+
+      if (!result.success) {
+        setSidebarMessage("Couldn't load friends list.");
+        return;
+      }
+
+      setFriends(
+        result.data.map((f) => ({
+          id: f.id,
+          username: f.username,
+          displayName: f.displayName,
+          avatarUrl: f.avatarUrl,
+          isFriend: true,
+          friendshipStatus: "accepted" as const,
+        }))
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  // Collection members for the player sidebar, cached per collection id
+  const [collectionMembersCache, setCollectionMembersCache] = React.useState<
+    Record<string, SearchResult[]>
+  >({});
+
+  React.useEffect(() => {
+    const idsToFetch = selectedCollectionIds.filter(
+      (id) => !(id in collectionMembersCache)
+    );
+    if (idsToFetch.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const supabase = createClient();
+      const results = await Promise.all(
+        idsToFetch.map((id) => getCollectionMembers(supabase, id))
+      );
+      if (cancelled) return;
+
+      let hadFailure = false;
+      const succeededEntries: Record<string, SearchResult[]> = {};
+      idsToFetch.forEach((id, i) => {
+        const result = results[i];
+        if (!result.success) {
+          // Don't cache the failure — leave the id out so the next
+          // effect run retries the fetch instead of treating it as
+          // permanently empty.
+          hadFailure = true;
+          return;
+        }
+        succeededEntries[id] = result.data.map((m) => ({
+          id: m.profile.id,
+          username: m.profile.username,
+          displayName: m.profile.displayName,
+          avatarUrl: m.profile.avatarUrl,
+        }));
+      });
+
+      // Only update state (and thus re-trigger this effect) when there's
+      // actually new data to merge in — otherwise, if every fetch failed,
+      // creating a new cache object reference here would immediately
+      // re-trigger the effect and retry forever in a tight loop.
+      if (Object.keys(succeededEntries).length > 0) {
+        setCollectionMembersCache((prev) => ({ ...prev, ...succeededEntries }));
+      }
+      if (hadFailure) {
+        setSidebarMessage("Couldn't load collection members. Try again.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCollectionIds, collectionMembersCache]);
+
+  // Deduplicated union of members across every selected collection
+  const collectionTabMembers = React.useMemo(() => {
+    const seen = new Map<string, SearchResult>();
+    selectedCollectionIds.forEach((id) => {
+      (collectionMembersCache[id] || []).forEach((member) => {
+        if (!seen.has(member.id)) seen.set(member.id, member);
+      });
+    });
+    return Array.from(seen.values());
+  }, [selectedCollectionIds, collectionMembersCache]);
 
   // Initialize participants when format changes
   React.useEffect(() => {
@@ -129,6 +253,20 @@ export function MatchForm({
     [participants, fetchDecksForUser]
   );
 
+  // Add a sidebar player to the first empty slot; no-op if the roster is full
+  const handleSidebarClickAdd = React.useCallback(
+    (player: SearchResult) => {
+      const emptyIndex = findFirstEmptyIndex(participants);
+      if (emptyIndex === null) {
+        setSidebarMessage("All player slots are full.");
+        return;
+      }
+      setSidebarMessage(null);
+      addRegisteredPlayerAt(emptyIndex, player);
+    },
+    [participants, addRegisteredPlayerAt]
+  );
+
   // Set a slot as guest at a specific index
   const setAsGuestAt = React.useCallback(
     (index: number) => {
@@ -160,6 +298,130 @@ export function MatchForm({
     }
     return undefined;
   };
+
+  // Re-stamp every slot's team from its current index (used after drag moves)
+  const restampTeams = (list: ParticipantSlot[]): ParticipantSlot[] =>
+    list.map((p, i) => ({ ...p, team: getTeamForIndex(i) }));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  // Preview shown in the DragOverlay while a drag is active
+  type DragPreview = { label: string; avatarUrl?: string; isGuest?: boolean };
+  const [dragPreview, setDragPreview] = React.useState<DragPreview | null>(null);
+  // DragOverlay is portaled to document.body once mounted, so the drag
+  // ghost renders above every ancestor's stacking context instead of
+  // being clipped by a Card's rounded corners or a parent's overflow.
+  const [isMounted, setIsMounted] = React.useState(false);
+  React.useEffect(() => setIsMounted(true), []);
+
+  const handleDragStart = React.useCallback(
+    (event: DragStartEvent) => {
+      const id = String(event.active.id);
+
+      if (id.startsWith("sidebar:")) {
+        const userId = id.slice("sidebar:".length);
+        const player =
+          friends.find((f) => f.id === userId) ||
+          collectionTabMembers.find((m) => m.id === userId);
+        if (player) {
+          setDragPreview({
+            label: player.displayName || player.username,
+            avatarUrl: player.avatarUrl || undefined,
+          });
+        }
+        return;
+      }
+
+      if (id.startsWith("seat:")) {
+        const index = Number(id.slice("seat:".length));
+        const slot = participants[index];
+        if (!slot) return;
+        if (slot.type === "registered") {
+          setDragPreview({
+            label: slot.displayName || slot.username || "Player",
+            avatarUrl: slot.avatarUrl,
+          });
+        } else if (slot.type === "placeholder") {
+          setDragPreview({
+            label: slot.placeholderName || "Guest",
+            isGuest: true,
+          });
+        }
+      }
+    },
+    [friends, collectionTabMembers, participants]
+  );
+
+  const handleDragCancel = React.useCallback(() => setDragPreview(null), []);
+
+  const handleDropFromSidebar = React.useCallback(
+    async (player: SearchResult, targetIndex: number) => {
+      const targetSlot = participants[targetIndex];
+      await fetchDecksForUser(player.id);
+
+      const newSlot: ParticipantSlot = {
+        type: "registered",
+        userId: player.id,
+        username: player.username,
+        displayName: player.displayName || undefined,
+        avatarUrl: player.avatarUrl || undefined,
+        isWinner: false,
+        team: getTeamForIndex(targetIndex),
+      };
+
+      const isPentagram = selectedFormat?.slug === "pentagram";
+
+      if (targetSlot.type === "empty" || isPentagram) {
+        setParticipants(replaceParticipant(participants, targetIndex, newSlot));
+        return;
+      }
+
+      const scopeIndices = selectedFormat?.hasTeams
+        ? participants
+            .map((_, i) => i)
+            .filter((i) => getTeamForIndex(i) === getTeamForIndex(targetIndex))
+        : participants.map((_, i) => i);
+
+      const next = shiftInsertParticipant(participants, targetIndex, newSlot, scopeIndices);
+      setParticipants(restampTeams(next));
+    },
+    [participants, fetchDecksForUser, selectedFormat]
+  );
+
+  const handleDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      setDragPreview(null);
+
+      const { active, over } = event;
+      if (!over) return;
+
+      const activeId = String(active.id);
+      const overId = String(over.id);
+      if (!overId.startsWith("slot:")) return;
+      const targetIndex = Number(overId.slice("slot:".length));
+
+      if (activeId.startsWith("sidebar:")) {
+        const userId = activeId.slice("sidebar:".length);
+        const player =
+          friends.find((f) => f.id === userId) ||
+          collectionTabMembers.find((m) => m.id === userId);
+        if (!player) return;
+        handleDropFromSidebar(player, targetIndex);
+        return;
+      }
+
+      if (activeId.startsWith("seat:")) {
+        const fromIndex = Number(activeId.slice("seat:".length));
+        if (fromIndex === targetIndex) return;
+        const next = moveParticipant(participants, fromIndex, targetIndex);
+        setParticipants(restampTeams(next));
+      }
+    },
+    [friends, collectionTabMembers, participants, handleDropFromSidebar]
+  );
 
   // Remove a participant
   const removeParticipant = (index: number) => {
@@ -458,227 +720,337 @@ export function MatchForm({
         </CardContent>
       </Card>
 
-      {/* Participants */}
-      {selectedFormat && (
+      {/* Add to Collections */}
+      {collections.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Players</CardTitle>
-              <div className="flex items-center gap-2">
-                {selectedFormat && (
-                  <Badge variant="outline">
-                    {participants.filter((p) => p.type !== "empty").length} /{" "}
-                    {selectedFormat.maxPlayers || `${selectedFormat.minPlayers}+`}
-                  </Badge>
-                )}
-                {isFlexibleFormat && (
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={removeEmptySlot}
-                      disabled={participants.length <= selectedFormat.minPlayers}
-                    >
-                      −
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={addSlot}
-                    >
-                      +
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
+            <CardTitle>Add to Collections</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Team-based layout for team formats */}
-            {selectedFormat.hasTeams ? (
-              <div className="flex flex-col md:grid md:grid-cols-[minmax(300px,1fr)_auto_minmax(300px,1fr)] gap-4">
-                {/* Team A */}
-                <div className="space-y-3">
-                  <div className={cn(
-                    "flex items-center gap-2 pb-2 border-b transition-colors",
-                    isTeamWinner('A') ? "border-win/50" : "border-card-border"
-                  )}>
-                    <div className={cn(
-                      "w-3 h-3 rounded-full transition-colors",
-                      isTeamWinner('A') ? "bg-win" : "bg-accent"
-                    )} />
-                    <span className="text-sm font-semibold text-text-1">Team A</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleTeamWinner('A')}
-                      className={cn(
-                        "ml-auto p-1.5 rounded transition-colors text-xs flex items-center gap-1",
-                        isTeamWinner('A')
-                          ? "bg-win text-text-1"
-                          : "bg-card-raised text-text-2 hover:text-text-1 hover:bg-accent/10"
-                      )}
-                      title={isTeamWinner('A') ? "Remove team win" : "Mark team as winner"}
-                    >
-                      <Trophy className="w-4 h-4" />
-                      <span className="text-xs font-medium">{isTeamWinner('A') ? "Winner" : "Won"}</span>
-                    </button>
-                  </div>
-                  {participants
-                    .map((slot, index) => ({ slot, index }))
-                    .filter(({ index }) => getTeamForIndex(index) === "A")
-                    .map(({ slot, index }) => (
-                      <PlayerSlot
-                        key={index}
-                        slot={slot}
-                        index={index}
-                        currentUserId={currentUserId}
-                        onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
-                        onSetAsGuest={() => setAsGuestAt(index)}
-                        onRemove={() => removeParticipant(index)}
-                        onToggleWinner={() => toggleWinner(index)}
-                        onSelectDeck={(deckId) => selectDeck(index, deckId)}
-                        onChangePlaceholderName={(name) =>
-                          updatePlaceholderName(index, name)
-                        }
-                        onChangeCommanderName={(name) =>
-                          updateCommanderName(index, name)
-                        }
-                        availableDecks={
-                          slot.type === "registered" && slot.userId
-                            ? userDecks[slot.userId] || []
-                            : []
-                        }
-                        isTeamFormat={true}
-                        team="A"
-                        excludeIds={excludeIds}
-                        currentUser={currentUser}
-                        hideWinnerButton={true}
-                      />
-                    ))}
-                </div>
+            <div className="space-y-2">
+              {collections.map((collection) => {
+                const isSelected = selectedCollectionIds.includes(collection.id);
+                const isOwner = collection.userRole === "owner";
+                const canAddDirectly = isOwner || collection.matchAddPermission === "any_member";
 
-                {/* VS Divider - horizontal on mobile, vertical on desktop */}
-                <div className="flex md:flex-col items-center justify-center py-2 md:py-0 md:px-2">
-                  <div className="flex-1 h-px md:h-auto md:w-px bg-card-border" />
-                  <div className="mx-3 md:mx-0 md:my-3 px-3 py-1.5 rounded-full bg-card-raised border border-card-border">
-                    <span className="text-xs font-bold text-text-2">VS</span>
-                  </div>
-                  <div className="flex-1 h-px md:h-auto md:w-px bg-card-border" />
-                </div>
-
-                {/* Team B */}
-                <div className="space-y-3">
-                  <div className={cn(
-                    "flex items-center gap-2 pb-2 border-b transition-colors",
-                    isTeamWinner('B') ? "border-win/50" : "border-card-border"
-                  )}>
-                    <div className={cn(
-                      "w-3 h-3 rounded-full transition-colors",
-                      isTeamWinner('B') ? "bg-win" : "bg-loss"
-                    )} />
-                    <span className="text-sm font-semibold text-text-1">Team B</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleTeamWinner('B')}
+                return (
+                  <button
+                    key={collection.id}
+                    type="button"
+                    onClick={() => toggleCollection(collection.id)}
+                    className={cn(
+                      "w-full p-3 rounded-lg border text-left transition-all flex items-center gap-3",
+                      isSelected
+                        ? "bg-accent/10 border-accent/50"
+                        : "bg-card-raised border-card-border hover:border-accent/30"
+                    )}
+                  >
+                    <div
                       className={cn(
-                        "ml-auto p-1.5 rounded transition-colors text-xs flex items-center gap-1",
-                        isTeamWinner('B')
-                          ? "bg-win text-text-1"
-                          : "bg-card-raised text-text-2 hover:text-text-1 hover:bg-accent/10"
+                        "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                        isSelected
+                          ? "bg-accent border-accent"
+                          : "border-card-border"
                       )}
-                      title={isTeamWinner('B') ? "Remove team win" : "Mark team as winner"}
                     >
-                      <Trophy className="w-4 h-4" />
-                      <span className="text-xs font-medium">{isTeamWinner('B') ? "Winner" : "Won"}</span>
-                    </button>
-                  </div>
-                  {participants
-                    .map((slot, index) => ({ slot, index }))
-                    .filter(({ index }) => getTeamForIndex(index) === "B")
-                    .map(({ slot, index }) => (
-                      <PlayerSlot
-                        key={index}
-                        slot={slot}
-                        index={index}
-                        currentUserId={currentUserId}
-                        onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
-                        onSetAsGuest={() => setAsGuestAt(index)}
-                        onRemove={() => removeParticipant(index)}
-                        onToggleWinner={() => toggleWinner(index)}
-                        onSelectDeck={(deckId) => selectDeck(index, deckId)}
-                        onChangePlaceholderName={(name) =>
-                          updatePlaceholderName(index, name)
-                        }
-                        onChangeCommanderName={(name) =>
-                          updateCommanderName(index, name)
-                        }
-                        availableDecks={
-                          slot.type === "registered" && slot.userId
-                            ? userDecks[slot.userId] || []
-                            : []
-                        }
-                        isTeamFormat={true}
-                        team="B"
-                        excludeIds={excludeIds}
-                        currentUser={currentUser}
-                        hideWinnerButton={true}
-                      />
-                    ))}
-                </div>
-              </div>
-            ) : selectedFormat.slug === "pentagram" ? (
-              /* Pentagram layout - pentagon with enemies shown */
-              <PentagramLayout
-                participants={participants}
-                currentUserId={currentUserId}
-                onSelectPlayer={(index, player) => addRegisteredPlayerAt(index, player)}
-                onSetAsGuest={(index) => setAsGuestAt(index)}
-                onRemove={(index) => removeParticipant(index)}
-                onToggleWinner={(index) => toggleWinner(index)}
-                onSelectDeck={(index, deckId) => selectDeck(index, deckId)}
-                onChangePlaceholderName={(index, name) => updatePlaceholderName(index, name)}
-                onChangeCommanderName={(index, name) => updateCommanderName(index, name)}
-                userDecks={userDecks}
-                excludeIds={excludeIds}
-                currentUser={currentUser}
-              />
-            ) : (
-              /* Non-team layout (FFA) */
-              <div className="space-y-3">
-                {participants.map((slot, index) => (
-                  <PlayerSlot
-                    key={index}
-                    slot={slot}
-                    index={index}
-                    currentUserId={currentUserId}
-                    onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
-                    onSetAsGuest={() => setAsGuestAt(index)}
-                    onRemove={() => removeParticipant(index)}
-                    onToggleWinner={() => toggleWinner(index)}
-                    onSelectDeck={(deckId) => selectDeck(index, deckId)}
-                    onChangePlaceholderName={(name) =>
-                      updatePlaceholderName(index, name)
-                    }
-                    onChangeCommanderName={(name) =>
-                      updateCommanderName(index, name)
-                    }
-                    availableDecks={
-                      slot.type === "registered" && slot.userId
-                        ? userDecks[slot.userId] || []
-                        : []
-                    }
-                    isTeamFormat={false}
-                    team={undefined}
-                    excludeIds={excludeIds}
-                    currentUser={currentUser}
-                  />
-                ))}
-              </div>
-            )}
+                      {isSelected && (
+                        <Check className="w-3 h-3 text-text-1" strokeWidth={3} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-1 truncate">
+                        {collection.name}
+                      </p>
+                      <p className="text-xs text-text-2">
+                        {collection.matchCount} matches · {collection.memberCount} members
+                        {!canAddDirectly && " · Requires approval"}
+                      </p>
+                    </div>
+                    {isOwner && (
+                      <Badge variant="outline" className="shrink-0 text-xs">
+                        Owner
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Participants */}
+      {selectedFormat && (
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+        <div className="md:grid md:grid-cols-[1fr_280px] gap-4">
+          <div className="mb-4 md:mb-0 md:order-2">
+            <PlayerSidebar
+              friends={friends}
+              collectionMembers={collectionTabMembers}
+              hasSelectedCollections={selectedCollectionIds.length > 0}
+              excludeIds={excludeIds}
+              onClickAdd={handleSidebarClickAdd}
+            />
+            {sidebarMessage && (
+              <p className="text-xs text-loss mt-2">{sidebarMessage}</p>
+            )}
+          </div>
+          <Card className="md:order-1">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Players</CardTitle>
+                <div className="flex items-center gap-2">
+                  {selectedFormat && (
+                    <Badge variant="outline">
+                      {participants.filter((p) => p.type !== "empty").length} /{" "}
+                      {selectedFormat.maxPlayers || `${selectedFormat.minPlayers}+`}
+                    </Badge>
+                  )}
+                  {isFlexibleFormat && (
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={removeEmptySlot}
+                        disabled={participants.length <= selectedFormat.minPlayers}
+                      >
+                        −
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={addSlot}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Team-based layout for team formats */}
+              {selectedFormat.hasTeams ? (
+                <div className="flex flex-col md:grid md:grid-cols-[minmax(300px,1fr)_auto_minmax(300px,1fr)] gap-4">
+                  {/* Team A */}
+                  <div className="space-y-3">
+                    <div className={cn(
+                      "flex items-center gap-2 pb-2 border-b transition-colors",
+                      isTeamWinner('A') ? "border-win/50" : "border-card-border"
+                    )}>
+                      <div className={cn(
+                        "w-3 h-3 rounded-full transition-colors",
+                        isTeamWinner('A') ? "bg-win" : "bg-accent"
+                      )} />
+                      <span className="text-sm font-semibold text-text-1">Team A</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleTeamWinner('A')}
+                        className={cn(
+                          "ml-auto p-1.5 rounded transition-colors text-xs flex items-center gap-1",
+                          isTeamWinner('A')
+                            ? "bg-win text-text-1"
+                            : "bg-card-raised text-text-2 hover:text-text-1 hover:bg-accent/10"
+                        )}
+                        title={isTeamWinner('A') ? "Remove team win" : "Mark team as winner"}
+                      >
+                        <Trophy className="w-4 h-4" />
+                        <span className="text-xs font-medium">{isTeamWinner('A') ? "Winner" : "Won"}</span>
+                      </button>
+                    </div>
+                    {participants
+                      .map((slot, index) => ({ slot, index }))
+                      .filter(({ index }) => getTeamForIndex(index) === "A")
+                      .map(({ slot, index }) => (
+                        <DndSlot key={index} index={index} draggable={slot.type !== "empty"}>
+                          <PlayerSlot
+                            slot={slot}
+                            index={index}
+                            currentUserId={currentUserId}
+                            onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
+                            onSetAsGuest={() => setAsGuestAt(index)}
+                            onRemove={() => removeParticipant(index)}
+                            onToggleWinner={() => toggleWinner(index)}
+                            onSelectDeck={(deckId) => selectDeck(index, deckId)}
+                            onChangePlaceholderName={(name) =>
+                              updatePlaceholderName(index, name)
+                            }
+                            onChangeCommanderName={(name) =>
+                              updateCommanderName(index, name)
+                            }
+                            availableDecks={
+                              slot.type === "registered" && slot.userId
+                                ? userDecks[slot.userId] || []
+                                : []
+                            }
+                            isTeamFormat={true}
+                            team="A"
+                            excludeIds={excludeIds}
+                            currentUser={currentUser}
+                            hideWinnerButton={true}
+                          />
+                        </DndSlot>
+                      ))}
+                  </div>
+
+                  {/* VS Divider - horizontal on mobile, vertical on desktop */}
+                  <div className="flex md:flex-col items-center justify-center py-2 md:py-0 md:px-2">
+                    <div className="flex-1 h-px md:h-auto md:w-px bg-card-border" />
+                    <div className="mx-3 md:mx-0 md:my-3 px-3 py-1.5 rounded-full bg-card-raised border border-card-border">
+                      <span className="text-xs font-bold text-text-2">VS</span>
+                    </div>
+                    <div className="flex-1 h-px md:h-auto md:w-px bg-card-border" />
+                  </div>
+
+                  {/* Team B */}
+                  <div className="space-y-3">
+                    <div className={cn(
+                      "flex items-center gap-2 pb-2 border-b transition-colors",
+                      isTeamWinner('B') ? "border-win/50" : "border-card-border"
+                    )}>
+                      <div className={cn(
+                        "w-3 h-3 rounded-full transition-colors",
+                        isTeamWinner('B') ? "bg-win" : "bg-loss"
+                      )} />
+                      <span className="text-sm font-semibold text-text-1">Team B</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleTeamWinner('B')}
+                        className={cn(
+                          "ml-auto p-1.5 rounded transition-colors text-xs flex items-center gap-1",
+                          isTeamWinner('B')
+                            ? "bg-win text-text-1"
+                            : "bg-card-raised text-text-2 hover:text-text-1 hover:bg-accent/10"
+                        )}
+                        title={isTeamWinner('B') ? "Remove team win" : "Mark team as winner"}
+                      >
+                        <Trophy className="w-4 h-4" />
+                        <span className="text-xs font-medium">{isTeamWinner('B') ? "Winner" : "Won"}</span>
+                      </button>
+                    </div>
+                    {participants
+                      .map((slot, index) => ({ slot, index }))
+                      .filter(({ index }) => getTeamForIndex(index) === "B")
+                      .map(({ slot, index }) => (
+                        <DndSlot key={index} index={index} draggable={slot.type !== "empty"}>
+                          <PlayerSlot
+                            slot={slot}
+                            index={index}
+                            currentUserId={currentUserId}
+                            onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
+                            onSetAsGuest={() => setAsGuestAt(index)}
+                            onRemove={() => removeParticipant(index)}
+                            onToggleWinner={() => toggleWinner(index)}
+                            onSelectDeck={(deckId) => selectDeck(index, deckId)}
+                            onChangePlaceholderName={(name) =>
+                              updatePlaceholderName(index, name)
+                            }
+                            onChangeCommanderName={(name) =>
+                              updateCommanderName(index, name)
+                            }
+                            availableDecks={
+                              slot.type === "registered" && slot.userId
+                                ? userDecks[slot.userId] || []
+                                : []
+                            }
+                            isTeamFormat={true}
+                            team="B"
+                            excludeIds={excludeIds}
+                            currentUser={currentUser}
+                            hideWinnerButton={true}
+                          />
+                        </DndSlot>
+                      ))}
+                  </div>
+                </div>
+              ) : selectedFormat.slug === "pentagram" ? (
+                /* Pentagram layout - pentagon with enemies shown */
+                <PentagramLayout
+                  participants={participants}
+                  currentUserId={currentUserId}
+                  onSelectPlayer={(index, player) => addRegisteredPlayerAt(index, player)}
+                  onSetAsGuest={(index) => setAsGuestAt(index)}
+                  onRemove={(index) => removeParticipant(index)}
+                  onToggleWinner={(index) => toggleWinner(index)}
+                  onSelectDeck={(index, deckId) => selectDeck(index, deckId)}
+                  onChangePlaceholderName={(index, name) => updatePlaceholderName(index, name)}
+                  onChangeCommanderName={(index, name) => updateCommanderName(index, name)}
+                  userDecks={userDecks}
+                  excludeIds={excludeIds}
+                  currentUser={currentUser}
+                />
+              ) : (
+                /* Non-team layout (FFA) */
+                <div className="space-y-3">
+                  {participants.map((slot, index) => (
+                    <DndSlot key={index} index={index} draggable={slot.type !== "empty"}>
+                      <PlayerSlot
+                        slot={slot}
+                        index={index}
+                        currentUserId={currentUserId}
+                        onSelectPlayer={(player) => addRegisteredPlayerAt(index, player)}
+                        onSetAsGuest={() => setAsGuestAt(index)}
+                        onRemove={() => removeParticipant(index)}
+                        onToggleWinner={() => toggleWinner(index)}
+                        onSelectDeck={(deckId) => selectDeck(index, deckId)}
+                        onChangePlaceholderName={(name) =>
+                          updatePlaceholderName(index, name)
+                        }
+                        onChangeCommanderName={(name) =>
+                          updateCommanderName(index, name)
+                        }
+                        availableDecks={
+                          slot.type === "registered" && slot.userId
+                            ? userDecks[slot.userId] || []
+                            : []
+                        }
+                        isTeamFormat={false}
+                        team={undefined}
+                        excludeIds={excludeIds}
+                        currentUser={currentUser}
+                      />
+                    </DndSlot>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        {isMounted &&
+          createPortal(
+            <DragOverlay>
+              {dragPreview && (
+                <div className="flex items-center gap-2 rounded-lg border border-accent bg-card px-3 py-2 shadow-xl">
+                  {dragPreview.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={dragPreview.avatarUrl}
+                      alt=""
+                      className="h-8 w-8 rounded-full"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-card-raised text-sm text-text-2">
+                      {dragPreview.isGuest
+                        ? "👤"
+                        : dragPreview.label.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-text-1">
+                    {dragPreview.label}
+                  </span>
+                </div>
+              )}
+            </DragOverlay>,
+            document.body
+          )}
+        </DndContext>
       )}
 
       {/* Match Details */}
@@ -711,63 +1083,6 @@ export function MatchForm({
                 className="w-full h-24 rounded-md px-4 py-2 bg-card border border-card-border text-text-1 placeholder:text-text-2 resize-none focus:outline-none focus:border-accent-ring focus:ring-1 focus:ring-accent-ring"
               />
             </div>
-
-            {/* Collection Selection */}
-            {collections.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-text-1 block mb-2">
-                  Add to Collections (optional)
-                </label>
-                <div className="space-y-2">
-                  {collections.map((collection) => {
-                    const isSelected = selectedCollectionIds.includes(collection.id);
-                    const isOwner = collection.userRole === "owner";
-                    const canAddDirectly = isOwner || collection.matchAddPermission === "any_member";
-                    
-                    return (
-                      <button
-                        key={collection.id}
-                        type="button"
-                        onClick={() => toggleCollection(collection.id)}
-                        className={cn(
-                          "w-full p-3 rounded-lg border text-left transition-all flex items-center gap-3",
-                          isSelected
-                            ? "bg-accent/10 border-accent/50"
-                            : "bg-card-raised border-card-border hover:border-accent/30"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                            isSelected
-                              ? "bg-accent border-accent"
-                              : "border-card-border"
-                          )}
-                        >
-                          {isSelected && (
-                            <Check className="w-3 h-3 text-text-1" strokeWidth={3} />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-text-1 truncate">
-                            {collection.name}
-                          </p>
-                          <p className="text-xs text-text-2">
-                            {collection.matchCount} matches · {collection.memberCount} members
-                            {!canAddDirectly && " · Requires approval"}
-                          </p>
-                        </div>
-                        {isOwner && (
-                          <Badge variant="outline" className="shrink-0 text-xs">
-                            Owner
-                          </Badge>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}

@@ -511,8 +511,7 @@ export async function createMatch(
         user_id: p.userId,
         deck_id: p.deckId,
         placeholder_name: null,
-        // Creator auto-confirms their own participation
-        confirmed_at: p.userId === userId ? new Date().toISOString() : null,
+        confirmed_at: null,
       };
     } else {
       return {

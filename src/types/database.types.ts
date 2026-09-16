@@ -807,10 +807,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      auto_confirm_match_participants: {
-        Args: { p_match_id: string }
-        Returns: undefined
-      }
       calculate_bracket_modifier: {
         Args: { p_opponent_avg_bracket: number; p_player_bracket: number }
         Returns: number
@@ -941,7 +937,6 @@ export type Database = {
           wins: number
         }[]
       }
-      get_lock_window_hours: { Args: never; Returns: number }
       get_match_participants_for_recalc: {
         Args: { p_match_id: string }
         Returns: {
@@ -1018,7 +1013,6 @@ export type Database = {
         Args: { p_collection_id: string }
         Returns: boolean
       }
-      is_match_locked: { Args: { p_match_id: string }; Returns: boolean }
       mark_match_dirty: { Args: { p_match_id: string }; Returns: boolean }
       mark_notifications_read: {
         Args: { p_notification_ids?: string[]; p_recipient_id: string }
@@ -1029,13 +1023,6 @@ export type Database = {
         Returns: number
       }
       mark_ratings_applied: { Args: { p_match_id: string }; Returns: undefined }
-      process_expired_lock_windows: {
-        Args: never
-        Returns: {
-          match_id: string
-          participant_count: number
-        }[]
-      }
       reset_ratings_for_recalculation: {
         Args: { confirm_reset?: boolean }
         Returns: undefined

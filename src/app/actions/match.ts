@@ -11,22 +11,17 @@ import {
   createMatch,
 } from "@/lib/supabase/matches";
 import {
-  getRating,
-  applyRatingChange,
-  updateCollectionRatings,
+  applyParticipantRating,
 } from "@/lib/supabase/ratings";
 import {
-  getMatchCollections,
-  getUserMemberCollections,
   addMatchToCollection,
   getCollectionById,
   isCollectionMember,
 } from "@/lib/supabase/collections";
 import { getFriendshipStatus } from "@/lib/supabase/profiles";
-import { calculateRating } from "@/lib/rating";
+import { shouldAutoConfirmParticipant } from "@/lib/confirmation";
 import type {
   Result,
-  Bracket,
   ClaimableMatchSlot,
   ClaimStatus,
   CreateMatchPayload,
@@ -34,6 +29,7 @@ import type {
   ParticipantInput,
   ApprovalStatus,
   ParticipantStatus,
+  FriendshipStatus,
 } from "@/types";
 
 /**
@@ -41,12 +37,18 @@ import type {
  *
  * This action:
  * 1. Creates the match and participant records
- * 2. Auto-confirms all real participants
- * 3. Calculates and APPLIES ratings immediately
- * 4. Returns the actual rating delta for creator
+ * 2. Adds the match to any selected collections
+ * 3. Auto-confirms and rates the reporter, plus any other real participant
+ *    who is already an accepted friend of the reporter (see
+ *    shouldAutoConfirmParticipant / REQUIREMENTS.md §3.2). Everyone else
+ *    stays pending -- they confirm themselves later (confirmMatch), or the
+ *    match resolves automatically when they become friends with the
+ *    reporter (see acceptFriendRequest's pending-match sweep).
+ * 4. Returns the reporter's actual rating delta.
  *
  * Winner cannot be changed after match creation.
- * Deck updates are allowed but will trigger nightly recalculation.
+ * Deck updates are allowed but will trigger dirty-match recalculation if
+ * a rating was already applied.
  */
 export async function logMatch(payload: {
   formatId: string;
@@ -59,7 +61,6 @@ export async function logMatch(payload: {
 }): Promise<Result<{ matchId: string; delta: number }>> {
   const supabase = await createClient();
 
-  // Get current user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -67,7 +68,6 @@ export async function logMatch(payload: {
     return { success: false, error: "Not authenticated" };
   }
 
-  // Create match via the supabase helper
   const matchResult = await createMatch(
     supabase,
     user.id,
@@ -78,198 +78,20 @@ export async function logMatch(payload: {
   }
 
   const match = matchResult.data;
-  console.log(
-    `[RATING] logMatch: Match ${match.id} created, starting rating calculations`,
-  );
-  const now = new Date().toISOString();
 
-  // Get all real participants (not placeholders)
-  const { data: participants, error: participantsError } = await supabase
-    .from("match_participants")
-    .select(
-      `
-      id,
-      user_id,
-      is_winner,
-      deck:decks!match_participants_deck_id_fkey(id, bracket)
-    `,
-    )
-    .eq("match_id", match.id)
-    .not("user_id", "is", null);
-
-  if (participantsError) {
-    return {
-      success: false,
-      error: `Failed to fetch participants: ${participantsError.message}`,
-    };
-  }
-
-  const realParticipants = participants ?? [];
-
-  // Auto-confirm all real participants
-  for (const p of realParticipants) {
-    await supabase
-      .from("match_participants")
-      .update({
-        participant_status: "confirmed" as ParticipantStatus,
-        confirmed_at: now,
-      })
-      .eq("id", p.id);
-  }
-
-  // Get format info
-  const { data: format, error: formatError } = await supabase
-    .from("formats")
-    .select("id")
-    .eq("id", payload.formatId)
-    .single();
-
-  if (formatError || !format) {
-    revalidatePath("/matches");
-    revalidatePath(`/match/${match.id}`);
-    return { success: true, data: { matchId: match.id, delta: 0 } };
-  }
-
-  // Build participant ratings map (snapshot BEFORE applying any changes)
-  const participantRatings: Map<
-    string,
-    { rating: number; matchesPlayed: number }
-  > = new Map();
-
-  for (const p of realParticipants) {
-    if (p.user_id) {
-      const ratingResult = await getRating(supabase, p.user_id, format.id);
-      if (ratingResult.success) {
-        participantRatings.set(p.user_id, ratingResult.data);
-      } else {
-        participantRatings.set(p.user_id, { rating: 1000, matchesPlayed: 0 });
-      }
-    }
-  }
-
-  // Calculate and apply ratings for each real participant
-  let creatorDelta = 0;
-
-  for (const participant of realParticipants) {
-    if (!participant.user_id) continue;
-
-    const currentRating = participantRatings.get(participant.user_id)!;
-    const playerBracket: Bracket = (participant.deck?.bracket as Bracket) ?? 2;
-
-    // Build opponents array (excluding this participant)
-    const opponents: Array<{ rating: number; bracket: Bracket }> = [];
-    for (const p of realParticipants) {
-      if (p.user_id && p.user_id !== participant.user_id) {
-        const oppRating = participantRatings.get(p.user_id)!.rating;
-        const bracket: Bracket = (p.deck?.bracket as Bracket) ?? 2;
-        opponents.push({ rating: oppRating, bracket });
-      }
-    }
-
-    // Calculate rating change
-    const ratingCalc = calculateRating({
-      playerId: participant.user_id,
-      playerRating: currentRating.rating,
-      playerBracket,
-      playerMatchCount: currentRating.matchesPlayed,
-      isWinner: participant.is_winner,
-      opponents,
-      formatId: format.id,
-      collectionId: null,
-    });
-
-    // Apply global rating change
-    const newRating = currentRating.rating + ratingCalc.delta;
-    console.log(
-      `[RATING] logMatch: Applying rating for user ${participant.user_id} - before: ${currentRating.rating}, delta: ${ratingCalc.delta}, after: ${newRating}, isWinner: ${participant.is_winner}`,
-    );
-    await applyRatingChange(supabase, {
-      userId: participant.user_id,
-      matchId: match.id,
-      formatId: format.id,
-      newRating,
-      delta: ratingCalc.delta,
-      isWin: participant.is_winner,
-      playerBracket,
-      opponentAvgRating: ratingCalc.opponentAvgRating,
-      opponentAvgBracket: ratingCalc.opponentAvgBracket,
-      kFactor: ratingCalc.kFactor,
-      algorithmVersion: 1,
-    });
-
-    // Track creator's delta for return value
-    if (participant.user_id === user.id) {
-      creatorDelta = ratingCalc.delta;
-    }
-
-    // Update collection-scoped ratings
-    const matchCollectionsResult = await getMatchCollections(
-      supabase,
-      match.id,
-    );
-    if (
-      matchCollectionsResult.success &&
-      matchCollectionsResult.data.length > 0
-    ) {
-      const userMemberCollectionsResult = await getUserMemberCollections(
-        supabase,
-        participant.user_id,
-        matchCollectionsResult.data,
-      );
-
-      if (
-        userMemberCollectionsResult.success &&
-        userMemberCollectionsResult.data.length > 0
-      ) {
-        console.log(
-          `[RATING] logMatch: Applying collection-scoped ratings for user ${participant.user_id} in ${userMemberCollectionsResult.data.length} collections`,
-        );
-        await updateCollectionRatings(supabase, {
-          userId: participant.user_id,
-          matchId: match.id,
-          formatId: format.id,
-          playerBracket,
-          isWinner: participant.is_winner,
-          opponents,
-          collectionIds: userMemberCollectionsResult.data,
-          algorithmVersion: 1,
-        });
-      }
-    }
-  }
-
-  // Mark match as ratings applied immediately
-  console.log(
-    `[RATING] logMatch: Setting ratings_applied_at for match ${match.id}`,
-  );
-  const { error: applyError } = await supabase
-    .from("matches")
-    .update({
-      ratings_applied_at: now,
-      is_dirty: false,
-    })
-    .eq("id", match.id);
-
-  if (applyError) {
-    console.error(`[RATING] logMatch: FAILED to set ratings_applied_at - ${applyError.message}`);
-  } else {
-    console.log(`[RATING] logMatch: Successfully set ratings_applied_at for match ${match.id}`);
-  }
-
-  // Add match to selected collections
+  // Add match to selected collections BEFORE applying ratings, so
+  // applyParticipantRating (which reads getMatchCollections) sees them.
   if (payload.collectionIds && payload.collectionIds.length > 0) {
     for (const collectionId of payload.collectionIds) {
-      // Verify user is a member of the collection
       const memberCheck = await isCollectionMember(
         supabase,
         collectionId,
         user.id,
       );
       if (!memberCheck.success || !memberCheck.data) {
-        continue; // Skip collections the user is not a member of
+        continue;
       }
 
-      // Get collection details for permission check
       const collectionResult = await getCollectionById(supabase, collectionId);
       if (!collectionResult.success) {
         continue;
@@ -279,18 +101,15 @@ export async function logMatch(payload: {
       const isOwner = collection.ownerId === user.id;
       const permission = collection.matchAddPermission;
 
-      // Check permissions
       if (permission === "owner_only" && !isOwner) {
-        continue; // User doesn't have permission
+        continue;
       }
 
-      // Determine approval status
       let approvalStatus: ApprovalStatus = "approved";
       if (!isOwner && permission === "any_member_approval_required") {
         approvalStatus = "pending";
       }
 
-      // Add match to collection
       await addMatchToCollection(
         supabase,
         collectionId,
@@ -302,7 +121,93 @@ export async function logMatch(payload: {
     }
   }
 
-  // Revalidate pages
+  // Get all real participants (not placeholders)
+  const { data: participants, error: participantsError } = await supabase
+    .from("match_participants")
+    .select("id, user_id")
+    .eq("match_id", match.id)
+    .not("user_id", "is", null);
+
+  if (participantsError) {
+    return {
+      success: false,
+      error: `Failed to fetch participants: ${participantsError.message}`,
+    };
+  }
+
+  const now = new Date().toISOString();
+  let creatorDelta = 0;
+
+  for (const participant of participants ?? []) {
+    if (!participant.user_id) continue;
+
+    const isReporter = participant.user_id === user.id;
+    let friendshipStatus: FriendshipStatus | null = null;
+
+    if (!isReporter) {
+      const friendshipResult = await getFriendshipStatus(
+        supabase,
+        user.id,
+        participant.user_id,
+      );
+      friendshipStatus =
+        friendshipResult.success && friendshipResult.data
+          ? friendshipResult.data.status
+          : null;
+    }
+
+    const shouldConfirm = shouldAutoConfirmParticipant({
+      reporterId: user.id,
+      participantUserId: participant.user_id,
+      friendshipStatus,
+    });
+
+    if (!shouldConfirm) continue; // stays 'pending' -- notification already fires via DB trigger
+
+    const { data: confirmedRows } = await supabase
+      .from("match_participants")
+      .update({
+        participant_status: "confirmed" as ParticipantStatus,
+        confirmed_at: now,
+      })
+      .eq("id", participant.id)
+      .select("id");
+
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] logMatch: FAILED to confirm participant ${participant.id} - update matched 0 rows`,
+      );
+    }
+
+    const applyResult = await applyParticipantRating(supabase, participant.id);
+    if (applyResult.success) {
+      if (isReporter) {
+        creatorDelta = applyResult.data.delta;
+      }
+    } else {
+      console.error(
+        `[RATING] logMatch: FAILED to apply rating for participant ${participant.id} - ${applyResult.error}`,
+      );
+    }
+
+    if (!isReporter) {
+      // The AFTER INSERT trigger on match_participants already created a
+      // match_pending_confirmation notification for this participant when
+      // the row was inserted (it can't know we're about to auto-confirm
+      // them milliseconds later because they're an accepted friend). Clear
+      // it now so they don't see a stale "needs your confirmation"
+      // notification for a match that's already fully confirmed and rated
+      // on their behalf.
+      await supabase
+        .from("notifications")
+        .delete()
+        .eq("recipient_id", participant.user_id)
+        .eq("type", "match_pending_confirmation")
+        .eq("entity_type", "match")
+        .eq("entity_id", match.id);
+    }
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/matches");
   revalidatePath(`/match/${match.id}`);
@@ -317,14 +222,11 @@ export async function logMatch(payload: {
 }
 
 /**
- * Update participant's deck (and confirm if not already confirmed).
+ * Confirm a participant's own match participation, applying their rating.
  *
- * Since ratings are now applied immediately on match creation,
- * this function is primarily for:
- * 1. Updating deck selection (triggers dirty flag for recalculation)
- * 2. Confirming participation if somehow still pending
- *
- * Returns the participant's current rating delta from the match.
+ * Safe to call even if the participant was already auto-confirmed and
+ * rated elsewhere (e.g. logMatch's friend auto-confirm, or a claim
+ * approval) -- applyParticipantRating is idempotent.
  */
 export async function confirmMatch(
   participantId: string,
@@ -332,7 +234,6 @@ export async function confirmMatch(
 ): Promise<Result<{ delta: number }>> {
   const supabase = await createClient();
 
-  // Get current user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -340,22 +241,9 @@ export async function confirmMatch(
     return { success: false, error: "Not authenticated" };
   }
 
-  // Get the participant record with match info
   const { data: participant, error: participantError } = await supabase
     .from("match_participants")
-    .select(
-      `
-      id,
-      user_id,
-      match_id,
-      is_winner,
-      confirmed_at,
-      participant_status,
-      deck_id,
-      deck:decks!match_participants_deck_id_fkey(bracket),
-      match:matches!inner(format_id, ratings_applied_at)
-    `,
-    )
+    .select("id, user_id, match_id, participant_status, deck_id")
     .eq("id", participantId)
     .single();
 
@@ -363,7 +251,6 @@ export async function confirmMatch(
     return { success: false, error: "Participant not found" };
   }
 
-  // Verify this is the user's participation
   if (participant.user_id !== user.id) {
     return {
       success: false,
@@ -371,12 +258,6 @@ export async function confirmMatch(
     };
   }
 
-  const matchInfo = participant.match as {
-    format_id: string;
-    ratings_applied_at: string | null;
-  };
-
-  // If deck provided, update it (this triggers dirty flag if ratings already applied)
   if (deckId && deckId !== participant.deck_id) {
     const updateResult = await updateParticipantDeck(
       supabase,
@@ -388,275 +269,40 @@ export async function confirmMatch(
     }
   }
 
-  // If still pending (edge case), mark as confirmed
   if (participant.participant_status === "pending") {
-    await supabase
+    const { data: confirmedRows } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
         confirmed_at: new Date().toISOString(),
       })
-      .eq("id", participantId);
+      .eq("id", participantId)
+      .select("id");
+
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] confirmMatch: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+      );
+    }
   }
 
-  // Get the actual delta from rating_history (if ratings were applied)
-  let delta = 0;
-  if (matchInfo.ratings_applied_at) {
-    const { data: historyEntry } = await supabase
-      .from("rating_history")
-      .select("delta")
-      .eq("user_id", user.id)
-      .eq("match_id", participant.match_id)
-      .eq("format_id", matchInfo.format_id)
-      .is("collection_id", null)
-      .single();
+  const applyResult = await applyParticipantRating(supabase, participantId);
 
-    delta = historyEntry?.delta ?? 0;
-  }
-
-  // Revalidate relevant pages
   revalidatePath("/dashboard");
   revalidatePath("/matches");
   revalidatePath(`/match/${participant.match_id}`);
   revalidatePath("/notifications");
 
-  return {
-    success: true,
-    data: { delta },
-  };
-}
-
-/**
- * Apply ratings for a match when the lock window has expired.
- *
- * This is called by a cron job / edge function when locks_at has passed.
- * It:
- * 1. Gets all confirmed participants (status = 'confirmed' or 'auto_confirmed')
- * 2. Calculates and applies rating changes for each
- * 3. Updates collection-scoped ratings
- * 4. Marks the match as ratings_applied_at
- *
- * Placeholders are excluded from rating calculations.
- */
-export async function applyMatchRatings(
-  matchId: string,
-): Promise<Result<{ appliedCount: number }>> {
-  const supabase = await createClient();
-
-  // Get current user (for admin/cron context verification if needed)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: "Not authenticated" };
+  if (!applyResult.success) {
+    console.error(
+      `[RATING] confirmMatch: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+    );
+    return { success: false, error: applyResult.error };
   }
-
-  // Get the match with all details
-  const { data: match, error: matchError } = await supabase
-    .from("matches")
-    .select(
-      `
-      id,
-      format_id,
-      locks_at,
-      ratings_applied_at,
-      is_dirty,
-      created_by
-    `,
-    )
-    .eq("id", matchId)
-    .single();
-
-  if (matchError || !match) {
-    return { success: false, error: "Match not found" };
-  }
-
-  // Only allow if user is match creator (for manual trigger) or in future: admin
-  if (match.created_by !== user.id) {
-    return {
-      success: false,
-      error: "Only match creator can trigger rating application",
-    };
-  }
-
-  // Check if ratings already applied
-  if (match.ratings_applied_at) {
-    return { success: false, error: "Ratings have already been applied" };
-  }
-
-  // Check if lock window has actually passed
-  if (match.locks_at) {
-    const locksAt = new Date(match.locks_at);
-    const now = new Date();
-    if (now < locksAt) {
-      return { success: false, error: "Lock window has not expired yet" };
-    }
-  }
-
-  // Get all participants
-  const { data: participants, error: participantsError } = await supabase
-    .from("match_participants")
-    .select(
-      `
-      id,
-      user_id,
-      is_winner,
-      participant_status,
-      deck:decks!match_participants_deck_id_fkey(id, bracket)
-    `,
-    )
-    .eq("match_id", matchId);
-
-  if (participantsError || !participants) {
-    return { success: false, error: "Failed to fetch participants" };
-  }
-
-  // Filter to only real users (not placeholders)
-  const realParticipants = participants.filter((p) => p.user_id !== null);
-
-  // Auto-confirm any pending participants (they didn't confirm within window)
-  for (const p of realParticipants) {
-    if (p.participant_status === "pending") {
-      await supabase
-        .from("match_participants")
-        .update({
-          participant_status: "auto_confirmed" as ParticipantStatus,
-          confirmed_at: new Date().toISOString(),
-        })
-        .eq("id", p.id);
-    }
-  }
-
-  // Build opponent map for rating calculations
-  const participantRatings: Map<
-    string,
-    { rating: number; matchesPlayed: number }
-  > = new Map();
-
-  for (const p of realParticipants) {
-    if (p.user_id) {
-      const ratingResult = await getRating(
-        supabase,
-        p.user_id,
-        match.format_id,
-      );
-      if (ratingResult.success) {
-        participantRatings.set(p.user_id, ratingResult.data);
-      } else {
-        participantRatings.set(p.user_id, { rating: 1000, matchesPlayed: 0 });
-      }
-    }
-  }
-
-  // Calculate and apply ratings for each real participant
-  let appliedCount = 0;
-
-  for (const participant of realParticipants) {
-    if (!participant.user_id) continue;
-
-    const currentRating = participantRatings.get(participant.user_id)!;
-    const playerBracket: Bracket = (participant.deck?.bracket as Bracket) ?? 2;
-
-    // Build opponents array (excluding this participant and placeholders)
-    const opponents: Array<{ rating: number; bracket: Bracket }> = [];
-    for (const p of realParticipants) {
-      if (p.user_id && p.user_id !== participant.user_id) {
-        const oppRating = participantRatings.get(p.user_id)!.rating;
-        const bracket: Bracket = (p.deck?.bracket as Bracket) ?? 2;
-        opponents.push({ rating: oppRating, bracket });
-      }
-    }
-
-    // Calculate rating change
-    const ratingCalc = calculateRating({
-      playerId: participant.user_id,
-      playerRating: currentRating.rating,
-      playerBracket,
-      playerMatchCount: currentRating.matchesPlayed,
-      isWinner: participant.is_winner,
-      opponents,
-      formatId: match.format_id,
-      collectionId: null,
-    });
-
-    // Apply global rating change
-    const newRating = currentRating.rating + ratingCalc.delta;
-    const applyResult = await applyRatingChange(supabase, {
-      userId: participant.user_id,
-      matchId: match.id,
-      formatId: match.format_id,
-      newRating,
-      delta: ratingCalc.delta,
-      isWin: participant.is_winner,
-      playerBracket,
-      opponentAvgRating: ratingCalc.opponentAvgRating,
-      opponentAvgBracket: ratingCalc.opponentAvgBracket,
-      kFactor: ratingCalc.kFactor,
-      algorithmVersion: 1,
-    });
-
-    if (applyResult.success) {
-      appliedCount++;
-
-      // Update collection-scoped ratings
-      const matchCollectionsResult = await getMatchCollections(
-        supabase,
-        match.id,
-      );
-      if (
-        matchCollectionsResult.success &&
-        matchCollectionsResult.data.length > 0
-      ) {
-        const userMemberCollectionsResult = await getUserMemberCollections(
-          supabase,
-          participant.user_id,
-          matchCollectionsResult.data,
-        );
-
-        if (
-          userMemberCollectionsResult.success &&
-          userMemberCollectionsResult.data.length > 0
-        ) {
-          await updateCollectionRatings(supabase, {
-            userId: participant.user_id,
-            matchId: match.id,
-            formatId: match.format_id,
-            playerBracket,
-            isWinner: participant.is_winner,
-            opponents,
-            collectionIds: userMemberCollectionsResult.data,
-            algorithmVersion: 1,
-          });
-        }
-      }
-    }
-  }
-
-  // Mark match as ratings applied
-  const { error: updateError } = await supabase
-    .from("matches")
-    .update({
-      ratings_applied_at: new Date().toISOString(),
-      is_dirty: false, // Reset dirty flag since we just applied
-      last_recalculated_at: new Date().toISOString(),
-    })
-    .eq("id", matchId);
-
-  if (updateError) {
-    return {
-      success: false,
-      error: `Failed to mark match: ${updateError.message}`,
-    };
-  }
-
-  // Revalidate pages
-  revalidatePath("/dashboard");
-  revalidatePath("/matches");
-  revalidatePath(`/match/${matchId}`);
 
   return {
     success: true,
-    data: { appliedCount },
+    data: { delta: applyResult.data.delta },
   };
 }
 
@@ -918,7 +564,6 @@ export async function claimSlotWithAutoApproval(participantId: string): Promise<
         id,
         format_id,
         created_by,
-        ratings_applied_at,
         creator:profiles!matches_created_by_fkey (
           id,
           username
@@ -960,260 +605,26 @@ export async function claimSlotWithAutoApproval(participantId: string): Promise<
     id: string;
     format_id: string;
     created_by: string;
-    ratings_applied_at: string | null;
     creator: { id: string; username: string };
   };
 
-  // Auto-approve: directly set user_id and claim_status to approved
   const { error: updateError } = await supabase
     .from("match_participants")
     .update({
       user_id: user.id,
       claimed_by: user.id,
       claim_status: "approved",
-      placeholder_name: null, // Clear placeholder name
+      placeholder_name: null,
     })
     .eq("id", participantId)
-    .is("user_id", null); // Safety check
+    .is("user_id", null);
 
   if (updateError) {
     return { success: false, error: updateError.message };
   }
 
-  // If match already had ratings applied, immediately recalculate for all participants
-  // This ensures the claiming user gets their rating and other participants get recalculated
-  // with the new opponent included
-  if (match.ratings_applied_at) {
-    console.log(
-      `[RATING] claimSlotWithAutoApproval: Match ${match.id} has ratings applied, starting recalculation for all participants`,
-    );
-    // Get all participants including the newly claimed user
-    const { data: allParticipants } = await supabase
-      .from("match_participants")
-      .select(
-        `
-        id,
-        user_id,
-        is_winner,
-        deck:decks!match_participants_deck_id_fkey(id, bracket)
-      `,
-      )
-      .eq("match_id", match.id)
-      .not("user_id", "is", null);
-
-    if (allParticipants && allParticipants.length > 0) {
-      // Get existing rating_history to find old deltas and wins
-      const { data: oldHistory } = await supabase
-        .from("rating_history")
-        .select("user_id, delta, collection_id, format_id, is_win")
-        .eq("match_id", match.id);
-
-      // Build map of old rating changes per user/scope
-      const oldChanges: Map<string, { delta: number; isWin: boolean }> =
-        new Map();
-      for (const h of oldHistory ?? []) {
-        // Key: "userId|collectionId" (collection_id = null for global)
-        const key = `${h.user_id}|${h.collection_id ?? "global"}`;
-        oldChanges.set(key, { delta: h.delta, isWin: h.is_win });
-      }
-
-      // Delete existing rating_history for this match (will be recreated)
-      // Use RPC function to bypass RLS (rating_history is system-managed)
-      console.log(
-        `[RATING] claimSlotWithAutoApproval: Deleting existing rating_history for match ${match.id}`,
-      );
-      const { data: deletedCount, error: deleteError } = await supabase.rpc(
-        "delete_match_rating_history",
-        { p_match_id: match.id },
-      );
-      if (deleteError) {
-        console.error(
-          `[RATING] claimSlotWithAutoApproval: FAILED to delete rating_history - ${deleteError.message}`,
-        );
-      } else {
-        console.log(
-          `[RATING] claimSlotWithAutoApproval: Deleted ${deletedCount} rating_history entries`,
-        );
-      }
-
-      // Build participant base ratings (rating BEFORE this match was applied)
-      // For users who had ratings applied: current_rating - old_delta
-      // For new users (claiming user): current_rating (unchanged)
-      const participantBaseRatings: Map<
-        string,
-        { rating: number; matchesPlayed: number }
-      > = new Map();
-
-      for (const p of allParticipants) {
-        if (p.user_id) {
-          const ratingResult = await getRating(
-            supabase,
-            p.user_id,
-            match.format_id,
-          );
-          if (ratingResult.success) {
-            const key = `${p.user_id}|global`;
-            const oldChange = oldChanges.get(key);
-            if (oldChange) {
-              // Revert to rating before this match
-              participantBaseRatings.set(p.user_id, {
-                rating: ratingResult.data.rating - oldChange.delta,
-                matchesPlayed: Math.max(0, ratingResult.data.matchesPlayed - 1),
-              });
-            } else {
-              // New participant (claiming user) - no old delta to revert
-              participantBaseRatings.set(p.user_id, ratingResult.data);
-            }
-          } else {
-            participantBaseRatings.set(p.user_id, {
-              rating: 1000,
-              matchesPlayed: 0,
-            });
-          }
-        }
-      }
-
-      // Calculate and apply ratings for each participant
-      for (const p of allParticipants) {
-        if (!p.user_id) continue;
-
-        const baseRating = participantBaseRatings.get(p.user_id)!;
-        const playerBracket: Bracket = (p.deck?.bracket as Bracket) ?? 2;
-
-        // Build opponents array (excluding this participant)
-        const opponents: Array<{ rating: number; bracket: Bracket }> = [];
-        for (const opp of allParticipants) {
-          if (opp.user_id && opp.user_id !== p.user_id) {
-            const oppRating = participantBaseRatings.get(opp.user_id)!.rating;
-            const bracket: Bracket = (opp.deck?.bracket as Bracket) ?? 2;
-            opponents.push({ rating: oppRating, bracket });
-          }
-        }
-
-        // Calculate rating change
-        const ratingCalc = calculateRating({
-          playerId: p.user_id,
-          playerRating: baseRating.rating,
-          playerBracket,
-          playerMatchCount: baseRating.matchesPlayed,
-          isWinner: p.is_winner,
-          opponents,
-          formatId: match.format_id,
-          collectionId: null,
-        });
-
-        // Apply global rating change
-        const newRating = baseRating.rating + ratingCalc.delta;
-        console.log(
-          `[RATING] claimSlotWithAutoApproval: Recalc for user ${p.user_id} - baseBefore: ${baseRating.rating}, delta: ${ratingCalc.delta}, after: ${newRating}, isWinner: ${p.is_winner}`,
-        );
-        await applyRatingChange(supabase, {
-          userId: p.user_id,
-          matchId: match.id,
-          formatId: match.format_id,
-          newRating,
-          delta: ratingCalc.delta,
-          isWin: p.is_winner,
-          playerBracket,
-          opponentAvgRating: ratingCalc.opponentAvgRating,
-          opponentAvgBracket: ratingCalc.opponentAvgBracket,
-          kFactor: ratingCalc.kFactor,
-          algorithmVersion: 1,
-        });
-
-        // Update collection-scoped ratings (inline to handle reversion properly)
-        const matchCollectionsResult = await getMatchCollections(
-          supabase,
-          match.id,
-        );
-        if (
-          matchCollectionsResult.success &&
-          matchCollectionsResult.data.length > 0
-        ) {
-          const userMemberCollectionsResult = await getUserMemberCollections(
-            supabase,
-            p.user_id,
-            matchCollectionsResult.data,
-          );
-
-          if (
-            userMemberCollectionsResult.success &&
-            userMemberCollectionsResult.data.length > 0
-          ) {
-            for (const collectionId of userMemberCollectionsResult.data) {
-              // Get current collection-scoped rating
-              const collRatingResult = await getRating(
-                supabase,
-                p.user_id,
-                match.format_id,
-                collectionId,
-              );
-              if (!collRatingResult.success) continue;
-
-              // Revert old delta if exists
-              const collKey = `${p.user_id}|${collectionId}`;
-              const oldCollChange = oldChanges.get(collKey);
-              const collBaseRating = oldCollChange
-                ? collRatingResult.data.rating - oldCollChange.delta
-                : collRatingResult.data.rating;
-              const collMatchCount = oldCollChange
-                ? Math.max(0, collRatingResult.data.matchesPlayed - 1)
-                : collRatingResult.data.matchesPlayed;
-
-              // Calculate new rating change
-              const collRatingCalc = calculateRating({
-                playerId: p.user_id,
-                playerRating: collBaseRating,
-                playerBracket,
-                playerMatchCount: collMatchCount,
-                isWinner: p.is_winner,
-                opponents, // Same opponents as global
-                formatId: match.format_id,
-                collectionId,
-              });
-
-              // Apply collection-scoped rating change
-              const newCollRating = collBaseRating + collRatingCalc.delta;
-              console.log(
-                `[RATING] claimSlotWithAutoApproval: Collection ${collectionId} - user=${p.user_id}, baseBefore=${collBaseRating}, delta=${collRatingCalc.delta}, after=${newCollRating}`,
-              );
-              await applyRatingChange(supabase, {
-                userId: p.user_id,
-                matchId: match.id,
-                formatId: match.format_id,
-                collectionId,
-                newRating: newCollRating,
-                delta: collRatingCalc.delta,
-                isWin: p.is_winner,
-                playerBracket,
-                opponentAvgRating: collRatingCalc.opponentAvgRating,
-                opponentAvgBracket: collRatingCalc.opponentAvgBracket,
-                kFactor: collRatingCalc.kFactor,
-                algorithmVersion: 1,
-              });
-            }
-          }
-        }
-      }
-
-      // Clear dirty flag since we just recalculated
-      console.log(
-        `[RATING] claimSlotWithAutoApproval: Clearing is_dirty flag for match ${match.id} after recalculation`,
-      );
-      const { error: clearDirtyError } = await supabase
-        .from("matches")
-        .update({ is_dirty: false })
-        .eq("id", match.id);
-      
-      if (clearDirtyError) {
-        console.error(`[RATING] claimSlotWithAutoApproval: FAILED to clear is_dirty - ${clearDirtyError.message}`);
-      } else {
-        console.log(`[RATING] claimSlotWithAutoApproval: Successfully cleared is_dirty for match ${match.id}`);
-      }
-    }
-  }
-
-  // Check friendship status with match creator
+  // Check friendship status with match creator -- decides both whether to
+  // auto-confirm+rate below, and what the post-claim UI shows.
   let isAlreadyFriend = false;
   let hasPendingFriendRequest = false;
 
@@ -1228,8 +639,37 @@ export async function claimSlotWithAutoApproval(participantId: string): Promise<
       hasPendingFriendRequest = friendshipResult.data.status === "pending";
     }
   } else {
-    // User is the match creator, so mark as already friend (self)
     isAlreadyFriend = true;
+  }
+
+  const shouldConfirm = shouldAutoConfirmParticipant({
+    reporterId: match.created_by,
+    participantUserId: user.id,
+    friendshipStatus: isAlreadyFriend ? "accepted" : null,
+  });
+
+  if (shouldConfirm) {
+    const { data: confirmedRows } = await supabase
+      .from("match_participants")
+      .update({
+        participant_status: "confirmed" as ParticipantStatus,
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq("id", participantId)
+      .select("id");
+
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] claimSlotWithAutoApproval: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+      );
+    }
+
+    const applyResult = await applyParticipantRating(supabase, participantId);
+    if (!applyResult.success) {
+      console.error(
+        `[RATING] claimSlotWithAutoApproval: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+      );
+    }
   }
 
   // Get collections this match belongs to
@@ -1358,6 +798,47 @@ export async function approveClaimRequest(
   if (!result.success) {
     return { success: false, error: result.error };
   }
+
+  const friendshipResult = await getFriendshipStatus(
+    supabase,
+    participant.claimed_by!,
+    match.created_by,
+  );
+  const friendshipStatus =
+    friendshipResult.success && friendshipResult.data
+      ? friendshipResult.data.status
+      : null;
+
+  const shouldConfirm = shouldAutoConfirmParticipant({
+    reporterId: match.created_by,
+    participantUserId: participant.claimed_by!,
+    friendshipStatus,
+  });
+
+  if (shouldConfirm) {
+    const { data: confirmedRows } = await supabase
+      .from("match_participants")
+      .update({
+        participant_status: "confirmed" as ParticipantStatus,
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq("id", participantId)
+      .select("id");
+
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] approveClaimRequest: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+      );
+    }
+
+    const applyResult = await applyParticipantRating(supabase, participantId);
+    if (!applyResult.success) {
+      console.error(
+        `[RATING] approveClaimRequest: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+      );
+    }
+  }
+  // else: stays pending -- the claimant confirms themselves via confirmMatch()
 
   // Revalidate pages
   revalidatePath(`/match/${participant.match_id}`);

@@ -72,13 +72,22 @@ The system is designed to be **format-agnostic and extensible** — new formats 
 
 ### Supported Formats
 
+Currently active (selectable in match creation):
+
 | Format | Players | Teams | Win Condition |
 |---|---|---|---|
 | **1v1** | 2 | Yes (1v1) | Eliminate the opposing player |
-| **2v2** | 4 | Yes (2v2) | Eliminate all players on the opposing team |
-| **3v3** | 6 | Yes (3v3) | Eliminate all players on the opposing team |
 | **FFA** (Free For All) | 3+ (typically 4) | No | Last player standing |
 | **Pentagram** | 5 | Special (see below) | Defeat your two non-adjacent opponents |
+
+**2-Headed Giant** — 4 players, 2 teams of 2 — is planned as the next format (upcoming, not yet built). It is a distinct format from the `2v2` row below, not a rename of it.
+
+Sidelined (rows exist in the `formats` table with `is_active = false`; hidden from match creation, may return as their own formats later):
+
+| Format | Players | Teams | Win Condition |
+|---|---|---|---|
+| **2v2** | 4 | Yes (2v2) | Eliminate all players on the opposing team |
+| **3v3** | 6 | Yes (3v3) | Eliminate all players on the opposing team |
 
 ### Pentagram Format — Special Rules
 
@@ -309,10 +318,32 @@ Immutable append-only log of every rating change, for audit trail and charting. 
 
 ### 3.2 Rating Confirmation Model
 
-- **A player's rating only updates when they personally confirm a match.** The reporter is auto-confirmed on creation; all other linked participants confirm separately.
-- A match can be in a **partially-confirmed state** — some participants have updated ratings, others are still pending.
-- Rating deltas are calculated against each player's rating **snapshotted at the time the match was played**, not at confirmation time — preventing inflation or deflation from delayed confirmations.
-- When a placeholder slot is claimed and approved, the claiming user can then confirm, triggering their rating update as if they were a normal participant.
+- **A player's rating only updates when it's appropriate to apply it.** The
+  reporter is always auto-confirmed on creation. Any other real participant
+  who is already an accepted friend of the reporter at that moment is also
+  auto-confirmed and rated immediately -- trust is already established.
+  Everyone else stays pending until they personally confirm, or until they
+  become friends with the reporter (at which point any of their pending
+  matches with that reporter resolve automatically, oldest first).
+- A match can be in a **partially-confirmed state** -- some participants
+  rated, others still pending -- indefinitely. There is no lock window or
+  scheduled job that force-applies a rating for someone who never confirms;
+  this is intentional, not a gap.
+- Rating deltas are calculated against each player's rating **snapshotted at
+  the time the match was played**, not at confirmation time -- so the order
+  in which participants confirm doesn't affect the math. This is
+  reconstructed via `get_rating_before_match()` at the moment each
+  participant's rating is applied, not stored separately.
+- That play-time snapshot only feeds the expected-score/fairness comparison
+  used to calculate the delta -- the resulting delta is then applied on top
+  of the player's LIVE current rating at write time, not replayed from the
+  historical snapshot, so resolving an old backlogged pending match late
+  (e.g. via the friend-acceptance sweep) can never silently erase rating
+  progress from other matches applied in the meantime.
+- When a placeholder slot is claimed and approved, the same friendship rule
+  applies: if the claimant is already a friend of the match's reporter, they
+  auto-confirm immediately; otherwise they confirm themselves afterward,
+  same as any other non-friend participant.
 
 ---
 

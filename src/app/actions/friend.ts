@@ -45,6 +45,15 @@ export async function acceptFriendRequest(
     return { success: false, error: result.error }
   }
 
+  const { resolvePendingMatchesForNewFriends } = await import(
+    '@/lib/supabase/ratings'
+  )
+  await resolvePendingMatchesForNewFriends(
+    supabase,
+    friendship.addressee_id,
+    result.data.requesterId,
+  )
+
   revalidatePath('/friends')
   revalidatePath('/notifications')
 
