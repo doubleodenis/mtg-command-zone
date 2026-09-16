@@ -174,10 +174,14 @@ the outcome stays constant.
 
 `ratingGapTrend` is derived **only from `meetings[]`**, not a fresh global-history
 query:
-- `current` = gap at the last entry in `meetings`
-- `past` = gap at the oldest entry in `meetings` that is ≥30 days before the most
-  recent one
-- If no entry in `meetings` is that old (e.g., a fast-moving rivalry with all 12
+- `current` = gap at the last (most recent) entry in `meetings`
+- `past` = gap at the *most recent* entry in `meetings` that is still ≥30 days
+  older than the latest one — i.e. the entry closest to the 30-day mark, not the
+  single oldest entry in the array. With meetings at day 0, day 20, and day 40
+  (latest), the 30-day cutoff from day 40 is day 10; day 20 is too recent, so
+  `past` is day 0 — not because it's the oldest, but because it's the newest entry
+  that still clears the cutoff.
+- If no entry in `meetings` is old enough (e.g., a fast-moving rivalry with all 12
   meetings inside 30 days), `ratingGapTrend` is `null` and the Gap Closing tile is
   omitted. This is deliberately scoped to the shared-meeting timeline already being
   fetched, rather than reconstructing a global per-user rating snapshot as of 30 days
