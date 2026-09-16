@@ -72,13 +72,22 @@ The system is designed to be **format-agnostic and extensible** — new formats 
 
 ### Supported Formats
 
+Currently active (selectable in match creation):
+
 | Format | Players | Teams | Win Condition |
 |---|---|---|---|
 | **1v1** | 2 | Yes (1v1) | Eliminate the opposing player |
-| **2v2** | 4 | Yes (2v2) | Eliminate all players on the opposing team |
-| **3v3** | 6 | Yes (3v3) | Eliminate all players on the opposing team |
 | **FFA** (Free For All) | 3+ (typically 4) | No | Last player standing |
 | **Pentagram** | 5 | Special (see below) | Defeat your two non-adjacent opponents |
+
+**2-Headed Giant** — 4 players, 2 teams of 2 — is planned as the next format (upcoming, not yet built). It is a distinct format from the `2v2` row below, not a rename of it.
+
+Sidelined (rows exist in the `formats` table with `is_active = false`; hidden from match creation, may return as their own formats later):
+
+| Format | Players | Teams | Win Condition |
+|---|---|---|---|
+| **2v2** | 4 | Yes (2v2) | Eliminate all players on the opposing team |
+| **3v3** | 6 | Yes (3v3) | Eliminate all players on the opposing team |
 
 ### Pentagram Format — Special Rules
 

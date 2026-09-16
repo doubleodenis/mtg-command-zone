@@ -232,6 +232,7 @@
 
 ## Phase 12 — Future Considerations
 
+- [ ] **2-Headed Giant format** — 4 players, 2 teams of 2, upcoming. Currently active/supported formats are 1v1, FFA, and Pentagram; `2v2` and `3v3` are sidelined (`is_active = false` in the `formats` table, kept for a possible future return) rather than removed. 2-Headed Giant will be a new, distinct format row, not a rename of the sidelined `2v2`.
 - [ ] Scryfall API integration for commander autocomplete and color identity
 - [ ] Global leaderboards (per format, public and friends-only)
 - [ ] Match disputes (flag incorrect results) -- `disputeMatchParticipation()` in
