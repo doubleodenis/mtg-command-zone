@@ -963,7 +963,17 @@ export async function applyParticipantRating(
     collectionId: null,
   })
 
-  const newRating = playerRatingBefore + ratingCalc.delta
+  // The delta is calculated fairly using the played_at-scoped snapshot
+  // (playerRatingBefore) above, but it must be applied on top of the
+  // player's LIVE current rating -- not replayed from that historical
+  // snapshot -- or confirming an older pending match after newer matches
+  // have already moved the live rating forward would silently erase that
+  // intervening progress. See REQUIREMENTS.md §3.2 / out-of-order
+  // confirmation under the friendship-gated auto-confirm design.
+  const liveRating = currentRatingResult.success
+    ? currentRatingResult.data.rating
+    : RATING_CONFIG.defaultRating
+  const newRating = liveRating + ratingCalc.delta
   const applyResult = await applyRatingChange(client, {
     userId: participant.user_id,
     matchId: participant.match_id,
