@@ -14,7 +14,16 @@ import type { RatingDelta } from './rating'
 export type ClaimStatus = 'none' | 'pending' | 'approved' | 'rejected'
 
 /**
- * Participant confirmation status
+ * Participant confirmation status.
+ *
+ * 'auto_confirmed' is a legacy value from the pre-friendship-gated design
+ * (it was set when a universal 24h lock window expired without the
+ * participant confirming). Current code never writes it -- the
+ * friendship-gated model either confirms a participant immediately (as
+ * 'confirmed', via an accepted friendship with the reporter) or leaves them
+ * 'pending' indefinitely until they confirm or become friends with the
+ * reporter. Kept in the enum for historical data compatibility with rows
+ * written before this branch.
  */
 export type ParticipantStatus = 'pending' | 'confirmed' | 'auto_confirmed'
 
@@ -59,7 +68,7 @@ export type MatchParticipant = {
   team: string | null
   isWinner: boolean
   confirmedAt: ISODateString | null // null = unconfirmed
-  /** Confirmation status: pending, confirmed (manual), or auto_confirmed (lock window expired) */
+  /** Confirmation status: pending, confirmed (manual/friend-auto), or auto_confirmed (legacy, see ParticipantStatus) */
   participantStatus: ParticipantStatus
   claimedBy: UUID | null
   claimStatus: ClaimStatus
@@ -86,7 +95,7 @@ export type ParticipantDisplayInfo = {
   avatarUrl: string | null
   isRegistered: boolean
   isConfirmed: boolean
-  /** Confirmation status: pending, confirmed, or auto_confirmed */
+  /** Confirmation status: pending, confirmed, or auto_confirmed (legacy, see ParticipantStatus) */
   participantStatus: ParticipantStatus
   deck: DeckSummary | null
   team: string | null
