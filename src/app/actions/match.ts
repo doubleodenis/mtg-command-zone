@@ -199,14 +199,11 @@ export async function logMatch(payload: {
 }
 
 /**
- * Update participant's deck (and confirm if not already confirmed).
+ * Confirm a participant's own match participation, applying their rating.
  *
- * Since ratings are now applied immediately on match creation,
- * this function is primarily for:
- * 1. Updating deck selection (triggers dirty flag for recalculation)
- * 2. Confirming participation if somehow still pending
- *
- * Returns the participant's current rating delta from the match.
+ * Safe to call even if the participant was already auto-confirmed and
+ * rated elsewhere (e.g. logMatch's friend auto-confirm, or a claim
+ * approval) -- applyParticipantRating is idempotent.
  */
 export async function confirmMatch(
   participantId: string,
@@ -214,7 +211,6 @@ export async function confirmMatch(
 ): Promise<Result<{ delta: number }>> {
   const supabase = await createClient();
 
-  // Get current user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -222,22 +218,9 @@ export async function confirmMatch(
     return { success: false, error: "Not authenticated" };
   }
 
-  // Get the participant record with match info
   const { data: participant, error: participantError } = await supabase
     .from("match_participants")
-    .select(
-      `
-      id,
-      user_id,
-      match_id,
-      is_winner,
-      confirmed_at,
-      participant_status,
-      deck_id,
-      deck:decks!match_participants_deck_id_fkey(bracket),
-      match:matches!inner(format_id, ratings_applied_at)
-    `,
-    )
+    .select("id, user_id, match_id, participant_status, deck_id")
     .eq("id", participantId)
     .single();
 
@@ -245,7 +228,6 @@ export async function confirmMatch(
     return { success: false, error: "Participant not found" };
   }
 
-  // Verify this is the user's participation
   if (participant.user_id !== user.id) {
     return {
       success: false,
@@ -253,12 +235,6 @@ export async function confirmMatch(
     };
   }
 
-  const matchInfo = participant.match as {
-    format_id: string;
-    ratings_applied_at: string | null;
-  };
-
-  // If deck provided, update it (this triggers dirty flag if ratings already applied)
   if (deckId && deckId !== participant.deck_id) {
     const updateResult = await updateParticipantDeck(
       supabase,
@@ -270,7 +246,6 @@ export async function confirmMatch(
     }
   }
 
-  // If still pending (edge case), mark as confirmed
   if (participant.participant_status === "pending") {
     await supabase
       .from("match_participants")
@@ -281,22 +256,9 @@ export async function confirmMatch(
       .eq("id", participantId);
   }
 
-  // Get the actual delta from rating_history (if ratings were applied)
-  let delta = 0;
-  if (matchInfo.ratings_applied_at) {
-    const { data: historyEntry } = await supabase
-      .from("rating_history")
-      .select("delta")
-      .eq("user_id", user.id)
-      .eq("match_id", participant.match_id)
-      .eq("format_id", matchInfo.format_id)
-      .is("collection_id", null)
-      .single();
+  const applyResult = await applyParticipantRating(supabase, participantId);
+  const delta = applyResult.success ? applyResult.data.delta : 0;
 
-    delta = historyEntry?.delta ?? 0;
-  }
-
-  // Revalidate relevant pages
   revalidatePath("/dashboard");
   revalidatePath("/matches");
   revalidatePath(`/match/${participant.match_id}`);
