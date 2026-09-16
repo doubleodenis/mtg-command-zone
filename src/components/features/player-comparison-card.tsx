@@ -192,15 +192,25 @@ function RivalryStatTiles({ asEnemies, asTeammates, currentStreak, ratingGapTren
           </span>
         </div>
       )}
-      {ratingGapTrend && (
-        <div className="bg-surface rounded-lg p-4">
-          <span className="text-label text-text-2 block mb-2">Gap Closing</span>
-          <span className="font-display text-2xl font-bold text-text-1">{ratingGapTrend.current >= 0 ? "+" : ""}{ratingGapTrend.current}</span>
-          <p className="text-xs text-win mt-1">
-            {Math.abs(ratingGapTrend.current - ratingGapTrend.past)} in {ratingGapTrend.daysSpan} days
-          </p>
-        </div>
-      )}
+      {ratingGapTrend && (() => {
+        const gapNow = Math.abs(ratingGapTrend.current);
+        const gapPast = Math.abs(ratingGapTrend.past);
+        const delta = gapPast - gapNow;
+        const label = delta > 0 ? "Gap Closing" : delta < 0 ? "Gap Widening" : "Gap Steady";
+        const trendColor = delta > 0 ? "text-win" : delta < 0 ? "text-loss" : "text-text-2";
+        const trendText =
+          delta === 0
+            ? `No change in ${ratingGapTrend.daysSpan} days`
+            : `${Math.abs(delta)} in ${ratingGapTrend.daysSpan} days`;
+
+        return (
+          <div className="bg-surface rounded-lg p-4">
+            <span className="text-label text-text-2 block mb-2">{label}</span>
+            <span className="font-display text-2xl font-bold text-text-1">{ratingGapTrend.current >= 0 ? "+" : ""}{ratingGapTrend.current}</span>
+            <p className={cn("text-xs mt-1", trendColor)}>{trendText}</p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
