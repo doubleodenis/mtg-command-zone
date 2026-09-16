@@ -18,6 +18,7 @@ import type { PlayerStats, FormatStats } from '@/types/profile'
 import type { Bracket } from '@/types/common'
 import { mapRatingRow, mapRatingHistoryRow } from '@/types/database-mappers'
 import { RATING_CONFIG } from '@/types/rating'
+import { ALGORITHM_VERSION } from '@/lib/rating'
 
 // ============================================
 // Rating Queries
@@ -570,6 +571,57 @@ export async function applyRatingChange(
 }
 
 // ============================================
+// get_rating_before_match (used for fair, played_at-scoped rating math)
+// ============================================
+
+type GetRatingBeforeMatchArgs = {
+  p_user_id: string
+  p_format_id: string
+  p_collection_id: string | null
+  p_match_played_at: string
+}
+
+/**
+ * Reconstruct a user's rating as of a specific match's played_at time,
+ * via the existing get_rating_before_match SQL function (built for the
+ * dirty-match recalculation job). Used so rating math stays fair regardless
+ * of when a participant actually confirms relative to when the match was
+ * played — see REQUIREMENTS.md §3.2.
+ */
+async function getRatingBeforeMatch(
+  client: SupabaseClient<Database>,
+  params: {
+    userId: string
+    formatId: string
+    collectionId: string | null
+    matchPlayedAt: string
+  }
+): Promise<number> {
+  type RpcShim = {
+    rpc(
+      fn: 'get_rating_before_match',
+      args: GetRatingBeforeMatchArgs
+    ): Promise<{ data: number | null; error: { message: string } | null }>
+  }
+
+  const { data, error } = await (client as unknown as RpcShim).rpc(
+    'get_rating_before_match',
+    {
+      p_user_id: params.userId,
+      p_format_id: params.formatId,
+      p_collection_id: params.collectionId,
+      p_match_played_at: params.matchPlayedAt,
+    }
+  )
+
+  if (error || data == null) {
+    return RATING_CONFIG.defaultRating
+  }
+
+  return data
+}
+
+// ============================================
 // Collection-Scoped Rating Updates
 // ============================================
 
@@ -783,4 +835,195 @@ export async function applyMatchCollectionRatings(
   }
 
   return { success: true, data: null }
+}
+
+// ============================================
+// Shared Per-Participant Rating Application
+// ============================================
+
+/**
+ * Calculate and apply a single participant's rating change (global scope,
+ * plus every collection they're a member of that the match belongs to),
+ * using each player's rating as of the match's played_at time rather than
+ * live -- so the math is fair no matter when each participant confirms.
+ *
+ * Idempotent: if this participant already has a rating_history row for
+ * this match (global scope), returns the existing delta and does nothing
+ * else. Safe to call unconditionally from any confirmation entry point.
+ *
+ * Placeholders (no user_id, on either side) are excluded -- from being
+ * rated themselves, and from appearing as anyone else's opponent.
+ */
+export async function applyParticipantRating(
+  client: SupabaseClient<Database>,
+  participantId: string
+): Promise<Result<{ delta: number; alreadyApplied: boolean }>> {
+  const { data: participant, error: participantError } = await client
+    .from('match_participants')
+    .select(`
+      id,
+      match_id,
+      user_id,
+      is_winner,
+      deck:decks!match_participants_deck_id_fkey(bracket),
+      match:matches!inner(format_id, played_at)
+    `)
+    .eq('id', participantId)
+    .single()
+
+  if (participantError || !participant) {
+    return { success: false, error: 'Participant not found' }
+  }
+
+  if (!participant.user_id) {
+    return {
+      success: false,
+      error: 'Cannot apply a rating to a placeholder participant',
+    }
+  }
+
+  const match = participant.match as { format_id: string; played_at: string }
+
+  const { data: existingHistory } = await client
+    .from('rating_history')
+    .select('delta')
+    .eq('user_id', participant.user_id)
+    .eq('match_id', participant.match_id)
+    .eq('format_id', match.format_id)
+    .is('collection_id', null)
+    .maybeSingle()
+
+  if (existingHistory) {
+    return {
+      success: true,
+      data: { delta: existingHistory.delta, alreadyApplied: true },
+    }
+  }
+
+  const { data: others, error: othersError } = await client
+    .from('match_participants')
+    .select(`
+      user_id,
+      deck:decks!match_participants_deck_id_fkey(bracket)
+    `)
+    .eq('match_id', participant.match_id)
+    .not('user_id', 'is', null)
+    .neq('id', participantId)
+
+  if (othersError) {
+    return { success: false, error: othersError.message }
+  }
+
+  const { calculateRating } = await import('@/lib/rating')
+
+  const playerBracket = (participant.deck?.bracket ??
+    RATING_CONFIG.defaultBracket) as Bracket
+
+  const playerRatingBefore = await getRatingBeforeMatch(client, {
+    userId: participant.user_id,
+    formatId: match.format_id,
+    collectionId: null,
+    matchPlayedAt: match.played_at,
+  })
+
+  const opponents: Array<{ rating: number; bracket: Bracket }> = []
+  for (const opp of others ?? []) {
+    if (!opp.user_id) continue
+    const oppRatingBefore = await getRatingBeforeMatch(client, {
+      userId: opp.user_id,
+      formatId: match.format_id,
+      collectionId: null,
+      matchPlayedAt: match.played_at,
+    })
+    opponents.push({
+      rating: oppRatingBefore,
+      bracket: (opp.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
+    })
+  }
+
+  // Live matches_played is used for K-factor -- an accepted approximation,
+  // see spec's Non-goals (matches the existing dirty-recalc endpoint).
+  const currentRatingResult = await getRating(
+    client,
+    participant.user_id,
+    match.format_id
+  )
+  const matchesPlayed = currentRatingResult.success
+    ? currentRatingResult.data.matchesPlayed
+    : 0
+
+  const ratingCalc = calculateRating({
+    playerId: participant.user_id,
+    playerRating: playerRatingBefore,
+    playerBracket,
+    playerMatchCount: matchesPlayed,
+    isWinner: participant.is_winner,
+    opponents,
+    formatId: match.format_id,
+    collectionId: null,
+  })
+
+  const newRating = playerRatingBefore + ratingCalc.delta
+  const applyResult = await applyRatingChange(client, {
+    userId: participant.user_id,
+    matchId: participant.match_id,
+    formatId: match.format_id,
+    newRating,
+    delta: ratingCalc.delta,
+    isWin: participant.is_winner,
+    playerBracket,
+    opponentAvgRating: ratingCalc.opponentAvgRating,
+    opponentAvgBracket: ratingCalc.opponentAvgBracket,
+    kFactor: ratingCalc.kFactor,
+    algorithmVersion: ALGORITHM_VERSION,
+  })
+
+  if (!applyResult.success) {
+    return { success: false, error: applyResult.error }
+  }
+
+  const { getMatchCollections, getUserMemberCollections } = await import(
+    '@/lib/supabase/collections'
+  )
+  const matchCollectionsResult = await getMatchCollections(
+    client,
+    participant.match_id
+  )
+  if (matchCollectionsResult.success && matchCollectionsResult.data.length > 0) {
+    const userMemberCollectionsResult = await getUserMemberCollections(
+      client,
+      participant.user_id,
+      matchCollectionsResult.data
+    )
+    if (
+      userMemberCollectionsResult.success &&
+      userMemberCollectionsResult.data.length > 0
+    ) {
+      await updateCollectionRatings(client, {
+        userId: participant.user_id,
+        matchId: participant.match_id,
+        formatId: match.format_id,
+        playerBracket,
+        isWinner: participant.is_winner,
+        opponents,
+        collectionIds: userMemberCollectionsResult.data,
+        algorithmVersion: ALGORITHM_VERSION,
+      })
+    }
+  }
+
+  type MarkAppliedShim = {
+    rpc(
+      fn: 'mark_ratings_applied',
+      args: { p_match_id: string }
+    ): Promise<{ error: { message: string } | null }>
+  }
+  await (client as unknown as MarkAppliedShim).rpc('mark_ratings_applied', {
+    p_match_id: participant.match_id,
+  })
+
+  return {
+    success: true,
+    data: { delta: ratingCalc.delta, alreadyApplied: false },
+  }
 }
