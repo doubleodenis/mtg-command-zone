@@ -234,7 +234,11 @@
 
 - [ ] Scryfall API integration for commander autocomplete and color identity
 - [ ] Global leaderboards (per format, public and friends-only)
-- [ ] Match disputes (flag incorrect results)
+- [ ] Match disputes (flag incorrect results) -- `disputeMatchParticipation()` in
+      `src/lib/supabase/matches.ts` is an existing unused stub (only clears
+      `confirmed_at`, doesn't notify anyone or touch an already-applied rating).
+      Needed as the safety net for friendship-gated auto-confirm now that most
+      matches apply instantly with no confirmation window.
 - [ ] Deck archetypes and power level tags (e.g. CEDH, Casual, 1–10 scale)
 - [ ] Tournaments (bracket or round-robin events within a collection)
 - [ ] Mobile app (React Native or PWA)
@@ -243,5 +247,10 @@
 
 ## Known Issues
 
+- [x] Match confirmation model was reverted from friendship-gated per-participant
+      confirmation back to auto-confirm-everyone-at-creation at some point without
+      updating docs -- fixed 2026-09-15, see
+      `docs/superpowers/specs/2026-09-15-match-confirmation-redesign-design.md`
 - [ ] Match details page missing bracket level visual for individual participant decks
-- [ ] Updating deck with different bracket isn't recalculating ratings correctly (debugging in progress — see debug panel on match detail page)
+- [ ] Updating deck with different bracket isn't recalculating ratings correctly
+      (re-verify against the `mark_match_dirty` guard fix from the same date)
