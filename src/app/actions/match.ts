@@ -164,17 +164,47 @@ export async function logMatch(payload: {
 
     if (!shouldConfirm) continue; // stays 'pending' -- notification already fires via DB trigger
 
-    await supabase
+    const { data: confirmedRows } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
         confirmed_at: now,
       })
-      .eq("id", participant.id);
+      .eq("id", participant.id)
+      .select("id");
+
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] logMatch: FAILED to confirm participant ${participant.id} - update matched 0 rows`,
+      );
+    }
 
     const applyResult = await applyParticipantRating(supabase, participant.id);
-    if (applyResult.success && isReporter) {
-      creatorDelta = applyResult.data.delta;
+    if (applyResult.success) {
+      if (isReporter) {
+        creatorDelta = applyResult.data.delta;
+      }
+    } else {
+      console.error(
+        `[RATING] logMatch: FAILED to apply rating for participant ${participant.id} - ${applyResult.error}`,
+      );
+    }
+
+    if (!isReporter) {
+      // The AFTER INSERT trigger on match_participants already created a
+      // match_pending_confirmation notification for this participant when
+      // the row was inserted (it can't know we're about to auto-confirm
+      // them milliseconds later because they're an accepted friend). Clear
+      // it now so they don't see a stale "needs your confirmation"
+      // notification for a match that's already fully confirmed and rated
+      // on their behalf.
+      await supabase
+        .from("notifications")
+        .delete()
+        .eq("recipient_id", participant.user_id)
+        .eq("type", "match_pending_confirmation")
+        .eq("entity_type", "match")
+        .eq("entity_id", match.id);
     }
   }
 
@@ -240,26 +270,39 @@ export async function confirmMatch(
   }
 
   if (participant.participant_status === "pending") {
-    await supabase
+    const { data: confirmedRows } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
         confirmed_at: new Date().toISOString(),
       })
-      .eq("id", participantId);
+      .eq("id", participantId)
+      .select("id");
+
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] confirmMatch: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+      );
+    }
   }
 
   const applyResult = await applyParticipantRating(supabase, participantId);
-  const delta = applyResult.success ? applyResult.data.delta : 0;
 
   revalidatePath("/dashboard");
   revalidatePath("/matches");
   revalidatePath(`/match/${participant.match_id}`);
   revalidatePath("/notifications");
 
+  if (!applyResult.success) {
+    console.error(
+      `[RATING] confirmMatch: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+    );
+    return { success: false, error: applyResult.error };
+  }
+
   return {
     success: true,
-    data: { delta },
+    data: { delta: applyResult.data.delta },
   };
 }
 
@@ -606,15 +649,27 @@ export async function claimSlotWithAutoApproval(participantId: string): Promise<
   });
 
   if (shouldConfirm) {
-    await supabase
+    const { data: confirmedRows } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
         confirmed_at: new Date().toISOString(),
       })
-      .eq("id", participantId);
+      .eq("id", participantId)
+      .select("id");
 
-    await applyParticipantRating(supabase, participantId);
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] claimSlotWithAutoApproval: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+      );
+    }
+
+    const applyResult = await applyParticipantRating(supabase, participantId);
+    if (!applyResult.success) {
+      console.error(
+        `[RATING] claimSlotWithAutoApproval: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+      );
+    }
   }
 
   // Get collections this match belongs to
@@ -761,15 +816,27 @@ export async function approveClaimRequest(
   });
 
   if (shouldConfirm) {
-    await supabase
+    const { data: confirmedRows } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
         confirmed_at: new Date().toISOString(),
       })
-      .eq("id", participantId);
+      .eq("id", participantId)
+      .select("id");
 
-    await applyParticipantRating(supabase, participantId);
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] approveClaimRequest: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+      );
+    }
+
+    const applyResult = await applyParticipantRating(supabase, participantId);
+    if (!applyResult.success) {
+      console.error(
+        `[RATING] approveClaimRequest: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+      );
+    }
   }
   // else: stays pending -- the claimant confirms themselves via confirmMatch()
 

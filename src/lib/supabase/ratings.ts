@@ -1055,6 +1055,7 @@ export async function resolvePendingMatchesForNewFriends(
     .from('match_participants')
     .select(`
       id,
+      user_id,
       match:matches!inner(played_at, created_by)
     `)
     .in('user_id', [userId1, userId2])
@@ -1066,13 +1067,19 @@ export async function resolvePendingMatchesForNewFriends(
 
   type PendingRow = {
     id: string
+    user_id: string | null
     match: { played_at: string; created_by: string } | null
   }
 
   const eligible = (pending as unknown as PendingRow[])
     .filter((row) => {
       const createdBy = row.match?.created_by
-      return createdBy === userId1 || createdBy === userId2
+      // The match's reporter must be the OTHER user in the pair relative to
+      // this row's own participant -- not just "anyone in the pair" -- so a
+      // reporter's own slot (always confirmed at creation today, but the
+      // filter should still say what it means) is never treated as eligible.
+      const otherUser = row.user_id === userId1 ? userId2 : userId1
+      return createdBy === otherUser
     })
     .sort(
       (a, b) =>
@@ -1083,17 +1090,30 @@ export async function resolvePendingMatchesForNewFriends(
   let resolvedCount = 0
 
   for (const row of eligible) {
-    await client
+    const { data: confirmedRows } = await client
       .from('match_participants')
       .update({
         participant_status: 'confirmed',
         confirmed_at: new Date().toISOString(),
       })
       .eq('id', row.id)
+      .select('id')
+
+    if (!confirmedRows || confirmedRows.length === 0) {
+      console.error(
+        `[RATING] resolvePendingMatchesForNewFriends: FAILED to confirm participant ${row.id} - update matched 0 rows`
+      )
+    }
 
     const applyResult = await applyParticipantRating(client, row.id)
-    if (applyResult.success && !applyResult.data.alreadyApplied) {
-      resolvedCount++
+    if (applyResult.success) {
+      if (!applyResult.data.alreadyApplied) {
+        resolvedCount++
+      }
+    } else {
+      console.error(
+        `[RATING] resolvePendingMatchesForNewFriends: FAILED to apply rating for participant ${row.id} - ${applyResult.error}`
+      )
     }
   }
 
