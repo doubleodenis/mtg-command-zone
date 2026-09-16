@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { searchCommanders, type ScryfallCard } from "@/lib/scryfall/api";
 import { getFriendshipStatus, sendFriendRequest, getFriends } from "@/lib/supabase/profiles";
+import { DndSlot } from "./dnd-slot";
 import type {
   PentagonPlayerCardProps,
   PentagramLayoutProps,
@@ -49,6 +50,7 @@ function PentagonPlayerCard({
   excludeIds,
   currentUser,
   isEnemyHighlighted,
+  isRecentlyChanged,
   onFocusChange,
 }: PentagonPlayerCardProps) {
   const [query, setQuery] = React.useState("");
@@ -200,10 +202,11 @@ function PentagonPlayerCard({
   // Empty slot
   if (slot.type === "empty") {
     return (
-      <div 
+      <div
         className={cn(
           "w-full p-3 rounded-lg border border-dashed bg-card-raised/30 transition-colors",
-          isEnemyHighlighted ? "border-loss/70 bg-loss/5" : "border-card-border"
+          isEnemyHighlighted ? "border-loss/70 bg-loss/5" : "border-card-border",
+          isRecentlyChanged && "ring-2 ring-accent/40 transition-all duration-500"
         )}
         onFocus={() => onFocusChange?.(true)}
         onBlur={() => onFocusChange?.(false)}
@@ -369,11 +372,12 @@ function PentagonPlayerCard({
     <div
       className={cn(
         "w-full p-3 rounded-lg border transition-all",
-        isEnemyHighlighted 
-          ? "bg-loss/10 border-loss/50" 
-          : slot.isWinner 
-            ? "bg-win/10 border-win/50" 
-            : "bg-card border-card-border"
+        isEnemyHighlighted
+          ? "bg-loss/10 border-loss/50"
+          : slot.isWinner
+            ? "bg-win/10 border-win/50"
+            : "bg-card border-card-border",
+        isRecentlyChanged && "ring-2 ring-accent/40 duration-500"
       )}
       onFocus={() => onFocusChange?.(true)}
       onBlur={() => onFocusChange?.(false)}
@@ -518,8 +522,28 @@ export function PentagramLayout({
   // Compute which indices are enemies of the focused card
   const enemyIndices = focusedIndex !== null ? PENTAGRAM_ENEMIES[focusedIndex] : null;
 
+  // Briefly apply a neutral highlight to every seat after any participants
+  // change, so an ally/enemy relabel caused by a drag elsewhere reads as
+  // intentional. This is deliberately independent of isEnemyHighlighted —
+  // it must never imply "Enemy" on a seat that isn't actually one.
+  const [recentlyChanged, setRecentlyChanged] = React.useState(false);
+  const isFirstRender = React.useRef(true);
+
+  React.useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setRecentlyChanged(true);
+    const timeout = setTimeout(() => setRecentlyChanged(false), 600);
+    return () => clearTimeout(timeout);
+  }, [participants]);
+
   return (
     <>
+      <p className="hidden md:block text-xs text-text-2 text-center mb-2">
+        Drop replaces the seated player.
+      </p>
       {/* Desktop: Pentagram visual layout */}
       <div className="hidden md:block relative w-full aspect-square max-w-xl mx-auto">
         {/* SVG for pentagram lines */}
@@ -563,28 +587,31 @@ export function PentagramLayout({
                 top: `${pos.y}%`,
               }}
             >
-              <PentagonPlayerCard
-                slot={slot}
-                index={index}
-                currentUserId={currentUserId}
-                onSelectPlayer={(player) => onSelectPlayer(index, player)}
-                onSetAsGuest={() => onSetAsGuest(index)}
-                onRemove={() => onRemove(index)}
-                onToggleWinner={() => onToggleWinner(index)}
-                onSelectDeck={(deckId) => onSelectDeck(index, deckId)}
-                onChangePlaceholderName={(name) => onChangePlaceholderName(index, name)}
-                onChangeCommanderName={(name) => onChangeCommanderName(index, name)}
-                availableDecks={
-                  slot.type === "registered" && slot.userId
-                    ? userDecks[slot.userId] || []
-                    : []
-                }
-                excludeIds={excludeIds}
-                enemies={PENTAGRAM_ENEMIES[index]}
-                currentUser={currentUser}
-                isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
-                onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
-              />
+              <DndSlot index={index} draggable={slot.type !== "empty"}>
+                <PentagonPlayerCard
+                  slot={slot}
+                  index={index}
+                  currentUserId={currentUserId}
+                  onSelectPlayer={(player) => onSelectPlayer(index, player)}
+                  onSetAsGuest={() => onSetAsGuest(index)}
+                  onRemove={() => onRemove(index)}
+                  onToggleWinner={() => onToggleWinner(index)}
+                  onSelectDeck={(deckId) => onSelectDeck(index, deckId)}
+                  onChangePlaceholderName={(name) => onChangePlaceholderName(index, name)}
+                  onChangeCommanderName={(name) => onChangeCommanderName(index, name)}
+                  availableDecks={
+                    slot.type === "registered" && slot.userId
+                      ? userDecks[slot.userId] || []
+                      : []
+                  }
+                  excludeIds={excludeIds}
+                  enemies={PENTAGRAM_ENEMIES[index]}
+                  currentUser={currentUser}
+                  isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
+                  isRecentlyChanged={recentlyChanged}
+                  onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
+                />
+              </DndSlot>
             </div>
           );
         })}
@@ -614,6 +641,7 @@ export function PentagramLayout({
             enemies={PENTAGRAM_ENEMIES[index]}
             currentUser={currentUser}
             isEnemyHighlighted={enemyIndices?.includes(index) ?? false}
+            isRecentlyChanged={recentlyChanged}
             onFocusChange={(focused) => setFocusedIndex(focused ? index : null)}
           />
         ))}
