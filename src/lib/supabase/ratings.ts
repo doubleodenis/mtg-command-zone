@@ -1037,3 +1037,65 @@ export async function applyParticipantRating(
     data: { delta: ratingCalc.delta, alreadyApplied: false },
   }
 }
+
+/**
+ * When two users become friends, resolve any of their still-pending match
+ * participations where the OTHER party is the match's reporter -- these
+ * would have auto-confirmed at creation time if the friendship had already
+ * existed then. Applies in played_at order so each match's rating math
+ * builds on the previous one correctly for players with several pending
+ * matches against the same now-friend.
+ */
+export async function resolvePendingMatchesForNewFriends(
+  client: SupabaseClient<Database>,
+  userId1: string,
+  userId2: string
+): Promise<Result<{ resolvedCount: number }>> {
+  const { data: pending, error } = await client
+    .from('match_participants')
+    .select(`
+      id,
+      match:matches!inner(played_at, created_by)
+    `)
+    .in('user_id', [userId1, userId2])
+    .eq('participant_status', 'pending')
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  type PendingRow = {
+    id: string
+    match: { played_at: string; created_by: string } | null
+  }
+
+  const eligible = (pending as unknown as PendingRow[])
+    .filter((row) => {
+      const createdBy = row.match?.created_by
+      return createdBy === userId1 || createdBy === userId2
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.match!.played_at).getTime() -
+        new Date(b.match!.played_at).getTime()
+    )
+
+  let resolvedCount = 0
+
+  for (const row of eligible) {
+    await client
+      .from('match_participants')
+      .update({
+        participant_status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq('id', row.id)
+
+    const applyResult = await applyParticipantRating(client, row.id)
+    if (applyResult.success && !applyResult.data.alreadyApplied) {
+      resolvedCount++
+    }
+  }
+
+  return { success: true, data: { resolvedCount } }
+}
