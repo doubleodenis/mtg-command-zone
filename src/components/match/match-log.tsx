@@ -95,8 +95,6 @@ const FORMAT_OPTIONS: { value: FormatSlug | "all"; label: string }[] = [
   { value: "all", label: "All Formats" },
   { value: "ffa", label: "FFA" },
   { value: "1v1", label: "1v1" },
-  { value: "2v2", label: "2v2" },
-  { value: "3v3", label: "3v3" },
   { value: "pentagram", label: "Pentagram" },
 ];
 
