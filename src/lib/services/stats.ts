@@ -333,9 +333,13 @@ export async function getHeadToHeadComparison(
   // Fetch rating history for both players on the shared matches, used to build the rivalry timeline
   const { data: ratingHistoryRows, error: ratingHistoryError } = await client
     .from('rating_history')
-    .select('match_id, user_id, rating_after')
+    .select('match_id, user_id, rating_after, rating_before')
     .in('match_id', sharedMatchIds)
     .in('user_id', [currentUserId, targetUserId])
+    // Default to global history — rating_history has one row per collection
+    // the match belongs to, plus one global row; without this filter we could
+    // pick up a collection-scoped rating instead of the global one.
+    .is('collection_id', null)
 
   if (ratingHistoryError) {
     return { success: false, error: ratingHistoryError.message }
@@ -437,6 +441,7 @@ export async function getHeadToHeadComparison(
     matchId: r.match_id,
     userId: r.user_id,
     ratingAfter: r.rating_after,
+    ratingBefore: r.rating_before,
   }))
 
   const meetings = buildMeetings(sharedMatchInfos, ratingRows, currentUserId, targetUserId)

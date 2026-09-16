@@ -34,6 +34,7 @@ type Meeting = {
   formatName: string;
   isWin: boolean;
   yourRating: number;
+  yourRatingBefore: number;
   opponentRating: number;
 };
 
@@ -67,8 +68,11 @@ export function PlayerComparisonCard({
 }: PlayerComparisonCardProps) {
   const { you, opponent, asEnemies, asTeammates, byFormat, currentStreak, meetings, ratingGapTrend } = data;
 
-  const totalMatchesTogether = asEnemies.matchesPlayed + asTeammates.matchesPlayed;
-  const chartUnlocked = totalMatchesTogether >= 3;
+  // Gate on meetings.length (confirmed, non-dirty matches with settled ratings
+  // for both players) rather than totalMatchesTogether, since that's what the
+  // chart actually renders — a pair can have 3+ shared matches but fewer than
+  // 3 with confirmed ratings.
+  const chartUnlocked = meetings.length >= 3;
 
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -112,9 +116,8 @@ export function PlayerComparisonCard({
           </div>
         ) : (
           <SparseRivalryUnlock
-            matchesTogether={totalMatchesTogether}
+            matchesTogether={meetings.length}
             meetings={meetings}
-            opponentUsername={opponent.username}
           />
         )}
 
@@ -149,15 +152,21 @@ function MirroredStatBars({ you, opponent }: MirroredStatBarsProps) {
         const format = row.format ?? ((n: number) => n.toLocaleString());
         const max = maxByRow[i];
         return (
-          <div key={row.label} className="grid grid-cols-[1fr_110px_1fr] items-center gap-3">
-            <div className="flex items-center justify-end gap-3">
+          <div
+            key={row.label}
+            className="grid grid-cols-1 gap-1.5 md:grid-cols-[1fr_110px_1fr] md:items-center md:gap-3"
+          >
+            {/* Label: above the bars when stacked, centered middle column at md+ */}
+            <span className="order-1 text-label text-text-2 md:order-2 md:text-center">{row.label}</span>
+            {/* Your bar: below the label when stacked, right-aligned left column at md+ */}
+            <div className="order-2 flex items-center justify-start gap-3 md:order-1 md:justify-end">
               <span className="font-display text-xl font-bold text-text-1">{format(row.you)}</span>
-              <div className="h-2 w-full max-w-[140px] bg-bg-overlay rounded-sm flex justify-end overflow-hidden">
+              <div className="h-2 w-full max-w-[140px] bg-bg-overlay rounded-sm flex justify-start md:justify-end overflow-hidden">
                 <div className="h-2 bg-accent rounded-sm" style={{ width: `${(row.you / max) * 100}%` }} />
               </div>
             </div>
-            <span className="text-label text-text-2 text-center">{row.label}</span>
-            <div className="flex items-center gap-3">
+            {/* Opponent's bar: below your bar when stacked, right column at md+ */}
+            <div className="order-3 flex items-center justify-start gap-3">
               <div className="h-2 w-full max-w-[140px] bg-bg-overlay rounded-sm overflow-hidden">
                 <div className="h-2 bg-gold rounded-sm" style={{ width: `${(row.opponent / max) * 100}%` }} />
               </div>
@@ -181,7 +190,7 @@ function RivalryStatTiles({ asEnemies, asTeammates, currentStreak, ratingGapTren
   const tileCount = 2 + (currentStreak ? 1 : 0) + (ratingGapTrend ? 1 : 0);
 
   return (
-    <div className={cn("grid gap-3", tileCount === 4 ? "grid-cols-2 sm:grid-cols-4" : tileCount === 3 ? "grid-cols-3" : "grid-cols-2")}>
+    <div className={cn("grid gap-3", tileCount === 4 ? "grid-cols-2 sm:grid-cols-4" : tileCount === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2")}>
       <RelationshipCard title="As Enemies" icon={<Swords className="w-5 h-5" />} record={asEnemies} />
       <RelationshipCard title="As Teammates" icon={<Handshake className="w-5 h-5" />} record={asTeammates} />
       {currentStreak && (
@@ -245,11 +254,11 @@ function FormatBeatChips({ byFormat }: FormatBeatChipsProps) {
 type SparseRivalryUnlockProps = {
   matchesTogether: number;
   meetings: Meeting[];
-  opponentUsername: string;
 };
 
-function SparseRivalryUnlock({ matchesTogether, meetings, opponentUsername }: SparseRivalryUnlockProps) {
+function SparseRivalryUnlock({ matchesTogether, meetings }: SparseRivalryUnlockProps) {
   const lastMeeting = meetings[meetings.length - 1];
+  const ratingDelta = lastMeeting ? lastMeeting.yourRating - lastMeeting.yourRatingBefore : 0;
 
   return (
     <div className="flex flex-col sm:flex-row gap-4">
@@ -277,7 +286,11 @@ function SparseRivalryUnlock({ matchesTogether, meetings, opponentUsername }: Sp
               </span>
             </div>
             <p className="text-mono-xs text-text-2">
-              vs {opponentUsername} · {lastMeeting.opponentRating}
+              {lastMeeting.yourRatingBefore} &rarr; {lastMeeting.yourRating}{" "}
+              <span className={cn("font-bold", ratingDelta >= 0 ? "text-win" : "text-loss")}>
+                ({ratingDelta >= 0 ? "+" : ""}
+                {ratingDelta})
+              </span>
             </p>
           </div>
         </div>

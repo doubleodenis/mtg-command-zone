@@ -20,6 +20,7 @@ export type RatingHistoryRow = {
   matchId: string
   userId: string
   ratingAfter: number
+  ratingBefore: number
 }
 
 export type Meeting = {
@@ -29,6 +30,7 @@ export type Meeting = {
   formatName: string
   isWin: boolean
   yourRating: number
+  yourRatingBefore: number
   opponentRating: number
 }
 
@@ -50,10 +52,19 @@ export function buildMeetings(
   currentUserId: string,
   targetUserId: string
 ): Meeting[] {
-  const ratingsByMatch = new Map<string, { yours?: number; opponent?: number }>()
+  const ratingsByMatch = new Map<
+    string,
+    { yours?: number; yoursBefore?: number; opponent?: number }
+  >()
   for (const row of ratingRows) {
     const entry = ratingsByMatch.get(row.matchId) ?? {}
-    if (row.userId === currentUserId) entry.yours = row.ratingAfter
+    if (row.userId === currentUserId) {
+      // Last-write-wins if a caller ever passes multiple rows per match+user
+      // (e.g. unfiltered collection-scoped rows) — determinism for the real
+      // query is enforced by the collection_id IS NULL filter at the SQL layer.
+      entry.yours = row.ratingAfter
+      entry.yoursBefore = row.ratingBefore
+    }
     if (row.userId === targetUserId) entry.opponent = row.ratingAfter
     ratingsByMatch.set(row.matchId, entry)
   }
@@ -62,7 +73,13 @@ export function buildMeetings(
   for (const m of sharedMatches) {
     if (m.isDirty) continue
     const ratings = ratingsByMatch.get(m.matchId)
-    if (!ratings || ratings.yours === undefined || ratings.opponent === undefined) continue
+    if (
+      !ratings ||
+      ratings.yours === undefined ||
+      ratings.yoursBefore === undefined ||
+      ratings.opponent === undefined
+    )
+      continue
     meetings.push({
       matchId: m.matchId,
       playedAt: m.playedAt,
@@ -70,6 +87,7 @@ export function buildMeetings(
       formatName: m.formatName,
       isWin: m.isWin,
       yourRating: ratings.yours,
+      yourRatingBefore: ratings.yoursBefore,
       opponentRating: ratings.opponent,
     })
   }

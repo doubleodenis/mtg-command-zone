@@ -17,8 +17,13 @@ function match(overrides: Partial<SharedMatchInfo>): SharedMatchInfo {
   }
 }
 
-function ratingRow(matchId: string, userId: string, ratingAfter: number): RatingHistoryRow {
-  return { matchId, userId, ratingAfter }
+function ratingRow(
+  matchId: string,
+  userId: string,
+  ratingAfter: number,
+  ratingBefore: number = ratingAfter - 10
+): RatingHistoryRow {
+  return { matchId, userId, ratingAfter, ratingBefore }
 }
 
 describe('buildMeetings', () => {
@@ -75,6 +80,27 @@ describe('buildMeetings', () => {
     expect(meetings[0].yourRating).toBe(1013)
     expect(meetings[0].opponentRating).toBe(1088)
   })
+
+  it('maps yourRatingBefore from the current user rating_before value', () => {
+    const shared = [match({ matchId: 'm1' })]
+    const ratings = [ratingRow('m1', YOU, 1013, 1000), ratingRow('m1', THEM, 1088, 1100)]
+    const meetings = buildMeetings(shared, ratings, YOU, THEM)
+    expect(meetings[0].yourRatingBefore).toBe(1000)
+  })
+
+  it('is deterministic and does not crash when given duplicate rows for the same match+user (e.g. an unfiltered collection-scoped row alongside the global row) — last row wins, since determinism is enforced upstream by the collection_id IS NULL filter in the SQL query, not here', () => {
+    const shared = [match({ matchId: 'm1' })]
+    const ratings = [
+      ratingRow('m1', YOU, 1010, 1000), // global row
+      ratingRow('m1', YOU, 1500, 1490), // hypothetical collection-scoped row for the same user+match
+      ratingRow('m1', THEM, 990, 1000),
+    ]
+    const meetings = buildMeetings(shared, ratings, YOU, THEM)
+    expect(meetings).toHaveLength(1)
+    // Last row in the array wins (Map overwrite semantics) — deterministic given a fixed input order.
+    expect(meetings[0].yourRating).toBe(1500)
+    expect(meetings[0].yourRatingBefore).toBe(1490)
+  })
 })
 
 describe('calculateRivalryStreak', () => {
@@ -108,7 +134,16 @@ describe('calculateRivalryStreak', () => {
 
 describe('calculateRatingGapTrend', () => {
   function meeting(playedAt: string, yourRating: number, opponentRating: number): Meeting {
-    return { matchId: playedAt, playedAt, formatSlug: 'ffa', formatName: 'FFA', isWin: true, yourRating, opponentRating }
+    return {
+      matchId: playedAt,
+      playedAt,
+      formatSlug: 'ffa',
+      formatName: 'FFA',
+      isWin: true,
+      yourRating,
+      yourRatingBefore: yourRating - 10,
+      opponentRating,
+    }
   }
 
   it('returns null with fewer than 2 meetings', () => {
