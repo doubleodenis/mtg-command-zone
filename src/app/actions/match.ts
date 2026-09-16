@@ -20,6 +20,7 @@ import {
 } from "@/lib/supabase/collections";
 import { getFriendshipStatus } from "@/lib/supabase/profiles";
 import { shouldAutoConfirmParticipant } from "@/lib/confirmation";
+import { checkRateLimit } from "@/lib/rate-limit";
 import type {
   Result,
   ClaimableMatchSlot,
@@ -66,6 +67,14 @@ export async function logMatch(payload: {
   } = await supabase.auth.getUser();
   if (!user) {
     return { success: false, error: "Not authenticated" };
+  }
+
+  const rateLimit = checkRateLimit(`${user.id}:logMatch`, 10, 60_000);
+  if (!rateLimit.allowed) {
+    return {
+      success: false,
+      error: "You're logging matches too quickly. Please wait a moment and try again.",
+    };
   }
 
   const matchResult = await createMatch(
