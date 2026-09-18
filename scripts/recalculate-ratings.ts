@@ -19,7 +19,12 @@
  * Run with:
  *   npm run ratings:recalculate
  *
- * Requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local
+ * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local.
+ * Uses a secret key (not the publishable/anon key) because reset_ratings_for_recalculation
+ * and friends are privileged, whole-database operations — see migration 025, which
+ * revoked anon/authenticated access to these RPCs after an audit found the publishable
+ * key (shipped in every browser bundle) could call apply_rating_change directly to set
+ * arbitrary ratings. Create a secret key at Project Settings → API Keys → Secret keys.
  * All writes go through SECURITY DEFINER RPCs (migrations 006 + 007) which bypass
  * the system-managed-only RLS on ratings and rating_history.
  */
@@ -33,13 +38,15 @@ import type { Bracket } from '../src/types/common'
 config({ path: '.env.local' })
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
   console.error(
     '\nMissing environment variables. Ensure .env.local contains:\n' +
     '  NEXT_PUBLIC_SUPABASE_URL=<your project URL>\n' +
-    '  NEXT_PUBLIC_SUPABASE_ANON_KEY=<your publishable key>\n'
+    '  SUPABASE_SECRET_KEY=<your secret key, from Project Settings -> API Keys -> Secret keys>\n' +
+    '\nDo not use the publishable/anon key here — this script calls RPCs that are\n' +
+    'intentionally locked down to service_role (see migration 025).\n'
   )
   process.exit(1)
 }
@@ -65,7 +72,7 @@ type RpcClient = {
   }): Promise<{ error: { message: string } | null }>
 }
 
-const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 const rpc = supabase as unknown as RpcClient
