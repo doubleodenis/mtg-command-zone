@@ -1,8 +1,17 @@
 name: Nightly Database Backup
 
-# Dumps the production Postgres database and uploads it to S3.
+# Dumps the production database via the Supabase CLI and uploads it to S3.
 # Retention (14 days) is enforced by an S3 lifecycle rule on the bucket,
 # not by this workflow -- see repo docs / PR description for the exact rule.
+#
+# Uses `supabase db dump` rather than raw pg_dump: it runs pg_dump inside a
+# Docker container from Supabase's own Postgres image, so it's always
+# version-matched to the server (no manual apt/PGDG pinning), and it
+# automatically excludes Supabase-managed schemas (auth, storage, extension
+# schemas), which raw pg_dump would include and which don't restore cleanly
+# into a target that doesn't already own them. Three separate invocations
+# are required -- the default dump has no data or custom roles -- matching
+# Supabase's own documented backup pattern.
 
 on:
   schedule:
@@ -11,30 +20,26 @@ on:
 
 jobs:
   backup:
-    name: pg_dump to S3
+    name: supabase db dump to S3
     runs-on: ubuntu-latest
 
     steps:
-      # ubuntu-latest ships an older postgresql-client by default. The
-      # project's Supabase project runs Postgres 17, and pg_dump can't
-      # reliably dump a server newer than itself, so pull v17 from the
-      # official PGDG apt repo instead of relying on Ubuntu's package.
-      - name: Install PostgreSQL 17 client tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-17
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
 
-      - name: Dump database
+      - name: Dump database (roles, schema, data)
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          # Call the versioned binary directly -- installing postgresql-client-17
-          # doesn't repoint the unversioned `pg_dump` on PATH away from Ubuntu's
-          # pre-existing v16, since update-alternatives only picked up the psql
-          # man page, not the pg_dump symlink priority.
-          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" -Fc -f backup.dump
+          mkdir -p dump
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f dump/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f dump/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f dump/data.sql --use-copy --data-only
+
+      - name: Archive dump
+        run: |
+          tar -czf backup.tar.gz -C dump roles.sql schema.sql data.sql
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -45,5 +50,5 @@ jobs:
 
       - name: Upload backup to S3
         run: |
-          aws s3 cp backup.dump \
-            "s3://${{ secrets.S3_BACKUP_BUCKET }}/command-zone/backup-$(date -u +%Y-%m-%dT%H-%M-%SZ).dump"
+          aws s3 cp backup.tar.gz \
+            "s3://${{ secrets.S3_BACKUP_BUCKET }}/command-zone/backup-$(date -u +%Y-%m-%dT%H-%M-%SZ).tar.gz"
