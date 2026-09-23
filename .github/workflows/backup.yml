@@ -30,7 +30,11 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          pg_dump "$SUPABASE_DB_URL" -Fc -f backup.dump
+          # Call the versioned binary directly -- installing postgresql-client-17
+          # doesn't repoint the unversioned `pg_dump` on PATH away from Ubuntu's
+          # pre-existing v16, since update-alternatives only picked up the psql
+          # man page, not the pg_dump symlink priority.
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" -Fc -f backup.dump
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
