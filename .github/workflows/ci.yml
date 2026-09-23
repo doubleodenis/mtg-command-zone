@@ -80,9 +80,20 @@ jobs:
         with:
           version: latest
       
-      - name: Start Supabase locally
-        run: supabase start
-      
+      # This job only needs Postgres: `db reset` replays the migrations with
+      # psql. Booting the whole local stack pulls ~10 extra images from
+      # ghcr.io (studio, postgres-meta, realtime, storage, ...), which is both
+      # slow and the source of intermittent `toomanyrequests` failures on a
+      # registry we don't control. Exclude everything but the database.
+      - name: Start Supabase locally (database only)
+        env:
+          # setup-cli defaults this to ghcr.io, which rate-limits anonymous
+          # pulls from shared GitHub Actions IPs (`toomanyrequests`, unrelated
+          # to anything in the PR). Supabase mirrors the same images to Docker
+          # Hub; pointing at it avoids that bucket entirely.
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+        run: supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
       - name: Verify migrations apply cleanly
         run: supabase db reset
 
