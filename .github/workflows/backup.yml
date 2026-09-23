@@ -1,0 +1,45 @@
+name: Nightly Database Backup
+
+# Dumps the production Postgres database and uploads it to S3.
+# Retention (14 days) is enforced by an S3 lifecycle rule on the bucket,
+# not by this workflow -- see repo docs / PR description for the exact rule.
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # 8am UTC daily
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  backup:
+    name: pg_dump to S3
+    runs-on: ubuntu-latest
+
+    steps:
+      # ubuntu-latest ships an older postgresql-client by default. The
+      # project's Supabase project runs Postgres 17, and pg_dump can't
+      # reliably dump a server newer than itself, so pull v17 from the
+      # official PGDG apt repo instead of relying on Ubuntu's package.
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          pg_dump "$SUPABASE_DB_URL" -Fc -f backup.dump
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload backup to S3
+        run: |
+          aws s3 cp backup.dump \
+            "s3://${{ secrets.S3_BACKUP_BUCKET }}/command-zone/backup-$(date -u +%Y-%m-%dT%H-%M-%SZ).dump"
