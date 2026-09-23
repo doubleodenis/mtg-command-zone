@@ -149,7 +149,7 @@ Key components:
 - Global rating (per format)
 - Collection-scoped rating (per format × collection, for every collection the match belongs to)
 
-**Dirty match recalculation** — When a deck's bracket is updated post-confirmation, the match is flagged `is_dirty`. A nightly PL/pgSQL procedure `recalculate_dirty_matches()` re-runs affected ratings. A `pg_cron` job at 4am UTC needs to be enabled via the Supabase dashboard (not yet configured).
+**Dirty match recalculation** — When a deck's bracket is updated post-confirmation, the match is flagged `is_dirty`. A nightly PL/pgSQL procedure `recalculate_dirty_matches()` re-runs affected ratings. The `pg_cron` job at 4am UTC is enabled (`024_enable_nightly_recalc_cron.sql`).
 
 ---
 
@@ -203,10 +203,12 @@ Phases 1–10 are complete. Active work:
 - E2E setup with Playwright (not started)
 
 **Known issues:**
-- Match details page missing bracket level visual for individual participant decks
-- Deck bracket update not recalculating ratings correctly (debug panel available on match detail page)
-- `pg_cron` job for nightly dirty-match recalc not yet enabled in Supabase dashboard
-- Full rating recalculation missing `algorithm_version` stamp on rewritten history rows
+- Match details page missing bracket level visual for individual participant decks (`participant-list.tsx` fetches `deck.bracket` but never renders it — only the match-wide average bracket shows in the page header)
+
+**Resolved (previously listed here, verified fixed in code):**
+- Deck bracket update not recalculating ratings correctly — fixed in `accd6a2` ("fixed dirty match rating recalculation"); `/api/debug/recalculate` (dev-only) and `MatchDebugPanel` remain as diagnostic tooling, not evidence of an open bug
+- `pg_cron` job for nightly dirty-match recalc not enabled — enabled via `024_enable_nightly_recalc_cron.sql` / commit `ec2cacd`
+- Full rating recalculation missing `algorithm_version` stamp — `apply_rating_change()` (migration 006), `recalculate-ratings.ts`, and `recalculate_dirty_matches()` (migration 018) all stamp `algorithm_version` on every written row
 
 ---
 
