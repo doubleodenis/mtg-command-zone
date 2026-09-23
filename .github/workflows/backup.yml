@@ -31,6 +31,11 @@ jobs:
       - name: Dump database (roles, schema, data)
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          # setup-cli points the CLI at ghcr.io, which rate-limits anonymous
+          # pulls from shared GitHub Actions IPs -- `toomanyrequests` on the
+          # pg_dump image, with nothing wrong on our side. Supabase mirrors
+          # the same images to Docker Hub, a separate limit bucket.
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
         run: |
           mkdir -p dump
           supabase db dump --db-url "$SUPABASE_DB_URL" -f dump/roles.sql --role-only
