@@ -271,6 +271,8 @@ against a restored production dump with a simulated JWT
 | TC-BAK-06 | `[verified]` Grants after restore **without** re-applying 027/028 | **Re-opens `anon` access** — restore is not complete until both are re-applied (P0-4) |
 | TC-BAK-07 | `[ ]` Restore into bare (non-Supabase) Postgres | Expected to fail — `data.sql` targets `auth.*`/`storage.*` schemas the dump excludes; document, do not "fix" |
 | TC-BAK-08 | `[ ]` S3 lifecycle rule | Objects older than 14 days expire |
+| TC-BAK-09 | `[verified]` Unattended nightly run | Fired on `schedule` 2026-09-24 and succeeded — but started 13:01 UTC against an 08:00 cron (~5h GitHub queue delay). Real RPO is >24h, and a run can be skipped entirely |
+| TC-BAK-10 | `[ ]` Restore drill follows `docs/runbooks/database-restore.md` end to end | Steps 1–6 pass, including `public=0` grants after Step 5 |
 
 ---
 

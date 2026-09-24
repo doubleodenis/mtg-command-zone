@@ -13,7 +13,9 @@ P1+ not started.
 | P0-1 grant lockdown (027) | committed `4c4938b` | Yes — until merged and deployed |
 | P0-2 ownership checks (028) | committed `11ce77b` | Yes — until merged and deployed |
 | P0-3 password security | **deferred** — HIBP is Pro-only, org is free | No, by decision (2026-09-24) |
-| P0-4 restore runbook | not started | No — but a restore without it is unsafe |
+| P0-4 restore runbook | written — `docs/runbooks/database-restore.md` | No |
+
+**P0 code work is complete.** What remains is merging and deploying it.
 
 **The important caveat:** "committed" is not "fixed". Both migrations have only
 ever run against a production dump restored into a scratch Supabase. They have
@@ -153,16 +155,26 @@ public breach corpora, and nothing in the stack will stop them. Proportionate
 for a closed playtest with known people; reassess before any open signup.
 
 ### P0-4. Restore runbook
-**Status:** not started. **The only P0 with outstanding work.**
+**Status:** written — `docs/runbooks/database-restore.md`.
 
-The backup pipeline works and a restore has been verified once by hand, but
-nothing records the two facts that make a restore correct:
+Captures the two facts that make a restore correct, neither of which is
+obvious from the workflow file:
 
 1. **Re-apply 027 and 028 after every restore** (both are idempotent for
    exactly this reason), or the restored database is wide open.
 2. The archive restores into **a Supabase project, not bare Postgres** —
    `data.sql` carries `auth.*`/`storage.*` rows whose schemas the dump
    deliberately excludes because Supabase owns them.
+
+Also records the expected-but-harmless errors (so a real recovery is not
+abandoned over `auth`/`storage` version skew), the errors that mean stop,
+the production object/row counts as of 2026-09-23 for verification when
+production is unavailable, the cut-over checklist for config that does not
+live in the dump, and the Windows/Git Bash and ghcr.io rate-limit gotchas
+that cost time during the drill.
+
+Note the restore needs credentials that can **read** the bucket; the CI user
+`command-zone-ci-backup` is write-only by design.
 
 ---
 
