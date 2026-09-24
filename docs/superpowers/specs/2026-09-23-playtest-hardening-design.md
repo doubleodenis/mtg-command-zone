@@ -1,8 +1,25 @@
 # Playtest Hardening — Design
 
-**Date:** 2026-09-23
+**Date:** 2026-09-23 (status updated 2026-09-24)
 **Branch:** `fix/lock-down-function-grants` (P0 items), follow-ups TBD
-**Status:** P0 implemented but uncommitted; P1+ not started
+**Status:** P0-1 and P0-2 committed on the branch — **not pushed, not merged,
+not applied to production**. P0-3 deferred (Pro-plan gated). P0-4 not started.
+P1+ not started.
+
+### P0 status at a glance
+
+| Item | State | Blocking the playtest? |
+|---|---|---|
+| P0-1 grant lockdown (027) | committed `4c4938b` | Yes — until merged and deployed |
+| P0-2 ownership checks (028) | committed `11ce77b` | Yes — until merged and deployed |
+| P0-3 password security | **deferred** — HIBP is Pro-only, org is free | No, by decision (2026-09-24) |
+| P0-4 restore runbook | not started | No — but a restore without it is unsafe |
+
+**The important caveat:** "committed" is not "fixed". Both migrations have only
+ever run against a production dump restored into a scratch Supabase. They have
+never touched the live database. Production is still carrying all 21 `anon`
+exposures and the unchecked rating write path until this branch merges and
+`Deploy Migrations to Production` runs.
 
 ## Motivation
 
@@ -34,7 +51,9 @@ Two findings drive the priority order:
 ## P0 — Blocks the playtest
 
 ### P0-1. Deny-by-default EXECUTE on every routine
-**Status:** implemented, uncommitted — `supabase/migrations/027_lock_down_all_function_grants.sql`
+**Status:** committed `4c4938b` on `fix/lock-down-function-grants`; unpushed,
+unmerged, **not yet applied to production** —
+`supabase/migrations/027_lock_down_all_function_grants.sql`
 
 21 `SECURITY DEFINER` functions were executable by `anon`, including
 `create_notification`, `mark_notifications_read/seen`,
@@ -61,7 +80,9 @@ verification block that raises if anything outside the allowlist is still
 **Acceptance:** `anon=6`, `authenticated=16`, `PUBLIC=0` over all 48 routines.
 
 ### P0-2. Caller-ownership checks on SECURITY DEFINER functions
-**Status:** implemented, uncommitted — `supabase/migrations/028_add_ownership_checks.sql`
+**Status:** committed `11ce77b` on `fix/lock-down-function-grants`; unpushed,
+unmerged, **not yet applied to production** —
+`supabase/migrations/028_add_ownership_checks.sql`
 
 P0-1 decides *who* may call; it does not constrain *what* they may pass. Each
 function below took a target id straight from the caller:
@@ -102,15 +123,23 @@ all legitimate flows (friend auto-confirm, self-confirm, deck backfill,
 placeholder claim, service_role) still pass.
 
 ### P0-3. Password security settings
-**Status:** not started. Dashboard → Authentication → Sign In / Providers →
+**Status:** **Deferred 2026-09-24** — owner's call, not an oversight.
+
+Leaked-password protection (HaveIBeenPwned) is gated behind the Pro plan and
+the `devbydenis` org is on `free`, so acting on the advisor's warning means a
+paid upgrade rather than a toggle. Deferred until the project is on Pro.
+
+Location when revisited: Dashboard → Authentication → Sign In / Providers →
 Email → **Password Security**
 (`/dashboard/project/kpctqljfxegrmaijjlyb/auth/providers?provider=Email`).
 
-The security advisor flags leaked-password protection as disabled. Note that
-**it is a Pro-plan feature and the `devbydenis` org is on `free`**, so this one
-is not a free toggle — it needs an upgrade, not a click.
+The security advisor will keep reporting
+`auth_leaked_password_protection` as a WARN until this is enabled. That is
+expected, not a regression — don't let it mask new findings in future advisor
+runs.
 
-Available on free in the same panel, and worth doing regardless:
+Still available on free in the same panel and **not yet done**, tracked here
+rather than dropped:
 
 - Minimum password length >= 8.
 - Required character classes: digits, lower and uppercase, symbols.
@@ -119,11 +148,12 @@ Existing users with weaker passwords can still sign in but receive a
 `WeakPasswordError` on `signInWithPassword`, so tightening this mid-playtest
 is visible to testers rather than silently locking anyone out.
 
-Treat the free strength settings as the pre-playtest action and HIBP as a
-"when we upgrade" item.
+**Residual risk accepted:** playtesters may reuse passwords already present in
+public breach corpora, and nothing in the stack will stop them. Proportionate
+for a closed playtest with known people; reassess before any open signup.
 
 ### P0-4. Restore runbook
-**Status:** not started.
+**Status:** not started. **The only P0 with outstanding work.**
 
 The backup pipeline works and a restore has been verified once by hand, but
 nothing records the two facts that make a restore correct:

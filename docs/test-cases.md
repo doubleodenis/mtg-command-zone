@@ -12,7 +12,10 @@ is meant to cover.
 **Status legend**
 - `[verified]` — executed against a production dump restored into a scratch
   Supabase during the 2026-09-23 hardening pass; result recorded below.
+  **This is not the same as verified in production** — migrations 027 and 028
+  have not been applied to the live database yet.
 - `[ ]` — specified, not yet executed.
+- `[deferred]` — consciously not being done; the reason is recorded inline.
 
 **Actors** — `anon` (logged out), `owner` (match creator / resource owner),
 `participant` (in the match, not the creator), `stranger` (signed in,
@@ -32,7 +35,7 @@ Companion spec: `docs/superpowers/specs/2026-09-23-playtest-hardening-design.md`
 | TC-AUTH-02 | `[ ]` Display name entered at signup | Persisted to `profiles.display_name` (regression: was dropped, see acceptance-criteria §1) |
 | TC-AUTH-03 | `[ ]` Email containing `+` | `profiles.username` sanitized; `/player/[username]` resolves (regression: 404'd) |
 | TC-AUTH-04 | `[ ]` Password shorter than the configured minimum, or missing a required character class | Rejected (free-plan password strength settings, P0-3) |
-| TC-AUTH-04b | `[ ]` Password on the HaveIBeenPwned list | Rejected — **blocked: Pro-plan feature, org is on free** |
+| TC-AUTH-04b | `[deferred]` Password on the HaveIBeenPwned list | **Not testable — Pro-plan feature, deferred 2026-09-24.** Accepted risk: breached passwords are not rejected |
 | TC-AUTH-04c | `[ ]` Existing user whose password predates tightened rules | Can still sign in; receives `WeakPasswordError` explaining why |
 | TC-AUTH-05 | `[ ]` Auth-required route while logged out | Redirect to `/login` preserving `?redirectTo=` |
 
