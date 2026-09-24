@@ -101,11 +101,26 @@ blocks everything else.
 all legitimate flows (friend auto-confirm, self-confirm, deck backfill,
 placeholder claim, service_role) still pass.
 
-### P0-3. Enable leaked-password protection
-**Status:** not started. One-click in Supabase Auth settings.
+### P0-3. Password security settings
+**Status:** not started. Dashboard → Authentication → Sign In / Providers →
+Email → **Password Security**
+(`/dashboard/project/kpctqljfxegrmaijjlyb/auth/providers?provider=Email`).
 
-Confirmed still disabled by the security advisor. Checks new passwords against
-HaveIBeenPwned.
+The security advisor flags leaked-password protection as disabled. Note that
+**it is a Pro-plan feature and the `devbydenis` org is on `free`**, so this one
+is not a free toggle — it needs an upgrade, not a click.
+
+Available on free in the same panel, and worth doing regardless:
+
+- Minimum password length >= 8.
+- Required character classes: digits, lower and uppercase, symbols.
+
+Existing users with weaker passwords can still sign in but receive a
+`WeakPasswordError` on `signInWithPassword`, so tightening this mid-playtest
+is visible to testers rather than silently locking anyone out.
+
+Treat the free strength settings as the pre-playtest action and HIBP as a
+"when we upgrade" item.
 
 ### P0-4. Restore runbook
 **Status:** not started.

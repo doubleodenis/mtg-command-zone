@@ -31,7 +31,9 @@ Companion spec: `docs/superpowers/specs/2026-09-23-playtest-hardening-design.md`
 | TC-AUTH-01 | `[ ]` Sign up with email | `auth.users` row created; `handle_new_user` creates matching `profiles` row |
 | TC-AUTH-02 | `[ ]` Display name entered at signup | Persisted to `profiles.display_name` (regression: was dropped, see acceptance-criteria §1) |
 | TC-AUTH-03 | `[ ]` Email containing `+` | `profiles.username` sanitized; `/player/[username]` resolves (regression: 404'd) |
-| TC-AUTH-04 | `[ ]` Password on HaveIBeenPwned list | Rejected — **requires P0-3** |
+| TC-AUTH-04 | `[ ]` Password shorter than the configured minimum, or missing a required character class | Rejected (free-plan password strength settings, P0-3) |
+| TC-AUTH-04b | `[ ]` Password on the HaveIBeenPwned list | Rejected — **blocked: Pro-plan feature, org is on free** |
+| TC-AUTH-04c | `[ ]` Existing user whose password predates tightened rules | Can still sign in; receives `WeakPasswordError` explaining why |
 | TC-AUTH-05 | `[ ]` Auth-required route while logged out | Redirect to `/login` preserving `?redirectTo=` |
 
 ---
