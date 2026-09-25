@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MAX_FEEDBACK_LENGTH } from "@/lib/feedback";
 import { FeedbackWidget } from "./feedback-widget";
@@ -72,6 +72,25 @@ describe("FeedbackWidget — shell", () => {
     await user.click(screen.getByRole("button", { name: "Send feedback" }));
     await user.type(screen.getByLabelText(/your feedback/i), "hello");
     expect(screen.getByText(`5 / ${MAX_FEEDBACK_LENGTH}`)).toBeInTheDocument();
+  });
+
+  it("marks the counter as a warning at 90% of the cap and not below it", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackWidget />);
+    await user.click(screen.getByRole("button", { name: "Send feedback" }));
+    const textarea = screen.getByLabelText(/your feedback/i);
+
+    const belowThreshold = "a".repeat(Math.ceil(MAX_FEEDBACK_LENGTH * 0.9) - 1);
+    fireEvent.change(textarea, { target: { value: belowThreshold } });
+    expect(screen.getByText(`${belowThreshold.length} / ${MAX_FEEDBACK_LENGTH}`)).not.toHaveClass(
+      "text-gold"
+    );
+
+    const atThreshold = "a".repeat(Math.ceil(MAX_FEEDBACK_LENGTH * 0.9));
+    fireEvent.change(textarea, { target: { value: atThreshold } });
+    expect(screen.getByText(`${atThreshold.length} / ${MAX_FEEDBACK_LENGTH}`)).toHaveClass(
+      "text-gold"
+    );
   });
 
   it("closes on Escape and returns focus to the trigger", async () => {

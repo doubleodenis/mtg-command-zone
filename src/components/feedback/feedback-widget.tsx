@@ -134,7 +134,7 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
             <p
               className={cn(
                 "mt-1 text-right text-xs",
-                message.length >= MAX_FEEDBACK_LENGTH * 0.9 ? "text-text-2" : "text-text-3"
+                message.length >= MAX_FEEDBACK_LENGTH * 0.9 ? "text-gold" : "text-text-3"
               )}
             >
               {message.length} / {MAX_FEEDBACK_LENGTH}
