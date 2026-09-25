@@ -7,9 +7,14 @@ not need to wait for that branch to merge).
 **Status:** Implemented on `feat/feedback-widget`. Overlap check at 390px: no
 overlap found on `/match/[id]` (verified live); `/matches/new`, `/decks`, and
 `/collections` are auth-gated and could not be reached without test
-credentials, but a codebase-wide search found no fixed/sticky bottom action
-bar or mobile nav outside the widget and toast components, so no route-aware
-offset was needed.
+credentials. Two independent codebase-wide searches — one for Tailwind
+fixed/sticky bottom classes, one for broader patterns including inline
+`position: fixed` and CSS-in-JS forms — both found no fixed/sticky bottom
+action bar or mobile nav outside the widget and toast components. That is
+evidence of no conflict, not a substitute for the 390px visual check the
+brief called for: `/matches/new`, `/decks`, and `/collections` still await
+manual confirmation at 390px before this question can be called fully
+closed.
 
 ## Motivation
 
