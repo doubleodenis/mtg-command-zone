@@ -17,6 +17,9 @@ export type ValidationResult =
 
 export function validateMessage(message: string): ValidationResult {
   if (message.trim().length === 0) return { ok: false, reason: "empty" };
+  // Intentionally checks the raw (untrimmed) length against the cap, not
+  // the trimmed length: trimming here would let whitespace smuggle past
+  // the visible on-screen counter, which is computed from message.length.
   if (message.length > MAX_FEEDBACK_LENGTH) return { ok: false, reason: "too-long" };
   return { ok: true };
 }
@@ -62,21 +65,26 @@ export function recordSubmission(
 }
 
 export type FeedbackPayload = {
-  feedback: { message: string; email?: string; associatedEventId?: string };
+  feedback: { message: string; email?: string; name?: string; associatedEventId?: string };
   hint: { captureContext: { tags: { intent: FeedbackIntent; route: string } } };
 };
 
 export function buildFeedbackPayload(input: {
   message: string;
   email: string;
+  name?: string | null;
   intent: FeedbackIntent;
   route: string;
   lastEventId: string | undefined;
 }): FeedbackPayload {
   const email = input.email.trim();
+  const name = input.name?.trim() ?? "";
   const feedback: FeedbackPayload["feedback"] = { message: input.message.trim() };
 
   if (email.length > 0) feedback.email = email;
+  // Omitted entirely (never sent as ""), same treatment as email: an
+  // absent name must not overwrite anything useful Sentry might infer.
+  if (name.length > 0) feedback.name = name;
 
   // Only a bug report gets linked to an error event: hanging a feature
   // request off an unrelated stack trace is worse than no link at all.

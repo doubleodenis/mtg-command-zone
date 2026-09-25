@@ -34,9 +34,12 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
 interface FeedbackWidgetProps {
   /** The signed-in user's email, when there is one. */
   defaultEmail?: string | null;
+  /** The signed-in user's display name, when there is one. There is no
+   *  name input in the panel — this only ever comes from the session. */
+  defaultName?: string | null;
 }
 
-export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
+export function FeedbackWidget({ defaultEmail, defaultName }: FeedbackWidgetProps) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = React.useState(false);
   const [intent, setIntent] = React.useState<FeedbackIntent>("bug");
@@ -80,6 +83,7 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
       const { feedback, hint } = buildFeedbackPayload({
         message,
         email,
+        name: defaultName,
         intent,
         route: pathname,
         lastEventId: Sentry.lastEventId(),
@@ -158,6 +162,9 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
       const target = event.target as Node;
       if (panelRef.current?.contains(target)) return;
       if (triggerRef.current?.contains(target)) return;
+      // Deliberately setIsOpen(false) rather than close(): the user just
+      // clicked something else on the page, and yanking focus back to the
+      // trigger would steal it from whatever they clicked.
       setIsOpen(false);
     }
     document.addEventListener("mousedown", onPointerDown);
@@ -166,7 +173,11 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3"
+      // z-[110] sits above the toast stack (z-100, see toast.tsx): a
+      // warning toast fires while this panel is open on the empty-message
+      // and rate-limited paths, and the panel's own Cancel/Send row must
+      // stay clickable rather than being painted over.
+      className="fixed bottom-4 right-4 z-[110] flex flex-col items-end gap-3"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <AnimatePresence>
@@ -174,8 +185,8 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
           <motion.div
             ref={panelRef}
             role="dialog"
-            aria-label="Send feedback"
-            aria-modal="false"
+            aria-label="Feedback form"
+            aria-modal="true"
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.94 }}
@@ -208,7 +219,7 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
                   aria-checked={intent === value}
                   onClick={() => setIntent(value)}
                   className={cn(
-                    "text-ui flex-1 rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors",
+                    "text-ui flex-1 rounded-md border px-3 py-1.5 font-semibold transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
                     intent === value
                       ? "border-accent-ring bg-accent-fill text-text-1"

@@ -26,8 +26,8 @@ export default defineConfig({
           name: 'node',
           globals: true,
           environment: 'node',
-          include: ['src/lib/**/*.{test,spec}.{ts,mts,cts}', 'scripts/**/*.{test,spec}.ts'],
-          exclude,
+          include: ['src/**/*.{test,spec}.{ts,mts,cts}', 'scripts/**/*.{test,spec}.ts'],
+          exclude: [...exclude, 'src/components/**'],
         },
       },
       {

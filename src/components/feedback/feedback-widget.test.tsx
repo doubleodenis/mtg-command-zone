@@ -182,6 +182,25 @@ describe("FeedbackWidget — submission", () => {
     );
   });
 
+  it("includes the session name alongside the email when supplied", async () => {
+    render(<FeedbackWidget defaultEmail="player@example.com" defaultName="Alex Rivera" />);
+    const user = await openAndType("rating dropped after a win");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(Sentry.captureFeedback).toHaveBeenCalledWith(
+      { message: "rating dropped after a win", email: "player@example.com", name: "Alex Rivera" },
+      { captureContext: { tags: { intent: "bug", route: "/leaderboards" } } }
+    );
+  });
+
+  it("omits the name entirely when the session has none", async () => {
+    render(<FeedbackWidget defaultEmail="player@example.com" />);
+    const user = await openAndType("rating dropped after a win");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(vi.mocked(Sentry.captureFeedback).mock.calls[0][0]).not.toHaveProperty("name");
+  });
+
   it("attaches the last event id to a bug report", async () => {
     vi.mocked(Sentry.lastEventId).mockReturnValue("evt-42");
     render(<FeedbackWidget />);

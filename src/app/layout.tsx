@@ -49,7 +49,10 @@ export default async function RootLayout({
             {children}
           </div>
           <Footer />
-          <FeedbackWidget defaultEmail={user?.email ?? null} />
+          <FeedbackWidget
+            defaultEmail={user?.email ?? null}
+            defaultName={user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? null}
+          />
         </Providers>
       </body>
     </html>

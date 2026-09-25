@@ -161,4 +161,50 @@ describe('buildFeedbackPayload', () => {
     })
     expect(feedback.associatedEventId).toBeUndefined()
   })
+
+  it('includes the name when the session supplies one', () => {
+    const { feedback } = buildFeedbackPayload({
+      message: 'looks great',
+      email: 'player@example.com',
+      name: 'Alex Rivera',
+      intent: 'idea',
+      route: '/',
+      lastEventId: undefined,
+    })
+    expect(feedback.name).toBe('Alex Rivera')
+  })
+
+  it('omits the name entirely when none is supplied', () => {
+    const { feedback } = buildFeedbackPayload({
+      message: 'looks great',
+      email: 'player@example.com',
+      intent: 'idea',
+      route: '/',
+      lastEventId: undefined,
+    })
+    expect(feedback.name).toBeUndefined()
+    expect('name' in feedback).toBe(false)
+  })
+
+  it('omits the name entirely when it is null or blank', () => {
+    const nullName = buildFeedbackPayload({
+      message: 'looks great',
+      email: '',
+      name: null,
+      intent: 'idea',
+      route: '/',
+      lastEventId: undefined,
+    })
+    expect('name' in nullName.feedback).toBe(false)
+
+    const blankName = buildFeedbackPayload({
+      message: 'looks great',
+      email: '',
+      name: '   ',
+      intent: 'idea',
+      route: '/',
+      lastEventId: undefined,
+    })
+    expect('name' in blankName.feedback).toBe(false)
+  })
 })

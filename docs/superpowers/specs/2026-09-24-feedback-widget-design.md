@@ -110,11 +110,15 @@ On submit:
 
 ```ts
 Sentry.captureFeedback(
-  { message, email, name },
   {
-    captureContext: { tags: { intent, route: pathname } },
+    message,
+    email,
+    name,
     // bug reports only, and only when one exists:
     associatedEventId: Sentry.lastEventId(),
+  },
+  {
+    captureContext: { tags: { intent, route: pathname } },
   },
 )
 ```
