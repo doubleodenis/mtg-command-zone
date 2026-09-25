@@ -125,7 +125,10 @@ function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-100 flex flex-col gap-2 pointer-events-none"
+      // bottom-20 keeps the stack clear of the feedback trigger (h-11,
+      // bottom-4) and, more importantly, of the feedback panel (w-80) when
+      // it's open — see feedback-widget.tsx for the matching z-40.
+      className="fixed bottom-20 right-4 z-100 flex flex-col gap-2 pointer-events-none"
       role="region"
       aria-label="Notifications"
     >

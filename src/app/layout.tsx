@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { createClient } from "@/lib/supabase/server";
 import { Footer } from "@/components/layout/footer";
+import { FeedbackWidget } from "@/components/feedback";
 
 const chakraPetch = Chakra_Petch({
   subsets: ['latin'],
@@ -48,6 +49,10 @@ export default async function RootLayout({
             {children}
           </div>
           <Footer />
+          <FeedbackWidget
+            defaultEmail={user?.email ?? null}
+            defaultName={user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? null}
+          />
         </Providers>
       </body>
     </html>
