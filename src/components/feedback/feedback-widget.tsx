@@ -3,10 +3,20 @@
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bug, X } from "lucide-react";
+import * as Sentry from "@sentry/nextjs";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { MAX_FEEDBACK_LENGTH, type FeedbackIntent } from "@/lib/feedback";
+import {
+  MAX_FEEDBACK_LENGTH,
+  buildFeedbackPayload,
+  isRateLimited,
+  recordSubmission,
+  validateMessage,
+  type FeedbackIntent,
+} from "@/lib/feedback";
 import { transition } from "@/lib/motion";
 
 const PLACEHOLDERS: Record<FeedbackIntent, string> = {
@@ -20,6 +30,7 @@ interface FeedbackWidgetProps {
 }
 
 export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = React.useState(false);
   const [intent, setIntent] = React.useState<FeedbackIntent>("bug");
   const [message, setMessage] = React.useState("");
@@ -32,6 +43,62 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
     setIsOpen(false);
     triggerRef.current?.focus();
   }, []);
+
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  async function handleSubmit() {
+    if (isSubmitting) return;
+
+    const validation = validateMessage(message);
+    if (!validation.ok) {
+      toast({
+        type: "warning",
+        title: validation.reason === "empty" ? "Add a message first" : "Message is too long",
+      });
+      return;
+    }
+
+    const now = Date.now();
+    if (isRateLimited(now)) {
+      toast({
+        type: "warning",
+        title: "Hang on a moment",
+        description: "You can send more feedback in a few seconds.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { feedback, hint } = buildFeedbackPayload({
+        message,
+        email,
+        intent,
+        route: pathname,
+        lastEventId: Sentry.lastEventId(),
+      });
+      Sentry.captureFeedback(feedback, hint);
+      recordSubmission(now);
+
+      toast({
+        type: "success",
+        title: "Thanks — that's been sent",
+        description: "We read every report.",
+      });
+      setMessage("");
+      setIsOpen(false);
+    } catch {
+      // Keep the panel open and the text intact: losing a paragraph of
+      // feedback to a network blip is how you never hear from someone again.
+      toast({
+        type: "error",
+        title: "Couldn't send that",
+        description: "Check your connection and try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   // Escape closes from anywhere while the panel is open.
   React.useEffect(() => {
@@ -155,8 +222,8 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
               <Button type="button" variant="ghost" size="sm" onClick={close}>
                 Cancel
               </Button>
-              <Button type="button" size="sm">
-                Send
+              <Button type="button" size="sm" onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? "Sending…" : "Send"}
               </Button>
             </div>
           </motion.div>
