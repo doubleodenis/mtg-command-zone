@@ -4,7 +4,12 @@
 **Branch:** `feat/feedback-widget`, to be cut from `main` (independent of
 `fix/lock-down-function-grants` — this touches no database object, so it does
 not need to wait for that branch to merge).
-**Status:** Design approved, not implemented.
+**Status:** Implemented on `feat/feedback-widget`. Overlap check at 390px: no
+overlap found on `/match/[id]` (verified live); `/matches/new`, `/decks`, and
+`/collections` are auth-gated and could not be reached without test
+credentials, but a codebase-wide search found no fixed/sticky bottom action
+bar or mobile nav outside the widget and toast components, so no route-aware
+offset was needed.
 
 ## Motivation
 
