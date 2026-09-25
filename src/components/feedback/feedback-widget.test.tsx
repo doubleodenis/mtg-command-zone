@@ -125,6 +125,26 @@ describe("FeedbackWidget — shell", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
+
+  it("moves focus into the panel when it opens", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackWidget />);
+    await user.click(screen.getByRole("button", { name: "Send feedback" }));
+    expect(screen.getByLabelText(/your feedback/i)).toHaveFocus();
+  });
+
+  it("traps Tab within the panel, wrapping from the last focusable element to the first", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackWidget />);
+    await user.click(screen.getByRole("button", { name: "Send feedback" }));
+    const sendButton = screen.getByRole("button", { name: "Send" });
+    sendButton.focus();
+    expect(sendButton).toHaveFocus();
+
+    await user.keyboard("{Tab}");
+
+    expect(screen.getByRole("button", { name: "Close feedback form" })).toHaveFocus();
+  });
 });
 
 async function openAndType(text: string) {
@@ -185,8 +205,9 @@ describe("FeedbackWidget — submission", () => {
     );
   });
 
-  it("shows a success toast and closes the panel", async () => {
+  it("shows a success toast, closes the panel and returns focus to the trigger", async () => {
     render(<FeedbackWidget />);
+    const trigger = screen.getByRole("button", { name: "Send feedback" });
     const user = await openAndType("looks great");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
@@ -194,6 +215,7 @@ describe("FeedbackWidget — submission", () => {
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" })
     );
+    expect(trigger).toHaveFocus();
   });
 
   it("blocks a second submission inside the cooldown", async () => {

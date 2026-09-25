@@ -24,6 +24,13 @@ const PLACEHOLDERS: Record<FeedbackIntent, string> = {
   idea: "What would make CommandZone better?",
 };
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function getFocusable(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+}
+
 interface FeedbackWidgetProps {
   /** The signed-in user's email, when there is one. */
   defaultEmail?: string | null;
@@ -86,7 +93,7 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
         description: "We read every report.",
       });
       setMessage("");
-      setIsOpen(false);
+      close();
     } catch {
       // Keep the panel open and the text intact: losing a paragraph of
       // feedback to a network blip is how you never hear from someone again.
@@ -100,13 +107,44 @@ export function FeedbackWidget({ defaultEmail }: FeedbackWidgetProps) {
     }
   }
 
-  // Escape closes from anywhere while the panel is open.
+  // Move focus into the panel when it opens: the textarea is what the user
+  // came to use.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const textarea = panelRef.current?.querySelector<HTMLTextAreaElement>("#feedback-message");
+    textarea?.focus();
+  }, [isOpen]);
+
+  // Escape closes from anywhere while the panel is open. Tab / Shift+Tab is
+  // trapped inside the panel so focus never escapes to the page behind it.
   React.useEffect(() => {
     if (!isOpen) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.stopPropagation();
         close();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = getFocusable(panel);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey) {
+        if (active === first || !panel.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (active === last || !panel.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     }
     document.addEventListener("keydown", onKeyDown);
