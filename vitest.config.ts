@@ -1,12 +1,13 @@
 import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
 import path from 'path'
+
+const alias = { '@': path.resolve(__dirname, './src') }
+const exclude = ['**/node_modules/**', '**/.next/**', '**/dist/**', '**/.worktrees/**']
 
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
-    include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: ['**/node_modules/**', '**/.next/**', '**/dist/**', '**/.worktrees/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -18,10 +19,29 @@ export default defineConfig({
         'src/components/**',
       ],
     },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    projects: [
+      {
+        resolve: { alias },
+        test: {
+          name: 'node',
+          globals: true,
+          environment: 'node',
+          include: ['src/lib/**/*.{test,spec}.{ts,mts,cts}', 'scripts/**/*.{test,spec}.ts'],
+          exclude,
+        },
+      },
+      {
+        plugins: [react()],
+        resolve: { alias },
+        test: {
+          name: 'jsdom',
+          globals: true,
+          environment: 'jsdom',
+          setupFiles: ['./vitest.setup.ts'],
+          include: ['src/components/**/*.{test,spec}.{tsx,ts}'],
+          exclude,
+        },
+      },
+    ],
   },
 })
