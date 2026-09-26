@@ -7,7 +7,19 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   prettier,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    // Nested build output from git worktrees. The patterns above are
+    // root-anchored, so a worktree's own .next/ (e.g.
+    // .claude/worktrees/<name>/.next/) would otherwise be linted as source
+    // and bury real findings under tens of thousands of generated-code errors.
+    "**/.next/**",
+    ".claude/**",
+    ".worktrees/**",
+  ]),
   {
     rules: {
       // Allow underscore prefix for unused vars
