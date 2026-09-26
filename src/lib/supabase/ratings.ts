@@ -188,11 +188,19 @@ export async function getFormatStats(
   }
 
   // Get stats for each format
+  // NOTE: this deliberately does not call getRating(). Its result was never
+  // read, but the get_or_create_rating RPC behind it *writes* -- and since
+  // getFormatStats backs the public /player/[username] page, that was the
+  // only reason a SECURITY DEFINER mutator had to stay executable by `anon`
+  // (see migration 027). Stats alone are read-only; ratings rows are created
+  // on the match-confirmation path where they're actually needed.
   const statsPromises = formats.map(async (format) => {
-    const [_ratingResult, statsResult] = await Promise.all([
-      getRating(client, userId, format.id, collectionId),
-      getUserStats(client, userId, format.id, collectionId),
-    ])
+    const statsResult = await getUserStats(
+      client,
+      userId,
+      format.id,
+      collectionId
+    )
 
     const baseStats = statsResult.success
       ? statsResult.data
