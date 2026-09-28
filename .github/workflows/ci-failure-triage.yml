@@ -1,0 +1,125 @@
+name: CI Failure Triage
+
+# When CI fails, have Claude diagnose it and open an issue with the diagnosis
+# and a proposed fix. Claude is deliberately given NO write access to code here
+# -- read, search, and issue creation only -- so triage can never modify the
+# repository. Raising that to "open a PR" is a real decision, not a tweak.
+#
+# workflow_run only ever runs the copy of this file on the default branch, so
+# changes here do nothing until they are merged to main.
+
+on:
+  workflow_run:
+    workflows: ["CI"] # must match the `name:` in ci.yml
+    types: [completed]
+
+jobs:
+  triage:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read # read the code that failed; no commits
+      issues: write # open the triage issue
+      actions: read # download the failed run's logs
+      id-token: write # required for the action's GitHub App auth
+
+    # One triage run per failed CI run. Without this, a re-run or a fast second
+    # push can produce two agents writing up the same failure.
+    concurrency:
+      group: ci-triage-${{ github.event.workflow_run.id }}
+      cancel-in-progress: false
+
+    steps:
+      # Check out the commit that actually failed, not the default branch.
+      # For a PR failure that commit lives on the PR branch, and diagnosing
+      # against main's code would be diagnosing the wrong tree.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      # Created here rather than by Claude: `gh issue create --label` fails on a
+      # label that doesn't exist, and this is deterministic work that doesn't
+      # need an agent. --force makes it idempotent.
+      - name: Ensure the ci-failure label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh label create ci-failure --color B60205 --description "Automated CI failure triage" --force
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          # Only used for reading logs and filing the issue.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            A CI run failed on this repository. Diagnose it and file an issue.
+            You must not modify any code — you have no edit tools, by design.
+
+            Failed run: ${{ github.event.workflow_run.html_url }}
+            Run ID: ${{ github.event.workflow_run.id }}
+            Branch: ${{ github.event.workflow_run.head_branch }}
+            Commit: ${{ github.event.workflow_run.head_sha }}
+            Event that triggered it: ${{ github.event.workflow_run.event }}
+
+            ## Step 1 — check for an existing issue first
+
+            Run: gh issue list --label ci-failure --state open --limit 30 --json number,title,body
+
+            If an open issue already covers this same failing job on this same
+            branch, add a short comment to it noting this new occurrence (with the
+            run URL) instead of opening a duplicate. Then stop.
+
+            ## Step 2 — read the actual failure
+
+            Run: gh run view ${{ github.event.workflow_run.id }} --log-failed
+
+            Identify which job failed. The CI workflow has four:
+              - check       — tsc --noEmit, eslint, vitest
+              - build       — next build
+              - migrations  — replays migrations against a throwaway local Postgres
+              - deploy-migrations — `supabase db push` against PRODUCTION
+
+            Read the relevant source files to understand the failure. Do not guess
+            from the log alone if the cause is in code you can read.
+
+            ## Step 3 — if `deploy-migrations` failed, treat it as a production incident
+
+            This job runs against the live database and `supabase db push` is not
+            transactional across migration files. Before proposing anything:
+
+              - State explicitly whether the migration may have PARTIALLY APPLIED,
+                and which statements likely did and did not run. If you cannot tell
+                from the logs, say that plainly rather than guessing.
+              - Note that a fix must not assume a clean database state.
+              - If the cause is environmental (credentials, a Supabase outage, a rate
+                limit, a network error) say so and propose no SQL.
+
+            Title such issues: "[prod] deploy-migrations failed — <one-line cause>"
+
+            ## Step 4 — file the issue
+
+            Use `gh issue create --label ci-failure`. For a pre-merge failure
+            (check/build/migrations), title it:
+              "[ci] <job> failed on <branch> — <one-line cause>"
+
+            Body structure, in this order:
+
+              1. **What failed** — job, and the failing command or test name.
+              2. **Diagnosis** — the actual cause, citing `file:line`. If you are
+                 uncertain, give your best reading and say what would confirm it.
+              3. **Proposed fix** — concrete enough to act on: the file, what to
+                 change, and why. A diff sketch in a code block is ideal. If the fix
+                 is not in this repo, say what a human needs to do instead.
+              4. **Confidence** — high / medium / low, and what you could not verify.
+              5. A link to the failed run: ${{ github.event.workflow_run.html_url }}
+
+            End the body with: "cc @doubleodenis"
+
+            Be honest about uncertainty. A diagnosis hedged accurately is more
+            useful than a confident wrong one — someone is going to act on this.
+          claude_args: |
+            --model claude-opus-5
+            --max-turns 30
+            --allowedTools "Read,Grep,Glob,Bash(gh run view:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue comment:*)"
