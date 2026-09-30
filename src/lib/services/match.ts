@@ -348,6 +348,7 @@ async function transformMatchToCardData(
       name: profileSummary
         ? (profileSummary.displayName || profileSummary.username)
         : (p.placeholder_name ?? "Unknown"),
+      username: profileSummary?.username ?? null,
       avatarUrl: profileSummary?.avatarUrl ?? null,
       isRegistered: !!p.user_id,
       isConfirmed: !!p.confirmed_at,

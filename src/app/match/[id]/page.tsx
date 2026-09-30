@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MatchPreviewCard, InviteLinkButton, MatchDebugPanel } from '@/components/match'
 import { AddToCollectionButton } from '@/components/match/add-to-collection-button'
-import { ParticipantList } from './participant-list'
+import { ParticipantList } from '@/components/match/participant-list'
 import type { MatchCardData, DeckSummary } from '@/types'
 
 // Force dynamic rendering
@@ -200,6 +200,7 @@ export default async function MatchDetailsPage({ params }: PageProps) {
               participants={match.participants.map((p) => ({
                 id: p.id,
                 name: p.name,
+                username: p.username,
                 avatarUrl: p.avatarUrl,
                 userId: p.userId,
                 isWinner: p.isWinner,
