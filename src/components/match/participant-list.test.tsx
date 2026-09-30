@@ -62,3 +62,31 @@ describe("ParticipantList — profile links", () => {
     expect(link.contains(button)).toBe(false);
   });
 });
+
+describe("ParticipantList — bracket badge", () => {
+  it("shows the deck's bracket name next to the commander", () => {
+    renderList([participant()]);
+    expect(screen.getByText("Upgraded")).toBeInTheDocument();
+  });
+
+  it("hides the badge for the Unknown Deck placeholder", () => {
+    renderList([
+      participant({ deck: { id: "d0", commanderName: null, deckName: "Unknown Deck", bracket: 2 } }),
+    ]);
+    expect(screen.queryByText("Casual")).not.toBeInTheDocument();
+  });
+
+  it("hides the badge when the bracket is out of range", () => {
+    renderList([
+      participant({ deck: { id: "d1", commanderName: "Atraxa", deckName: "Superfriends", bracket: 5 } }),
+    ]);
+    for (const name of ["Beginner", "Casual", "Upgraded", "cEDH"]) {
+      expect(screen.queryByText(name)).not.toBeInTheDocument();
+    }
+  });
+
+  it("renders no badge when the participant has no deck", () => {
+    renderList([participant({ deck: null })]);
+    expect(screen.queryByText("Upgraded")).not.toBeInTheDocument();
+  });
+});

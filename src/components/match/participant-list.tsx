@@ -6,12 +6,16 @@ import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RatingDelta } from "@/components/ui";
+import { BracketBadge, RatingDelta } from "@/components/ui";
 import { UpdateDeckModal } from "@/components/match/update-deck-modal";
 import { PostClaimModal } from "@/components/match/post-claim-modal";
 import { claimSlotWithAutoApproval } from "@/app/actions/match";
 import { PLACEHOLDER_DECK_NAME } from "@/types/deck";
-import type { DeckSummary, RatingDelta as RatingDeltaType } from "@/types";
+import type { Bracket, DeckSummary, RatingDelta as RatingDeltaType } from "@/types";
+
+function isBracket(value: number): value is Bracket {
+  return value === 1 || value === 2 || value === 3 || value === 4;
+}
 
 type ParticipantInfo = {
   id: string;
@@ -191,12 +195,17 @@ export function ParticipantList({
                     )}
                   </div>
                   {participant.deck && (
-                    <p className="text-sm text-text-3 truncate">
-                      {participant.deck.commanderName || "Unknown Commander"}
-                      {hasPlaceholderDeck && canUpdateDeck && (
-                        <span className="text-accent ml-1">(placeholder)</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm text-text-3 truncate">
+                        {participant.deck.commanderName || "Unknown Commander"}
+                        {hasPlaceholderDeck && canUpdateDeck && (
+                          <span className="text-accent ml-1">(placeholder)</span>
+                        )}
+                      </p>
+                      {!hasPlaceholderDeck && isBracket(participant.deck.bracket) && (
+                        <BracketBadge bracket={participant.deck.bracket} className="shrink-0" />
                       )}
-                    </p>
+                    </div>
                   )}
                 </div>
               </div>

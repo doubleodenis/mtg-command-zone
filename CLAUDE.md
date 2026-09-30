@@ -203,7 +203,7 @@ Phases 1–10 are complete. Active work:
 - E2E setup with Playwright (not started)
 
 **Known issues:**
-- Match details page missing bracket level visual for individual participant decks (`participant-list.tsx` fetches `deck.bracket` but never renders it — only the match-wide average bracket shows in the page header)
+- None currently tracked.
 
 **Resolved (previously listed here, verified fixed in code):**
 - Deck bracket update not recalculating ratings correctly — fixed in `accd6a2` ("fixed dirty match rating recalculation"); `/api/debug/recalculate` (dev-only) and `MatchDebugPanel` remain as diagnostic tooling, not evidence of an open bug
