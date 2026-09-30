@@ -202,7 +202,8 @@ export function ParticipantList({
                           <span className="text-accent ml-1">(placeholder)</span>
                         )}
                       </p>
-                      {!hasPlaceholderDeck && isBracket(participant.deck.bracket) && (
+                      {participant.deck.deckName !== PLACEHOLDER_DECK_NAME &&
+                        isBracket(participant.deck.bracket) && (
                         <BracketBadge bracket={participant.deck.bracket} className="shrink-0" />
                       )}
                     </div>

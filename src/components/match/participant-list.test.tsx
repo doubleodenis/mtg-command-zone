@@ -43,7 +43,7 @@ describe("ParticipantList — profile links", () => {
   });
 
   it("does not link a placeholder slot, even if its name looks like a username", () => {
-    renderList([participant({ id: "p2", userId: null, username: null, name: "bob" })]);
+    renderList([participant({ id: "p2", userId: null, username: "bob", name: "bob" })]);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByText("bob")).toBeInTheDocument();
   });
@@ -66,6 +66,13 @@ describe("ParticipantList — profile links", () => {
 describe("ParticipantList — bracket badge", () => {
   it("shows the deck's bracket name next to the commander", () => {
     renderList([participant()]);
+    expect(screen.getByText("Upgraded")).toBeInTheDocument();
+  });
+
+  it("shows the badge for a real deck that has no deck name", () => {
+    renderList([
+      participant({ deck: { id: "d2", commanderName: "Atraxa", deckName: null, bracket: 3 } }),
+    ]);
     expect(screen.getByText("Upgraded")).toBeInTheDocument();
   });
 
