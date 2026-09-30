@@ -2,9 +2,10 @@
 
 **Date:** 2026-09-30
 **Branch:** `docs/playtest-feedback-2026-09-30`
-**Status:** Triage + direction only. No code changed yet. Root causes for the
-four bugs are traced in code (not reproduced against the DB). Feature items
-have a suggested shape; open questions are marked **OPEN**.
+**Status:** Triage + direction only. No code changed yet. All direction
+questions were answered on 2026-09-30. Root causes for the four bugs are
+traced in code (not reproduced against the DB). F6 is waiting on a diagnostic
+query.
 
 Source: feedback from a real game session (owner + one friend), 2026-09-30.
 
@@ -18,10 +19,10 @@ Source: feedback from a real game session (owner + one friend), 2026-09-30.
 | B4 | "Compared to You" shows 0 / 3 despite a shared game | Bug (copy) | "/3" is the chart unlock threshold; a meeting needs both players confirmed | Copy + pending-count hint |
 | F1 | Replace Notes with Comments | Feature | — | Participants + collection members (decided) |
 | F2 | Owner kicks a wrongly claimed slot | Feature | — | Suggested below |
-| F3 | Owner edit grace period | Feature | — | Suggested below, **OPEN** window length |
+| F3 | Owner edit grace period | Feature | — | 5 days, no confirmation reset, recalc only on rating edits (decided) |
 | F4 | Deck required to confirm | Feature | — | Auto-confirm skips Unknown Deck (decided) |
 | F5 | Clickable participants | Feature | — | Link registered users only |
-| F6 | Notify on member add | Feature | Member-add *already* notifies; request is likely about auto-confirm | **OPEN** clarify |
+| F6 | Notify on member add | Bug? | Trigger exists and grants are fine; realtime failure alone wouldn't hide it | Run diagnostic query; fix invite copy |
 | F7 | Custom avatar upload | Feature | No Storage buckets exist yet | Suggested below |
 
 ---
@@ -207,21 +208,34 @@ plus members of any collection the match is in with `approval_status =
 
 ### F3 — Owner edit grace period
 
-**Suggested shape.**
-- The owner can edit winner, participants' decks and `played_at` within **N
+**Decided (2026-09-30).**
+- The owner can edit winner, participants' decks and `played_at` within **5
   days of `created_at`**. After that, only the dispute flow applies
   (`disputeMatchParticipation` already exists in `src/lib/supabase/matches.ts:609`).
-- Any edit to a rating-relevant field (winner, deck/bracket, participants):
-  reset every other participant's confirmation, mark the match `is_dirty`,
-  and send "match was edited, please re-confirm" notifications. The owner stays
-  confirmed. Edits to non-rating fields (date only) don't reset confirmations.
+- **Confirmations are not reset.** Only the owner can edit, so re-confirming
+  adds friction without adding safety.
+- **Recalc only when the edit affects ratings.** Changing the winner or a
+  deck/bracket marks the match `is_dirty`, which is the same path as a
+  post-confirm bracket change. Edits to `played_at` or notes don't mark it
+  dirty.
 - Enforce the window server-side in `editMatch` (`src/app/actions/match.ts:327`),
   whose doc comment currently says winner/participants can't change.
-- **OPEN:** window length. Suggest **3 days**, since most reporting mistakes
-  are caught the same night.
-- **OPEN:** does the reset also un-apply ratings immediately, or rely on the
-  dirty recalc? Suggest the dirty recalc, since it's already the mechanism
-  for post-confirm changes.
+
+**Suggested safeguard.** With no re-confirmation, an owner could flip the
+winner to themselves and confirmed players would never know. On any
+rating-affecting edit, send participants a `match_result_edited`
+notification. That type already exists in the enum and the notification-list
+filter. The notification links to the match, and the dispute flow stays
+available to them during the window as well. It costs nothing and keeps the
+edit honest.
+
+**Planning notes.**
+- Dirty matches recalc at 4am UTC, so a corrected winner shows stale deltas
+  until then. That's acceptable for v1. Optionally call the recalc for that
+  one match inline.
+- Changing `played_at` reorders history. Strictly speaking, that affects the
+  rating progression of later matches. Treat it as non-rating for v1 and note
+  it.
 
 ### F4 — Deck required to confirm
 
@@ -256,16 +270,52 @@ since it's the same component.
 creates a `collection_invite` notification for every insert except the owner.
 So adding a member does notify.
 
-**OPEN — clarify intent.** Likely readings:
-1. The notification arrived but reads as an "invite" (actionable) when the
-   member was actually added directly. Fix: a distinct "You were added to X"
-   copy/type.
-2. It's about auto-confirm: when a match is added to an `auto_approve_members`
-   collection, members are auto-confirmed silently. Fix: send "Your match in X
-   was auto-confirmed (+Δ)" to each auto-confirmed member.
-3. The notification genuinely didn't arrive. Check the friend's
-   `notifications` rows. The trigger could also be affected by the 027 grant
-   lockdown if `create_notification` lost a grant it needs.
+**Reported:** the friend didn't receive it. We don't yet know whether the
+realtime push failed or the row was never created.
+
+**What the code rules out.**
+- **Grants:** `notify_collection_invite()` and `create_notification()` are both
+  `SECURITY DEFINER`, and 027 explicitly exempts trigger functions. The trigger
+  runs as the owner, so the lockdown can't block it.
+- **Insert path:** `inviteCollectionMember` is the only app path that inserts
+  into `collection_members`, and any insert fires the trigger. The one
+  exception is the owner (`NEW.user_id != owner_id`).
+- **Realtime vs. stored:** realtime is an INSERT subscription on
+  `recipient_id` (`src/hooks/use-notification-realtime.ts:38`), and
+  `notifications` is in the `supabase_realtime` publication (migration 002).
+  The notifications page and dropdown also query the table directly
+  (`src/lib/supabase/notifications.ts:34`). **So a realtime failure only
+  delays the notification.** If the friend never saw it after a page reload,
+  the row most likely doesn't exist, or it was dismissed or expired
+  (`collection_invite` TTL = 14 days).
+
+**Diagnostic (run once, read-only):**
+
+```sql
+select cm.created_at as added_at, n.id, n.created_at, n.read_at,
+       n.dismissed_at, n.expires_at
+from collection_members cm
+left join notifications n
+  on n.recipient_id = cm.user_id
+ and n.type = 'collection_invite'
+ and n.entity_id = cm.collection_id
+where cm.collection_id = '<collection id>'
+  and cm.user_id = '<friend user id>';
+```
+
+- **No `n.id`:** the row was never created. Then check `pg_trigger` for
+  `on_collection_member_added` on prod (`tgenabled`). The trigger may be
+  missing if prod was ever restored or rebuilt without migration 002's
+  trigger block.
+- **Row exists and `read_at`/`dismissed_at` is null:** it was delivered to the
+  DB but never surfaced. Investigate the dropdown/list rendering for
+  `collection_invite`.
+- **Row exists and was read:** it arrived. The complaint is about the wording
+  or discoverability instead.
+
+**Independent of the result:** the copy says "invitation" even though the
+member was added directly. Change the copy to "You were added to X" (or add a
+distinct type) so a real notification isn't mistaken for noise.
 
 ### F7 — Custom avatar upload
 
@@ -283,14 +333,14 @@ So adding a member does notify.
 
 ---
 
-## Suggested order
+## Order (agreed 2026-09-30)
 
 1. **B1, F5**: small, UI-only, same area of the app.
 2. **B3**: self-contained service rewrite plus unit tests.
 3. **B4**: copy and one prop.
 4. **B2**: backfill on join. Read migration 018 first.
 5. **F4**: deck required to confirm, including the auto-confirm change.
-6. **F6**: after the intent is clarified.
+6. **F6**: run the diagnostic, then fix the invite copy.
 7. **F2, F3**: both lean on dirty-recalc and confirmation reset, so design them together.
 8. **F1, F7**: new tables/buckets, independent.
 
