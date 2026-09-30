@@ -4,8 +4,7 @@
 **Branch:** `docs/playtest-feedback-2026-09-30`
 **Status:** Triage + direction only. No code changed yet. All direction
 questions were answered on 2026-09-30. Root causes for the four bugs are
-traced in code (not reproduced against the DB). F6 is waiting on a diagnostic
-query.
+traced in code. B2 and F6 were also confirmed against prod data.
 
 Source: feedback from a real game session (owner + one friend), 2026-09-30.
 
@@ -22,7 +21,7 @@ Source: feedback from a real game session (owner + one friend), 2026-09-30.
 | F3 | Owner edit grace period | Feature | — | 5 days, no confirmation reset, recalc only on rating edits (decided) |
 | F4 | Deck required to confirm | Feature | — | Auto-confirm skips Unknown Deck (decided) |
 | F5 | Clickable participants | Feature | — | Link registered users only |
-| F6 | Notify on member add | Bug? | Trigger exists and grants are fine; realtime failure alone wouldn't hide it | Run diagnostic query; fix invite copy |
+| F6 | Member-add notification "didn't arrive" | Bug | Row was created; the dropdown never shows realtime inserts, and "seen" blanket-marks unshown rows | Wire realtime into the dropdown, mark seen by ID, fix copy |
 | F7 | Custom avatar upload | Feature | No Storage buckets exist yet | Suggested below |
 
 ---
@@ -65,12 +64,40 @@ Collection rating rows are written in exactly three places:
 match **before** being added to the collection, no path ever creates their
 collection rating. Re-confirming does nothing either, because
 `applyParticipantRating` short-circuits on the existing global
-`rating_history` row. The nightly `recalculate_dirty_matches()` won't fix it
-because the match isn't dirty.
+`rating_history` row.
 
 If the friend **hasn't** confirmed yet, path #1 will pick them up when they
-do. So the planned "re-check tomorrow after they confirm" only helps in that
-case.
+do.
+
+**Confirmed against prod data (2026-09-30).** For the shared match ("Match A"),
+with the friend as "Player F" and the collection as "Collection G":
+
+| Event | Relative time |
+|---|---|
+| Match A added to Collection G (approved) | 2 days earlier |
+| Player F confirmed Match A | T |
+| Player F added to Collection G | T + ~13 min |
+
+Player F has a global FFA rating (1 match) and no Collection G rating. That is
+exactly the late-joiner gap.
+
+**It will "fix itself" tonight, by accident.** Match A is `is_dirty = true`,
+so the 4am recalc will rebuild Player F's history. `recalculate_dirty_matches()`
+(migration 018, ~line 314) writes a collection rating for **every approved
+collection a match is in, without checking membership**. So Player F will
+appear on the Collection G leaderboard tomorrow. Don't read that as B2 being
+fixed.
+
+**Related inconsistency: two rating paths disagree on membership.** The app
+paths (`applyMatchCollectionRatings`, `updateCollectionRatings`) only rate
+collection *members*. The SQL recalc rates every confirmed participant. Any
+recalc therefore adds non-members to collection leaderboards and changes
+members' collection ratings, because non-member opponents count, the
+member-only filter on opponents disappears, and the default rating is 1000.
+The recalc also hard-codes algorithm version `1`. **Direction:** make recalc
+membership-aware so both paths produce identical results. A recalc should
+never change what a fresh confirm would have written. See the membership rule
+below.
 
 **Why Top Commanders still shows their commander.** `getTopCommanders` reads raw
 `match_participants` with no confirmation, membership or approval filter (see B3).
@@ -88,17 +115,31 @@ collection's approved matches that they've confirmed.
   `approveCollectionMatch` pass a hard-coded `algorithmVersion: 1` today
   (`collection.ts:397`, `:497`). Replace both with the constant while here.
 - Idempotency is already enforced by `uq_rating_history_scoped` (migration 008).
-- **Simplest correct implementation:** mark the collection's matches that
-  include the new member as `is_dirty` and let the existing recalc path rebuild
-  that collection scope. If recalc doesn't cover collection scopes, a
-  per-member replay RPC is the alternative. Decide during planning after
-  reading `recalculate_dirty_matches()` (migration 018).
+- **Simplest correct implementation:** after the recalc is made
+  membership-aware, have the join path mark the collection's matches that
+  include the new member as `is_dirty`. The nightly recalc then does the
+  backfill, and the member appears the next day. If they should appear
+  immediately, call the recalc for just that user inline.
 - Symmetric case to decide during planning: `removeCollectionMember` should
   probably leave history intact and just drop them from the leaderboard.
 
-**Also worth a data check.** Query the friend's `match_participants.confirmed_at`
-and their `ratings` rows for the collection to confirm which of the two cases
-this was.
+**The membership rule (decided 2026-09-30): collection ratings require
+membership.** Only collection members get a collection rating, and only
+member opponents count toward it. This matches the app paths.
+`recalculate_dirty_matches()` must be changed to agree:
+- Only write collection ratings for users in `collection_members` for that
+  collection.
+- Build opponents from other confirmed members only. Fall back to the
+  default-rating behavior of `applyMatchCollectionRatings` when no other
+  member is present.
+- Stamp the current algorithm version instead of a literal `1`.
+- Add a parity test: for a fixture match, the app confirm path and the SQL
+  recalc must produce identical collection `rating_history` rows.
+
+**Existing data.** Any recalc that has already run may have written
+collection ratings for non-members. Planning should include a read-only audit
+query (collection `ratings` rows whose user isn't a member) and, if any rows
+turn up, a cleanup: delete them, then mark the affected matches dirty.
 
 ### B3 — Top Commanders ranks my commander #1 at 0% WR
 
@@ -263,59 +304,58 @@ added to it, because only `name` is rendered today. Bundle this with the
 known issue from CLAUDE.md (per-participant bracket badge not rendered),
 since it's the same component.
 
-### F6 — Notify on member add
+### F6 — Notify on member add (reported: "didn't arrive")
 
-**Finding.** Member insert already notifies. Trigger
-`on_collection_member_added` → `notify_collection_invite()` (migration 002)
-creates a `collection_invite` notification for every insert except the owner.
-So adding a member does notify.
+**Confirmed against prod data (2026-09-30).** The notification **was
+created**, but the friend almost certainly never saw it. The cause is a
+client-side bug.
 
-**Reported:** the friend didn't receive it. We don't yet know whether the
-realtime push failed or the row was never created.
+Player F's notifications (T = when they were added to Collection G):
 
-**What the code rules out.**
-- **Grants:** `notify_collection_invite()` and `create_notification()` are both
-  `SECURITY DEFINER`, and 027 explicitly exempts trigger functions. The trigger
-  runs as the owner, so the lockdown can't block it.
-- **Insert path:** `inviteCollectionMember` is the only app path that inserts
-  into `collection_members`, and any insert fires the trigger. The one
-  exception is the owner (`NEW.user_id != owner_id`).
-- **Realtime vs. stored:** realtime is an INSERT subscription on
-  `recipient_id` (`src/hooks/use-notification-realtime.ts:38`), and
-  `notifications` is in the `supabase_realtime` publication (migration 002).
-  The notifications page and dropdown also query the table directly
-  (`src/lib/supabase/notifications.ts:34`). **So a realtime failure only
-  delays the notification.** If the friend never saw it after a page reload,
-  the row most likely doesn't exist, or it was dismissed or expired
-  (`collection_invite` TTL = 14 days).
+| Type | Created | seen_at | read_at |
+|---|---|---|---|
+| `friend_accepted` | T − ~13 min | T + 14s | T + 16s |
+| `collection_invite` (Collection G) | T | T + 14s | — |
 
-**Diagnostic (run once, read-only):**
+The trigger is enabled, the row exists, and it isn't dismissed or expired.
 
-```sql
-select cm.created_at as added_at, n.id, n.created_at, n.read_at,
-       n.dismissed_at, n.expires_at
-from collection_members cm
-left join notifications n
-  on n.recipient_id = cm.user_id
- and n.type = 'collection_invite'
- and n.entity_id = cm.collection_id
-where cm.collection_id = '<collection id>'
-  and cm.user_id = '<friend user id>';
-```
+**Cause: the dropdown never learns about new notifications, yet "seen" marks
+all of them.**
+1. `NotificationDropdown` seeds `notifications` and `unseenCount` from server
+   props with `useState(initial…)` (`notification-dropdown.tsx:30-31`). Nothing
+   updates that state afterwards. `useState` also ignores new props on
+   re-render, so a server refresh within the same layout doesn't help either.
+2. `useNotificationRealtime` (mounted in `providers.tsx:30` with only
+   `{ userId }`) **only shows a toast**. It never passes the new row to the
+   dropdown (`onNewNotification` is never provided).
+3. When the dropdown opens with `unseenCount > 0`, it calls
+   `mark_notifications_seen(p_recipient_id)`. That RPC marks **every** unseen
+   row in the DB as seen, including rows the client never loaded.
 
-- **No `n.id`:** the row was never created. Then check `pg_trigger` for
-  `on_collection_member_added` on prod (`tgenabled`). The trigger may be
-  missing if prod was ever restored or rebuilt without migration 002's
-  trigger block.
-- **Row exists and `read_at`/`dismissed_at` is null:** it was delivered to the
-  DB but never surfaced. Investigate the dropdown/list rendering for
-  `collection_invite`.
-- **Row exists and was read:** it arrived. The complaint is about the wording
-  or discoverability instead.
+Timeline: the badge was still showing the stale unseen `friend_accepted`.
+The friend opened the dropdown 14s after being added. The list showed only
+`friend_accepted`, which they clicked 2s later. The RPC stamped the invite as
+seen, so it will never badge again. Whether the realtime toast fired can't
+be recovered from the DB, but it doesn't matter: a toast is easy to miss, and
+the persistent surfaces never showed the notification.
 
-**Independent of the result:** the copy says "invitation" even though the
-member was added directly. Change the copy to "You were added to X" (or add a
-distinct type) so a real notification isn't mistaken for noise.
+**Fix.**
+- Feed realtime inserts into the dropdown. Either lift notification state
+  into a context owned by the provider that the realtime hook updates, or
+  pass `onNewNotification` through to the dropdown. Prepend the row and bump
+  `unseenCount`.
+- Make "seen" precise: `mark_notifications_seen` should take the IDs the client
+  actually rendered (`p_ids uuid[]`), not blanket-mark the recipient. This
+  needs a migration, and the 027 allowlist entry has to be updated for the new
+  signature.
+- Copy: the dropdown says "{owner} invited you to join a collection". It
+  doesn't name the collection and implies an action even though they are
+  already a member. Change it to "{owner} added you to **{collection_name}**"
+  (`data.collection_name` is already in the payload) and link to the
+  collection. The realtime toast already uses `collection_name`.
+- The same staleness affects every notification type (match confirmations,
+  claims), not just invites. Add a test for "realtime insert appears in the
+  dropdown".
 
 ### F7 — Custom avatar upload
 
@@ -340,7 +380,7 @@ distinct type) so a real notification isn't mistaken for noise.
 3. **B4**: copy and one prop.
 4. **B2**: backfill on join. Read migration 018 first.
 5. **F4**: deck required to confirm, including the auto-confirm change.
-6. **F6**: run the diagnostic, then fix the invite copy.
+6. **F6**: realtime → dropdown state, precise "seen", invite copy.
 7. **F2, F3**: both lean on dirty-recalc and confirmation reset, so design them together.
 8. **F1, F7**: new tables/buckets, independent.
 
