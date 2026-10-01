@@ -13,8 +13,8 @@ import {
   getUserCollections,
   updateMatchApprovalStatus,
   autoConfirmCollectionMembers,
+  markCollectionMatchesDirty,
 } from '@/lib/supabase/collections'
-import { applyMatchCollectionRatings } from '@/lib/supabase/ratings'
 import type { Result, MatchAddPermission, CollectionWithMembership, ApprovalStatus } from '@/types'
 
 /**
@@ -60,6 +60,13 @@ export async function inviteCollectionMember(
 
   if (error) {
     return { success: false, error: error.message }
+  }
+
+  // Their past matches in this collection get collection ratings from the
+  // nightly replay; flag them so it runs.
+  const flagResult = await markCollectionMatchesDirty(supabase, { collectionId, userId })
+  if (!flagResult.success) {
+    console.error(`[RATING] inviteCollectionMember: failed to flag matches for recalc - ${flagResult.error}`)
   }
 
   // Revalidate collection pages
@@ -384,18 +391,10 @@ export async function addMatchToCollection(
     return { success: false, error: addResult.error }
   }
 
-  // If the match was directly approved, apply collection-scoped ratings immediately
+  // Collection ratings come from the nightly replay. Auto-confirm (when the
+  // collection allows it) and flag the match so the replay picks it up.
   if (approvalStatus === 'approved') {
-    // Auto-confirm collection members who are unconfirmed participants
-    if (collection.autoApproveMembers) {
-      await autoConfirmCollectionMembers(supabase, matchId, collectionId)
-    }
-
-    await applyMatchCollectionRatings(supabase, {
-      matchId,
-      collectionId,
-      algorithmVersion: 1,
-    })
+    await queueCollectionMatchForRecalc(supabase, matchId, collectionId, collection.autoApproveMembers)
   }
 
   // Revalidate paths
@@ -478,24 +477,25 @@ export async function approveCollectionMatch(
     return { success: false, error: updateResult.error }
   }
 
-  // Now that the match is approved, fetch its match_id and apply collection ratings
+  // Now that the match is approved, fetch its match_id and queue it for the
+  // nightly replay (auto-confirming members when the collection allows it)
   const { data: collectionMatch, error: cmError } = await supabase
     .from('collection_matches')
     .select('match_id')
     .eq('id', collectionMatchId)
     .single()
 
-  if (!cmError && collectionMatch) {
-    // Auto-confirm collection members who are unconfirmed participants
-    if (collectionResult.data.autoApproveMembers) {
-      await autoConfirmCollectionMembers(supabase, collectionMatch.match_id, collectionId)
-    }
+  if (cmError) {
+    console.error(`[RATING] approveCollectionMatch: could not load collection match ${collectionMatchId} - ${cmError.message}`)
+  }
 
-    await applyMatchCollectionRatings(supabase, {
-      matchId: collectionMatch.match_id,
+  if (!cmError && collectionMatch) {
+    await queueCollectionMatchForRecalc(
+      supabase,
+      collectionMatch.match_id,
       collectionId,
-      algorithmVersion: 1,
-    })
+      collectionResult.data.autoApproveMembers
+    )
   }
 
   // Revalidate paths
@@ -620,4 +620,28 @@ export async function requestCollectionMembership(
   }
 
   return { success: true, data: null }
+}
+
+/**
+ * Auto-confirm the collection's members (when the collection allows it) and
+ * flag the match so the nightly replay writes its collection ratings. Errors
+ * are logged, not returned: the match is already in the collection.
+ * Not exported, so it isn't a server action.
+ */
+async function queueCollectionMatchForRecalc(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  matchId: string,
+  collectionId: string,
+  autoApproveMembers: boolean
+): Promise<void> {
+  if (autoApproveMembers) {
+    const confirmResult = await autoConfirmCollectionMembers(supabase, matchId, collectionId)
+    if (!confirmResult.success) {
+      console.error(`[RATING] auto-confirm failed for match ${matchId} in ${collectionId} - ${confirmResult.error}`)
+    }
+  }
+  const flagResult = await markCollectionMatchesDirty(supabase, { collectionId, matchId })
+  if (!flagResult.success) {
+    console.error(`[RATING] failed to flag match ${matchId} in ${collectionId} for recalc - ${flagResult.error}`)
+  }
 }
