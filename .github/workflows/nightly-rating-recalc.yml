@@ -1,0 +1,45 @@
+name: Nightly Rating Recalc
+
+# Replays all confirmed matches (src/lib/rating-replay.ts) whenever any match
+# is flagged dirty, and swaps the result in atomically (migration 030).
+# Replaced the pg_cron job, whose SQL procedure never succeeded.
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 4am UTC daily
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Replay even if no match is dirty'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Compute and print the per-player diff; write nothing'
+        type: boolean
+        default: false
+
+# One replay at a time: a manual run during the scheduled one waits.
+concurrency:
+  group: nightly-rating-recalc
+  cancel-in-progress: false
+
+jobs:
+  recalc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Replay ratings
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.force }}" != "true" ]; then ARGS="--if-dirty"; fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          npx tsx scripts/recalculate-ratings.ts $ARGS
