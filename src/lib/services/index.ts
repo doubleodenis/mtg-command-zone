@@ -26,6 +26,8 @@ export { getUserCollectionActivities } from './collection'
 
 // Deck service
 export { getTopCommanders } from './deck'
+export { rankCommanders, MIN_GAMES_TO_RANK, TOP_COMMANDER_EMPTY_LABEL } from './top-commanders'
+export type { CommanderStats, CommanderParticipationRow } from './top-commanders'
 export type { GetTopCommandersOptions } from './deck'
 
 // Leaderboard service

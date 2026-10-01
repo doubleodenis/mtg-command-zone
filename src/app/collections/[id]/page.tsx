@@ -20,6 +20,7 @@ import {
   getUserStats,
   getLeaderboardData,
   getTopPlayerBy,
+  TOP_COMMANDER_EMPTY_LABEL,
 } from "@/lib/services";
 import type { CollectionMemberWithProfile, PendingMatchApproval } from "@/types";
 import type { DeckWithStats } from "@/types/deck";
@@ -86,8 +87,8 @@ export default async function CollectionPage({ params }: PageProps) {
     }
   }
 
-  // Get top commander by win rate
-  const topCommander = topCommanders.length > 0 ? topCommanders[0] : null;
+  // Highest win rate among commanders with enough games to rank
+  const topCommander = topCommanders.find((c) => c.qualified) ?? null;
   
   // Get highest win rate player from aggregated leaderboard
   const topWinRatePlayer = getTopPlayerBy(aggregatedEntries, 'winRate') ?? null;
@@ -204,7 +205,7 @@ export default async function CollectionPage({ params }: PageProps) {
             label="Top Commander"
             animatedValue={topCommander?.stats?.winRate ?? 0}
             suffix="%"
-            sublabel={topCommander ? topCommander.commanderName : "No data"}
+            sublabel={topCommander ? topCommander.commanderName : TOP_COMMANDER_EMPTY_LABEL}
           />
         </div>
       </Section>
