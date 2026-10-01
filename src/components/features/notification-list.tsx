@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import { markNotificationsSeen } from "@/lib/supabase/notifications";
 import { approveClaimRequest, rejectClaimRequest } from "@/app/actions/match";
 import { acceptFriendRequest, rejectFriendRequest } from "@/app/actions/friend";
 import type { NotificationWithActor, NotificationType, ClaimAvailableData, FriendRequestData } from "@/types/notification";
@@ -33,6 +34,15 @@ export function NotificationList({
   const [claimActionLoading, setClaimActionLoading] = React.useState<string | null>(null);
   const [friendActionLoading, setFriendActionLoading] = React.useState<string | null>(null);
   const router = useRouter();
+
+  // The full page shows more than the navbar dropdown, so it's the place a
+  // backlog of unseen notifications gets cleared. Mark what's rendered.
+  React.useEffect(() => {
+    const unseenIds = initialNotifications.filter((n) => !n.seenAt).map((n) => n.id);
+    if (unseenIds.length > 0) {
+      void markNotificationsSeen(createClient(), userId, unseenIds);
+    }
+  }, [initialNotifications, userId]);
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
