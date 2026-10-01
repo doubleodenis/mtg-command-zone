@@ -51,7 +51,7 @@ without being shown (F6).
 2. **Win-rate ties** need a deterministic order (more games first, then name),
    so the list doesn't reshuffle between reloads. Test in Task 1.
 3. **A collection with zero approved matches** returns an empty list, and the
-   stat card shows "No data" rather than crashing or showing an unqualified
+   stat card shows "Needs a commander with 3+ games" rather than crashing or showing an unqualified
    commander as "Top Commander". Covered by the Task 2 code path and checked
    in the browser.
 4. **A refetch that fails** (network blip) must leave the current dropdown
@@ -82,7 +82,7 @@ without being shown (F6).
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { rankCommanders, MIN_GAMES_TO_RANK } from '@/lib/services/top-commanders'
+import { rankCommanders, MIN_GAMES_TO_RANK, TOP_COMMANDER_EMPTY_LABEL } from '@/lib/services/top-commanders'
 import type { CommanderParticipationRow } from '@/lib/services/top-commanders'
 
 function play(
@@ -182,6 +182,10 @@ describe('rankCommanders', () => {
   it('uses a minimum of 3 games by default', () => {
     expect(MIN_GAMES_TO_RANK).toBe(3)
   })
+
+  it('explains the empty Top Commander card with the threshold', () => {
+    expect(TOP_COMMANDER_EMPTY_LABEL).toBe('Needs a commander with 3+ games')
+  })
 })
 ```
 
@@ -208,6 +212,9 @@ import { PLACEHOLDER_DECK_NAME } from '@/types/deck'
 import type { DeckStats } from '@/types/deck'
 
 export const MIN_GAMES_TO_RANK = 3
+
+/** Shown on "Top Commander" stat cards when no commander has enough games yet. */
+export const TOP_COMMANDER_EMPTY_LABEL = `Needs a commander with ${MIN_GAMES_TO_RANK}+ games`
 
 export type CommanderParticipationRow = {
   isWinner: boolean
@@ -306,7 +313,7 @@ export function rankCommanders(
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `npx vitest run --project node src/lib/services/__tests__/top-commanders.test.ts`
-Expected: PASS, 10/10.
+Expected: PASS, 11/11.
 
 - [ ] **Step 5: Commit**
 
@@ -611,6 +618,12 @@ and replace it with
     : null;
 ```
 
+In the same file, find the "Top Commander" `DashboardStatCard` and change
+`sublabel={topCommander?.commanderName ?? "No data"}` to
+`sublabel={topCommander?.commanderName ?? TOP_COMMANDER_EMPTY_LABEL}`, importing
+`TOP_COMMANDER_EMPTY_LABEL` from `@/lib/services/top-commanders`. Users should
+see why the card is empty, not "No data" (decided 2026-10-01).
+
 In the same file, rename the logged-out section title
 `<Section title="POPULAR COMMANDERS">` → `<Section title="TOP COMMANDERS">`, and
 the comment above it `{/* Most Played Commanders */}` → `{/* Top Commanders */}`.
@@ -628,6 +641,11 @@ with
   // Highest win rate among commanders with enough games to rank
   const topCommander = topCommanders.find((c) => c.qualified) ?? null;
 ```
+
+and change that card's
+`sublabel={topCommander ? topCommander.commanderName : "No data"}` to
+`sublabel={topCommander ? topCommander.commanderName : TOP_COMMANDER_EMPTY_LABEL}`,
+importing `TOP_COMMANDER_EMPTY_LABEL` from `@/lib/services/top-commanders`.
 
 - [ ] **Step 7: Typecheck, lint, tests**
 
@@ -648,7 +666,7 @@ server, so don't use it). Then:
 - `/` logged out: "TOP COMMANDERS" lists ranked commanders (numbers) before
   unranked ones ("–", "needs 3 to rank").
 - `/collections/<id>` for a collection with approved matches: the "Top
-  Commander" stat card names a qualified commander, or "No data" if none has 3
+  Commander" stat card names a qualified commander, or "Needs a commander with 3+ games" if none has 3
   games.
 
 Stop the server afterwards.
