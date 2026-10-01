@@ -12,7 +12,7 @@ import { markNotificationsSeen } from "@/lib/supabase/notifications";
 import { approveClaimRequest, rejectClaimRequest } from "@/app/actions/match";
 import { acceptFriendRequest, rejectFriendRequest } from "@/app/actions/friend";
 import type { NotificationWithActor, NotificationType, ClaimAvailableData, FriendRequestData } from "@/types/notification";
-import { getNotificationTitle, getNotificationUrl } from "@/types/notification";
+import { getCollectionName, getNotificationTitle, getNotificationUrl } from "@/types/notification";
 
 interface NotificationListProps {
   initialNotifications: NotificationWithActor[];
@@ -492,7 +492,8 @@ function NotificationMessage({ notification }: { notification: NotificationWithA
     case "collection_invite":
       return (
         <>
-          <span className="font-medium">{actorName}</span> invited you to join a collection
+          <span className="font-medium">{actorName}</span> added you to{" "}
+          <span className="font-medium">{getCollectionName(data) ?? "a collection"}</span>
         </>
       );
     case "collection_match_added":

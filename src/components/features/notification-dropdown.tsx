@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getNotifications, getUnseenNotificationCount, markNotificationsSeen } from "@/lib/supabase/notifications";
 import { subscribeToNewNotifications } from "@/lib/notification-events";
 import type { NotificationWithActor, NotificationType } from "@/types/notification";
-import { getNotificationTitle, getNotificationUrl } from "@/types/notification";
+import { getCollectionName, getNotificationTitle, getNotificationUrl } from "@/types/notification";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useEscapeKey } from "@/hooks/use-escape-key";
 
@@ -311,7 +311,8 @@ function NotificationMessage({ notification }: { notification: NotificationWithA
     case "collection_invite":
       return (
         <>
-          <span className="font-medium">{actorName}</span> invited you to join a collection
+          <span className="font-medium">{actorName}</span> added you to{" "}
+          <span className="font-medium">{getCollectionName(data) ?? "a collection"}</span>
         </>
       );
     case "collection_match_added":
