@@ -18,6 +18,12 @@ on:
         type: boolean
         default: false
 
+# Least privilege: the token can only read the repo (actions/checkout needs
+# that if the repo is ever private). It cannot write anything while npm ci
+# runs alongside the Supabase secret key.
+permissions:
+  contents: read
+
 # One replay at a time: a manual run during the scheduled one waits.
 concurrency:
   group: nightly-rating-recalc
@@ -38,8 +44,16 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          WRITE_ENABLED: ${{ vars.RATING_REPLAY_WRITE_ENABLED }}
         run: |
           ARGS=""
+          DRY_RUN="${{ inputs.dry_run }}"
           if [ "${{ inputs.force }}" != "true" ]; then ARGS="--if-dirty"; fi
-          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          # Scheduled runs write only once an operator has reviewed a dry run
+          # and set the repo variable RATING_REPLAY_WRITE_ENABLED=true.
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$WRITE_ENABLED" != "true" ]; then
+            echo "RATING_REPLAY_WRITE_ENABLED is not 'true' — scheduled run is a dry run."
+            DRY_RUN="true"
+          fi
+          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           npx tsx scripts/recalculate-ratings.ts $ARGS
