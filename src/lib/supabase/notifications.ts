@@ -135,14 +135,26 @@ export async function getUnseenNotificationCount(
 // ============================================
 
 /**
- * Mark notifications as seen (when dropdown is opened)
+ * Mark notifications as seen. Pass the IDs actually shown to the user;
+ * omitting them marks every unseen notification (legacy behaviour).
  */
 export async function markNotificationsSeen(
   client: SupabaseClient<Database>,
-  userId: string
+  userId: string,
+  notificationIds?: string[]
 ): Promise<Result<number>> {
-  const { data, error } = await client.rpc('mark_notifications_seen', {
+  // p_notification_ids was added in migration 029; database.types.ts is
+  // regenerated from production, so it won't know the argument until 029 is
+  // deployed. Drop this shim after the next type regeneration.
+  type MarkSeenShim = {
+    rpc(
+      fn: 'mark_notifications_seen',
+      args: { p_recipient_id: string; p_notification_ids?: string[] }
+    ): Promise<{ data: number | null; error: { message: string } | null }>
+  }
+  const { data, error } = await (client as unknown as MarkSeenShim).rpc('mark_notifications_seen', {
     p_recipient_id: userId,
+    ...(notificationIds ? { p_notification_ids: notificationIds } : {}),
   })
 
   if (error) {
