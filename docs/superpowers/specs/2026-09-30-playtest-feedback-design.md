@@ -2,9 +2,8 @@
 
 **Date:** 2026-09-30
 **Branch:** `docs/playtest-feedback-2026-09-30`
-**Status:** Triage + direction only. No code changed yet. All direction
-questions were answered on 2026-09-30. Root causes for the four bugs are
-traced in code. B2 and F6 were also confirmed against prod data.
+**Status:** Direction decided for every item. Implementation progress is
+tracked in `docs/superpowers/STATUS.md`.
 
 Source: feedback from a real game session (owner + one friend), 2026-09-30.
 

@@ -113,6 +113,12 @@ These findings drive the design. They're also recorded in the spec in Task 8.
 5. **Two nightly runs at once** (a manual dispatch during the scheduled run)
    must not interleave writes. The workflow uses a `concurrency` group, and the
    swap is a single transaction. Checked in Task 4.
+6. **The rating formula itself.** The golden test in Task 1 pins current
+   behaviour, including the bracket modifier scaling losses. That looks
+   inverted for a lower-bracket player who loses: they lose more. Reviewers:
+   assess it and recommend; don't change it. Changing it needs the user's
+   decision and an `ALGORITHM_VERSION` bump. See
+   `docs/superpowers/STATUS.md` open questions.
 
 ---
 
@@ -262,6 +268,47 @@ describe('replayRatings', () => {
       members
     )
     expect(history.filter((h) => h.collectionId === 'col').map((h) => h.userId)).toEqual(['A'])
+  })
+
+  // Golden test: expected values were computed BY HAND from the documented
+  // formula (CLAUDE.md "Rating System"), not by calling calculateRating, so a
+  // formula bug can't confirm itself. If this fails, check the arithmetic
+  // below before touching the code.
+  //
+  // Match 1 (3-player FFA, everyone 1000, 0 matches → K=32, E=1/3 each):
+  //   A (bracket 2) wins. Opp avg bracket (3+1)/2=2, gap 0 → mod 1.
+  //     32·(1−1/3)=21.333 → 21. A=1021
+  //   B (bracket 3). Opp avg (2+1)/2=1.5, gap −1.5 → mod 1−1.5^1.5·0.12=0.779546.
+  //     32·(−1/3)·0.779546=−8.315 → −8. B=992
+  //   C (bracket 1). Opp avg (2+3)/2=2.5, gap +1.5 → mod 1.220454.
+  //     32·(−1/3)·1.220454=−13.018 → −13. C=987
+  // Match 2 (1v1, A 1021 vs B 992, both 1 match → K=32), B wins:
+  //   E_B = 1/(1+10^((1021−992)/400)) = 1/(1+10^0.0725) = 1/2.181686 = 0.458361; E_A = 0.541639
+  //   B: gap 2−3=−1 → mod 0.88. 32·0.541639·0.88=15.253 → 15. B=1007
+  //   A: gap 3−2=+1 → mod 1.12. 32·(−0.541639)·1.12=−19.412 → −19. A=1002
+  // NOTE: the bracket modifier scales losses too, so C (lowest bracket) loses
+  // MORE than an unmodified −11, and A loses −19 to a higher-bracket deck.
+  // That is current behaviour, pinned here, and is an open question in
+  // docs/superpowers/STATUS.md — not something this plan changes.
+  it('matches hand-computed ratings for a two-match history', () => {
+    const { ratings, history } = replayRatings(
+      [
+        match('m1', '2026-01-01T00:00:00Z', [
+          p('A', { isWinner: true, bracket: 2 }),
+          p('B', { bracket: 3 }),
+          p('C', { bracket: 1 }),
+        ]),
+        match('m2', '2026-01-02T00:00:00Z', [p('A', { bracket: 2 }), p('B', { isWinner: true, bracket: 3 })]),
+      ],
+      noMembers
+    )
+    expect(history.map((h) => [h.matchId, h.userId, h.delta])).toEqual([
+      ['m1', 'A', 21], ['m1', 'B', -8], ['m1', 'C', -13],
+      ['m2', 'A', -19], ['m2', 'B', 15],
+    ])
+    expect(sorted(ratings.map((r) => [r.userId, r.rating, r.matchesPlayed, r.wins]))).toEqual(sorted([
+      ['A', 1002, 2, 1], ['B', 1007, 2, 1], ['C', 987, 1, 0],
+    ]))
   })
 
   it('stamps the current algorithm version', () => {
@@ -539,7 +586,7 @@ export function replayRatings(
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `npx vitest run --project node src/lib/__tests__/rating-replay.test.ts`
-Expected: PASS, 12/12.
+Expected: PASS, 13/13.
 
 If the expected 1016/984 differs, compute it with `calculateRating` for two
 1000-rated, bracket-2 players at 0 matches. The test values must come from the
@@ -772,6 +819,11 @@ git commit -m "feat: atomic rating replay swap; retire broken SQL recalc"
     `toHistoryPayload(rows: ReplayHistoryRow[])` (snake_case jsonb rows).
   - `checkCompleteLoad(loadedConfirmed: number, dbConfirmed: number): string | null`
     (an error message, or null).
+  - `diffRatings(current: ReplayRatingRow[], replayed: ReplayRatingRow[]): RatingDiffRow[]`
+    with `type RatingDiffRow = { userId: string; formatId: string; collectionId: string | null; before: number | null; after: number | null; change: number }`.
+    It lists every (user, format, collection) whose rating would change, a
+    missing row counted as 1000, sorted by |change| descending. It's printed
+    by `--dry-run` so a human can review a replay before it ever writes.
   - The CLI `npx tsx scripts/recalculate-ratings.ts [--if-dirty] [--dry-run]`:
     exit 0 on success or nothing to do, 1 on any failure.
 
@@ -781,7 +833,7 @@ git commit -m "feat: atomic rating replay swap; retire broken SQL recalc"
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { toRatingsPayload, toHistoryPayload, checkCompleteLoad } from '@/lib/rating-replay-load'
+import { toRatingsPayload, toHistoryPayload, checkCompleteLoad, diffRatings } from '@/lib/rating-replay-load'
 
 describe('toRatingsPayload / toHistoryPayload', () => {
   it('maps to the snake_case keys apply_rating_replay expects', () => {
@@ -794,6 +846,30 @@ describe('toRatingsPayload / toHistoryPayload', () => {
       user_id: 'u', match_id: 'm', format_id: 'f', collection_id: 'c', rating_before: 1000, rating_after: 1016,
       delta: 16, is_win: true, player_bracket: 2, opponent_avg_rating: 1000, opponent_avg_bracket: 2, k_factor: 32, algorithm_version: 1,
     }])
+  })
+})
+
+describe('diffRatings', () => {
+  const row = (userId: string, rating: number, collectionId: string | null = null) =>
+    ({ userId, formatId: 'f', collectionId, rating, matchesPlayed: 1, wins: 0 })
+
+  it('lists only ratings that would change, largest change first', () => {
+    expect(diffRatings(
+      [row('A', 1016), row('B', 984), row('C', 1000)],
+      [row('A', 1016), row('B', 1010), row('C', 960)]
+    )).toEqual([
+      { userId: 'C', formatId: 'f', collectionId: null, before: 1000, after: 960, change: -40 },
+      { userId: 'B', formatId: 'f', collectionId: null, before: 984, after: 1010, change: 26 },
+    ])
+  })
+
+  it('reports ratings that appear or disappear (e.g. a late joiner gaining a collection rating)', () => {
+    expect(diffRatings([row('A', 1020)], [row('A', 1020), row('B', 1012, 'col')])).toEqual([
+      { userId: 'B', formatId: 'f', collectionId: 'col', before: null, after: 1012, change: 12 },
+    ])
+    expect(diffRatings([row('A', 990, 'col')], [])).toEqual([
+      { userId: 'A', formatId: 'f', collectionId: 'col', before: 990, after: null, change: 10 },
+    ])
   })
 })
 
@@ -824,6 +900,7 @@ Expected: FAIL. Module not found.
  */
 
 import type { ReplayHistoryRow, ReplayRatingRow } from '@/lib/rating-replay'
+import { RATING_CONFIG } from '@/types/rating'
 
 export function toRatingsPayload(rows: ReplayRatingRow[]) {
   return rows.map((r) => ({
@@ -854,6 +931,42 @@ export function toHistoryPayload(rows: ReplayHistoryRow[]) {
   }))
 }
 
+export type RatingDiffRow = {
+  userId: string
+  formatId: string
+  collectionId: string | null
+  before: number | null
+  after: number | null
+  change: number
+}
+
+/**
+ * Every rating the replay would change. A missing row counts as the default
+ * 1000, so a new collection rating and a removed one both show up.
+ */
+export function diffRatings(current: ReplayRatingRow[], replayed: ReplayRatingRow[]): RatingDiffRow[] {
+  const keyOf = (r: ReplayRatingRow) => `${r.collectionId ?? 'global'}::${r.userId}::${r.formatId}`
+  const before = new Map(current.map((r) => [keyOf(r), r]))
+  const after = new Map(replayed.map((r) => [keyOf(r), r]))
+  const rows: RatingDiffRow[] = []
+  for (const k of new Set([...before.keys(), ...after.keys()])) {
+    const b = before.get(k)
+    const a = after.get(k)
+    const change = (a?.rating ?? RATING_CONFIG.defaultRating) - (b?.rating ?? RATING_CONFIG.defaultRating)
+    if (change === 0) continue
+    const ref = (a ?? b)!
+    rows.push({
+      userId: ref.userId,
+      formatId: ref.formatId,
+      collectionId: ref.collectionId,
+      before: b?.rating ?? null,
+      after: a?.rating ?? null,
+      change,
+    })
+  }
+  return rows.sort((x, y) => Math.abs(y.change) - Math.abs(x.change) || x.userId.localeCompare(y.userId))
+}
+
 /**
  * The swap replaces ALL rating history, so replaying from a partial load
  * (pagination bug, network, RLS) would silently delete real history.
@@ -866,7 +979,7 @@ export function checkCompleteLoad(loadedConfirmed: number, dbConfirmed: number):
 ```
 
 Run: `npx vitest run --project node src/lib/__tests__/rating-replay-load.test.ts`
-Expected: PASS, 3/3.
+Expected: PASS, 5/5.
 
 - [ ] **Step 4: Rewrite the script**
 
@@ -898,7 +1011,8 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../src/types/database.types'
 import { replayRatings, toReplayMatches } from '../src/lib/rating-replay'
 import type { MatchReplayRow } from '../src/lib/rating-replay'
-import { checkCompleteLoad, toHistoryPayload, toRatingsPayload } from '../src/lib/rating-replay-load'
+import { checkCompleteLoad, diffRatings, toHistoryPayload, toRatingsPayload } from '../src/lib/rating-replay-load'
+import type { ReplayRatingRow } from '../src/lib/rating-replay'
 
 config({ path: '.env.local' })
 
@@ -974,6 +1088,30 @@ async function loadMembers(): Promise<Map<string, Set<string>>> {
   }
 }
 
+async function loadCurrentRatings(): Promise<ReplayRatingRow[]> {
+  const rows: ReplayRatingRow[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('ratings')
+      .select('user_id, format_id, collection_id, rating, matches_played, wins')
+      .gt('matches_played', 0)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error) return fail(`Failed to load current ratings: ${error.message}`)
+    for (const r of data ?? []) {
+      rows.push({
+        userId: r.user_id,
+        formatId: r.format_id,
+        collectionId: r.collection_id,
+        rating: r.rating,
+        matchesPlayed: r.matches_played,
+        wins: r.wins,
+      })
+    }
+    if (!data || data.length < PAGE) return rows
+  }
+}
+
 async function main() {
   const { data: dirty, error: dirtyError } = await supabase
     .from('matches')
@@ -1008,7 +1146,15 @@ async function main() {
   )
 
   if (DRY_RUN) {
-    console.log('Dry run — nothing written.')
+    const current = await loadCurrentRatings()
+    const diff = diffRatings(current, ratings)
+    console.log(`\nDry run — ${diff.length} rating(s) would change (largest first):`)
+    for (const d of diff.slice(0, 50)) {
+      const scope = d.collectionId ? `collection ${d.collectionId}` : 'global'
+      console.log(`  ${d.userId}  ${d.formatId}  ${scope}: ${d.before ?? '—'} → ${d.after ?? '—'} (${d.change > 0 ? '+' : ''}${d.change})`)
+    }
+    if (diff.length > 50) console.log(`  … and ${diff.length - 50} more`)
+    console.log('Nothing written.')
     return
   }
 
@@ -1039,7 +1185,7 @@ and has a local `SUPABASE_SECRET_KEY`. The local service-role key comes from
 the user to add it. Don't edit `.env.local` yourself.
 
 Run, in order:
-1. `npx tsx scripts/recalculate-ratings.ts --dry-run`. Expected: a "Replayed N matches → …" line, then "Dry run — nothing written.", exit 0.
+1. `npx tsx scripts/recalculate-ratings.ts --dry-run`. Expected: a "Replayed N matches → …" line, a "Dry run — K rating(s) would change" report, then "Nothing written.", exit 0. Read the report: large changes should be explainable (the old app path's approximations, or late-joiner collection ratings). Record K and the largest change in the ledger.
 2. `npx tsx scripts/recalculate-ratings.ts`. Expected: "✔ Swapped in N history rows.", exit 0.
 3. Run it again and compare:
    `PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -tAc "select md5(string_agg(user_id||match_id||format_id||coalesce(collection_id::text,'')||rating_after, ',' order by user_id, match_id, format_id, collection_id)) from rating_history"`
@@ -1091,6 +1237,10 @@ on:
         description: 'Replay even if no match is dirty'
         type: boolean
         default: false
+      dry_run:
+        description: 'Compute and print the per-player diff; write nothing'
+        type: boolean
+        default: false
 
 # One replay at a time: a manual run during the scheduled one waits.
 concurrency:
@@ -1113,11 +1263,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
-          if [ "${{ inputs.force }}" = "true" ]; then
-            npx tsx scripts/recalculate-ratings.ts
-          else
-            npx tsx scripts/recalculate-ratings.ts --if-dirty
-          fi
+          ARGS=""
+          if [ "${{ inputs.force }}" != "true" ]; then ARGS="--if-dirty"; fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          npx tsx scripts/recalculate-ratings.ts $ARGS
 ```
 
 Match `actions/checkout` / `actions/setup-node` versions to `ci.yml`. Open it
@@ -1151,6 +1300,13 @@ this run.
    `SUPABASE_SECRET_KEY`. (`NEXT_PUBLIC_SUPABASE_URL` already exists.)
 3. Deploy migrations 030 and 031 **before** the app. The app calls 031's
    functions; 030 unschedules the old pg_cron job.
+
+## First run against production: dry run first
+Before the first real write, run the workflow manually with **force** and
+**dry_run** ticked. It reads production and prints every rating that would
+change, largest first, and writes nothing. Review it: changes should be
+explainable (confirm-time approximations corrected, late joiners gaining
+collection ratings). Only then let the schedule (or a non-dry run) write.
 
 ## Run it now
 GitHub → Actions → Nightly Rating Recalc → Run workflow (tick **force** to
