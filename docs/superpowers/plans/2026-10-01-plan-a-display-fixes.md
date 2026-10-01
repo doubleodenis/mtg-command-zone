@@ -1383,7 +1383,10 @@ git commit -m "fix: name the collection in member-added notifications"
     stays light on migrations. The 1000-row PostgREST cap is noted in code.
   - `database.types.ts` isn't regenerated; the `markNotificationsSeen` shim
     covers the new argument until 029 reaches production.
-- **Deploy note:** migration 029 must be deployed before (or with) the app
-  change. Old app code calls `mark_notifications_seen(p_recipient_id)` with one
-  argument, which still resolves to the new function through the DEFAULT, so
-  the order is safe either way.
+- **Deploy note (corrected after final review):** migration 029 must be
+  deployed **before** the app change. 029-first is safe, because old app code
+  calls `mark_notifications_seen(p_recipient_id)` with one argument, which
+  resolves to the new function through the DEFAULT. App-first is **not** safe:
+  the new app passes `p_notification_ids`, PostgREST can't find that signature
+  on the old database (PGRST202), and every mark-seen fails. Those failures are
+  now reported to Sentry.
