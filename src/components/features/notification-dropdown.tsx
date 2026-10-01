@@ -8,7 +8,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { getNotifications, getUnseenNotificationCount, markNotificationsSeen } from "@/lib/supabase/notifications";
-import { subscribeToNewNotifications } from "@/lib/notification-events";
+import { subscribeToNotificationsChanged } from "@/lib/notification-events";
 import type { NotificationWithActor, NotificationType } from "@/types/notification";
 import { getCollectionName, getNotificationTitle, getNotificationUrl } from "@/types/notification";
 import { useClickOutside } from "@/hooks/use-click-outside";
@@ -47,7 +47,7 @@ export function NotificationDropdown({
   }, [userId]);
 
   React.useEffect(
-    () => subscribeToNewNotifications(() => void refresh()),
+    () => subscribeToNotificationsChanged(() => void refresh()),
     [refresh]
   );
 

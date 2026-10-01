@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NotificationDropdown } from "./notification-dropdown";
-import { emitNewNotification } from "@/lib/notification-events";
+import { emitNotificationsChanged } from "@/lib/notification-events";
 import type { NotificationWithActor } from "@/types/notification";
 
 const getNotifications = vi.fn();
@@ -52,7 +52,7 @@ describe("NotificationDropdown", () => {
     getUnseenNotificationCount.mockResolvedValue({ success: true, data: 2 });
 
     render(<NotificationDropdown initialNotifications={[notification("n1")]} initialUnseenCount={1} userId="me" />);
-    act(() => emitNewNotification());
+    act(() => emitNotificationsChanged());
 
     await waitFor(() => expect(screen.getByLabelText("Notifications (2 new)")).toBeInTheDocument());
     await userEvent.click(screen.getByLabelText("Notifications (2 new)"));
@@ -84,7 +84,7 @@ describe("NotificationDropdown", () => {
     getUnseenNotificationCount.mockResolvedValue({ success: false, error: "network" });
 
     render(<NotificationDropdown initialNotifications={[notification("n1")]} initialUnseenCount={1} userId="me" />);
-    act(() => emitNewNotification());
+    act(() => emitNotificationsChanged());
     await waitFor(() => expect(getNotifications).toHaveBeenCalled());
 
     await userEvent.click(screen.getByLabelText("Notifications (1 new)"));

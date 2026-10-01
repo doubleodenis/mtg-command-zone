@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ToastProvider } from "@/components/ui/toast";
 import { useNotificationRealtime } from "@/hooks/use-notification-realtime";
-import { emitNewNotification } from "@/lib/notification-events";
+import { emitNotificationsChanged } from "@/lib/notification-events";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -28,8 +28,8 @@ export function Providers({ children, userId }: ProvidersProps) {
  * Separated to avoid re-renders when toasts change.
  */
 function RealtimeSubscriber({ userId }: { userId: string | null }) {
-  // emitNewNotification is module-level, so it's a stable reference and
+  // emitNotificationsChanged is module-level, so it's a stable reference and
   // doesn't re-subscribe the realtime channel on every render.
-  useNotificationRealtime({ userId, onNewNotification: emitNewNotification });
+  useNotificationRealtime({ userId, onNewNotification: emitNotificationsChanged });
   return null;
 }

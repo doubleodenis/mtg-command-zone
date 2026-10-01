@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { NotificationList } from "./notification-list";
+import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/notification-events";
 import type { NotificationWithActor } from "@/types/notification";
 
 const markNotificationsSeen = vi.fn().mockResolvedValue({ success: true, data: 1 });
@@ -40,5 +41,24 @@ describe("NotificationList", () => {
       />
     );
     expect(markNotificationsSeen).toHaveBeenCalledWith(expect.anything(), "me", ["n1", "n3"]);
+  });
+
+  it("tells the navbar badge to refresh once the backlog is marked seen", async () => {
+    const listener = vi.fn();
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, listener);
+    render(<NotificationList initialNotifications={[notification("n1", null)]} userId="me" />);
+    await waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
+    window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, listener);
+  });
+
+  it("does not signal the badge when marking seen fails", async () => {
+    markNotificationsSeen.mockResolvedValueOnce({ success: false, error: "PGRST202" });
+    const listener = vi.fn();
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, listener);
+    render(<NotificationList initialNotifications={[notification("n1", null)]} userId="me" />);
+    await waitFor(() => expect(markNotificationsSeen).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(listener).not.toHaveBeenCalled();
+    window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, listener);
   });
 });

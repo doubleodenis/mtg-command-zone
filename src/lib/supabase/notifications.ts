@@ -5,6 +5,7 @@
  * and dismissing notifications.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import type { Result, UUID } from '@/types'
@@ -158,6 +159,13 @@ export async function markNotificationsSeen(
   })
 
   if (error) {
+    // Callers update the badge optimistically and ignore this result, so
+    // report it: otherwise a failure (e.g. app deployed before migration 029)
+    // only shows up as a badge that keeps coming back.
+    Sentry.captureMessage('mark_notifications_seen failed', {
+      level: 'warning',
+      extra: { error: error.message, idCount: notificationIds?.length ?? null },
+    })
     return { success: false, error: error.message }
   }
 
