@@ -1,7 +1,11 @@
 name: Nightly Rating Recalc
 
-# Replays all confirmed matches (src/lib/rating-replay.ts) whenever any match
-# is flagged dirty, and swaps the result in atomically (migration 030).
+# Replays all confirmed matches (src/lib/rating-replay.ts) and swaps the result
+# in atomically (migration 030). Scheduled runs ALWAYS do a full replay: many
+# changes (self-confirm in a collection, collection removals, deck edits or
+# deletions, members who join unconfirmed, hand-edited values) alter the
+# canonical result without setting a dirty flag. Manual runs replay only if a
+# match is dirty, unless force is ticked.
 # Replaced the pg_cron job, whose SQL procedure never succeeded.
 
 on:
@@ -10,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 'Replay even if no match is dirty'
+        description: 'Replay even if no match is dirty (scheduled runs always replay)'
         type: boolean
         default: false
       dry_run:
@@ -48,7 +52,10 @@ jobs:
         run: |
           ARGS=""
           DRY_RUN="${{ inputs.dry_run }}"
-          if [ "${{ inputs.force }}" != "true" ]; then ARGS="--if-dirty"; fi
+          # Scheduled: full replay every night. Manual: --if-dirty unless force.
+          if [ "${{ github.event_name }}" != "schedule" ] && [ "${{ inputs.force }}" != "true" ]; then
+            ARGS="--if-dirty"
+          fi
           # Scheduled runs write only once an operator has reviewed a dry run
           # and set the repo variable RATING_REPLAY_WRITE_ENABLED=true.
           if [ "${{ github.event_name }}" = "schedule" ] && [ "$WRITE_ENABLED" != "true" ]; then
