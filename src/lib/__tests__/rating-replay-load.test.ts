@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toRatingsPayload, toHistoryPayload, checkCompleteLoad, diffRatings } from '@/lib/rating-replay-load'
+import { toRatingsPayload, toHistoryPayload, checkCompleteLoad, diffRatings, checkWriteTarget } from '@/lib/rating-replay-load'
 
 describe('toRatingsPayload / toHistoryPayload', () => {
   it('maps to the snake_case keys apply_rating_replay expects', () => {
@@ -46,5 +46,41 @@ describe('checkCompleteLoad', () => {
 
   it('refuses to swap when the load is short (would delete real history)', () => {
     expect(checkCompleteLoad(1000, 1203)).toMatch(/loaded 1000 of 1203/)
+  })
+})
+
+describe('checkWriteTarget', () => {
+  const REMOTE = 'https://abcdefgh.supabase.co'
+  const opts = (o: Partial<{ dryRun: boolean; confirmHost: string | null; inCI: boolean }> = {}) =>
+    ({ dryRun: false, confirmHost: null, inCI: false, ...o })
+
+  it('allows writes to a local database', () => {
+    expect(checkWriteTarget('http://127.0.0.1:54321', opts())).toBeNull()
+    expect(checkWriteTarget('http://localhost:54321', opts())).toBeNull()
+  })
+
+  it('allows a dry run against a remote database', () => {
+    expect(checkWriteTarget(REMOTE, opts({ dryRun: true }))).toBeNull()
+  })
+
+  it('allows the GitHub Actions workflow to write remotely', () => {
+    expect(checkWriteTarget(REMOTE, opts({ inCI: true }))).toBeNull()
+  })
+
+  it('refuses a local write to a remote database without --confirm-host', () => {
+    expect(checkWriteTarget(REMOTE, opts())).toMatch(/abcdefgh\.supabase\.co/)
+  })
+
+  it('refuses when --confirm-host names a different host', () => {
+    expect(checkWriteTarget(REMOTE, opts({ confirmHost: 'other.supabase.co' }))).toMatch(/does not match/)
+  })
+
+  it('allows a remote write when --confirm-host matches exactly', () => {
+    expect(checkWriteTarget(REMOTE, opts({ confirmHost: 'abcdefgh.supabase.co' }))).toBeNull()
+  })
+
+  it('refuses an unparsable URL, even for a dry run', () => {
+    expect(checkWriteTarget('not a url', opts())).toMatch(/cannot parse/i)
+    expect(checkWriteTarget('not a url', opts({ dryRun: true }))).toMatch(/cannot parse/i)
   })
 })

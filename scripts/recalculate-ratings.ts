@@ -10,6 +10,10 @@
  *   npx tsx scripts/recalculate-ratings.ts --if-dirty   # replay only if a match is dirty (nightly)
  *   npx tsx scripts/recalculate-ratings.ts --dry-run    # compute, print counts, write nothing
  *
+ * Outside GitHub Actions, a non-dry run refuses any host other than
+ * 127.0.0.1/localhost: production writes go through the workflow. Break-glass:
+ * --confirm-host=<exact host of NEXT_PUBLIC_SUPABASE_URL>.
+ *
  * Env: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY (from the environment,
  * or .env.local when run locally). The secret key is required: the swap is a
  * service-role-only maintenance operation.
@@ -23,7 +27,14 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../src/types/database.types'
 import { replayRatings, toReplayMatches } from '../src/lib/rating-replay'
 import type { MatchReplayRow } from '../src/lib/rating-replay'
-import { checkCompleteLoad, diffRatings, toHistoryPayload, toRatingsPayload } from '../src/lib/rating-replay-load'
+import {
+  checkCompleteLoad,
+  checkWriteTarget,
+  diffRatings,
+  targetHost,
+  toHistoryPayload,
+  toRatingsPayload,
+} from '../src/lib/rating-replay-load'
 import type { ReplayRatingRow } from '../src/lib/rating-replay'
 
 config({ path: '.env.local' })
@@ -32,11 +43,22 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY
 const IF_DIRTY = process.argv.includes('--if-dirty')
 const DRY_RUN = process.argv.includes('--dry-run')
+const CONFIRM_HOST =
+  process.argv.find((a) => a.startsWith('--confirm-host='))?.slice('--confirm-host='.length) ?? null
+const IN_CI = process.env.GITHUB_ACTIONS === 'true'
 const TRIGGERED_BY = process.env.GITHUB_ACTIONS ? 'github-action' : 'manual'
 const PAGE = 1000
 
 if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY.')
+  process.exit(1)
+}
+
+// Say where we are pointed before touching anything (host only, never the key).
+console.log(`Target: ${targetHost(SUPABASE_URL) ?? '(unparsable URL)'}${DRY_RUN ? ' (dry run)' : ''}`)
+const targetProblem = checkWriteTarget(SUPABASE_URL, { dryRun: DRY_RUN, confirmHost: CONFIRM_HOST, inCI: IN_CI })
+if (targetProblem) {
+  console.error(`\n✖ ${targetProblem}`)
   process.exit(1)
 }
 
