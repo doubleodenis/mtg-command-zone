@@ -167,6 +167,138 @@ describe('replayRatings', () => {
     ]))
   })
 
+  describe('collection scope', () => {
+    // Expected delta for a player rated from `rating` against `opponents`.
+    const deltaFor = (
+      rating: number,
+      opponents: Array<{ rating: number; bracket?: 1 | 2 | 3 | 4 }>,
+      isWinner: boolean,
+      { bracket = 2, matchCount = 0 }: { bracket?: 1 | 2 | 3 | 4; matchCount?: number } = {}
+    ) =>
+      calculateRating({
+        playerId: 'x', playerRating: rating, playerBracket: bracket, playerMatchCount: matchCount, isWinner,
+        opponents: opponents.map((o) => ({ rating: o.rating, bracket: o.bracket ?? 2 })), formatId: FFA, collectionId: null,
+      }).delta
+
+    // A global-only warm-up: afterwards A is 1016 and B 984 globally, while
+    // both still have no collection rating (1000). Any test that starts with
+    // it fails if collection ratings were seeded from the global scope.
+    const warmup = () => match('m0', '2025-12-31T00:00:00Z', [p('A', { isWinner: true }), p('B')])
+
+    it('carries collection state between matches independently of global state', () => {
+      const members = new Map([['col', new Set(['A', 'B'])]])
+      const { history } = replayRatings(
+        [
+          // m1: C is not a member. Global: A beats B and C (3-player, +21 → 1021);
+          // collection: A beats B only (2-player, +16 → 1016; B −16 → 984).
+          match('m1', '2026-01-01T00:00:00Z', [p('A', { isWinner: true }), p('B'), p('C')], ['col']),
+          // m2: global only, moves A's global rating again.
+          match('m2', '2026-01-02T00:00:00Z', [p('A', { isWinner: true }), p('C')]),
+          // m3: collection match; must start from m1's COLLECTION results.
+          match('m3', '2026-01-03T00:00:00Z', [p('A'), p('B', { isWinner: true })], ['col']),
+        ],
+        members
+      )
+      const row = (matchId: string, userId: string, collectionId: string | null) =>
+        history.find((h) => h.matchId === matchId && h.userId === userId && h.collectionId === collectionId)!
+
+      expect(row('m1', 'A', 'col').ratingAfter).toBe(1016)
+      expect(row('m1', 'B', 'col').ratingAfter).toBe(984)
+      expect(row('m1', 'A', null).ratingAfter).toBe(1021)
+
+      const aCol = row('m3', 'A', 'col')
+      const bCol = row('m3', 'B', 'col')
+      expect(aCol.ratingBefore).toBe(row('m1', 'A', 'col').ratingAfter)
+      expect(bCol.ratingBefore).toBe(row('m1', 'B', 'col').ratingAfter)
+      expect(aCol.ratingBefore).not.toBe(row('m3', 'A', null).ratingBefore)
+      expect(aCol.delta).toBe(deltaFor(1016, [{ rating: 984 }], false, { matchCount: 1 }))
+      expect(bCol.delta).toBe(deltaFor(984, [{ rating: 1016 }], true, { matchCount: 1 }))
+    })
+
+    it('rates collection members simultaneously, whatever order participants are listed in', () => {
+      const members = new Map([['col', new Set(['A', 'B', 'C'])]])
+      const people = [p('A', { isWinner: true }), p('B', { bracket: 3 }), p('C', { bracket: 1 })]
+      const forward = replayRatings(
+        [warmup(), match('m1', '2026-01-01T00:00:00Z', people, ['col'])],
+        members
+      )
+      const backward = replayRatings(
+        [warmup(), match('m1', '2026-01-01T00:00:00Z', [...people].reverse(), ['col'])],
+        members
+      )
+      const colRows = (h: typeof forward.history) => sorted(h.filter((r) => r.collectionId === 'col'))
+      expect(colRows(backward.history)).toEqual(colRows(forward.history))
+      expect(sorted(backward.ratings)).toEqual(sorted(forward.ratings))
+      expect(colRows(forward.history).map((h) => h.ratingBefore)).toEqual([1000, 1000, 1000])
+    })
+
+    it('rates one match independently in each collection it belongs to', () => {
+      const members = new Map([
+        ['col1', new Set(['A', 'B'])],
+        ['col2', new Set(['A', 'B', 'C'])],
+      ])
+      const { ratings, history } = replayRatings(
+        [warmup(), match('m1', '2026-01-01T00:00:00Z', [p('A', { isWinner: true }), p('B'), p('C')], ['col1', 'col2'])],
+        members
+      )
+      const collectionRows = history
+        .filter((h) => h.collectionId !== null)
+        .map((h) => [h.collectionId, h.userId, h.ratingBefore, h.delta])
+      expect(sorted(collectionRows)).toEqual(sorted([
+        ['col1', 'A', 1000, deltaFor(1000, [{ rating: 1000 }], true)],
+        ['col1', 'B', 1000, deltaFor(1000, [{ rating: 1000 }], false)],
+        ['col2', 'A', 1000, deltaFor(1000, [{ rating: 1000 }, { rating: 1000 }], true)],
+        ['col2', 'B', 1000, deltaFor(1000, [{ rating: 1000 }, { rating: 1000 }], false)],
+        ['col2', 'C', 1000, deltaFor(1000, [{ rating: 1000 }, { rating: 1000 }], false)],
+      ]))
+      expect(sorted(ratings.filter((r) => r.collectionId !== null).map((r) => [r.collectionId, r.userId, r.rating])))
+        .toEqual(sorted([
+          ['col1', 'A', 1016], ['col1', 'B', 984],
+          ['col2', 'A', 1021], ['col2', 'B', 989], ['col2', 'C', 989],
+        ]))
+    })
+
+    it('counts an unconfirmed member as a collection opponent instead of falling back to global', () => {
+      const members = new Map([['col', new Set(['A', 'B'])]])
+      const { history } = replayRatings(
+        [warmup(), match('m1', '2026-01-01T00:00:00Z', [p('A', { isWinner: true }), p('B', { confirmed: false }), p('C')], ['col'])],
+        members
+      )
+      const aCol = history.find((h) => h.userId === 'A' && h.collectionId === 'col')!
+      expect(aCol.ratingBefore).toBe(1000)
+      // B (collection 1000) is the only opponent: a 2-player game, not A's
+      // global opponents B (984) and C (1000).
+      expect(aCol.delta).toBe(deltaFor(1000, [{ rating: 1000 }], true))
+      expect(aCol.opponentAvgRating).toBe(1000)
+      expect(history.filter((h) => h.collectionId === 'col').map((h) => h.userId)).toEqual(['A'])
+    })
+  })
+
+  it('breaks a same-playedAt tie by match id, whatever the input order', () => {
+    const ma = match('m-a', '2026-01-01T00:00:00Z', [p('A', { isWinner: true }), p('B')])
+    const mb = match('m-b', '2026-01-01T00:00:00Z', [p('A'), p('B', { isWinner: true })])
+    const forward = replayRatings([ma, mb], noMembers)
+    const backward = replayRatings([mb, ma], noMembers)
+    expect(backward).toEqual(forward)
+    expect(forward.history.map((h) => h.matchId)).toEqual(['m-a', 'm-a', 'm-b', 'm-b'])
+    expect(forward.history.find((h) => h.matchId === 'm-b' && h.userId === 'B')!.ratingBefore).toBe(984)
+  })
+
+  it('falls back to bracket 2 when a participant has no bracket', () => {
+    const { history } = replayRatings(
+      [match('m1', '2026-01-01T00:00:00Z', [p('A', { isWinner: true, bracket: null }), p('B', { bracket: 3 })])],
+      noMembers
+    )
+    const a = history.find((h) => h.userId === 'A')!
+    expect(a.playerBracket).toBe(2)
+    expect(a.delta).toBe(calculateRating({
+      playerId: 'A', playerRating: 1000, playerBracket: 2, playerMatchCount: 0, isWinner: true,
+      opponents: [{ rating: 1000, bracket: 3 }], formatId: FFA, collectionId: null,
+    }).delta)
+    // B sees A as a bracket-2 opponent.
+    expect(history.find((h) => h.userId === 'B')!.opponentAvgBracket).toBe(2)
+  })
+
   it('stamps the current algorithm version', () => {
     const { history } = replayRatings(
       [match('m1', '2026-01-01T00:00:00Z', [p('A', { isWinner: true }), p('B')])],
