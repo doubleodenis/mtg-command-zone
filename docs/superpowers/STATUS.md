@@ -24,7 +24,7 @@ row above it, so the top row is the base and merges first.
 |---|---|---|---|
 | Step 1: Match details nav + participants (B1, F5) | `plans/2026-09-30-match-details-nav-and-participants.md` | ✅ Done | Final review: 0 Critical/Important; 2 of 3 minors fixed (`44992c8`), 1 → rapid round R10 |
 | Plan A: Display fixes (B3, B4, F6) | `plans/2026-10-01-plan-a-display-fixes.md` | ✅ Done | Final review: 2 Important fixed (`bab875e`), 9 minors → rapid round R1–R9 |
-| Plan B: Rating correctness (B2, F4) | `plans/2026-10-01-plan-b-rating-correctness.md` | ⏳ Executing (subagent-driven, Fable implementers + reviewers, review after every task) | — |
+| Plan B: Rating correctness (B2, F4) | `plans/2026-10-01-plan-b-rating-correctness.md` | ✅ Implemented (pending final review) | Reviewed after every task; final review pending |
 | Plan C: Match editing (F2, F3) | not written | Waiting on Plan B | — |
 | Plan D: Comments + avatars (F1, F7) | not written | Not started | — |
 | Rapid round (14 small fixes) | `specs/2026-10-01-rapid-round-feedback.md` | Backlog | — |
@@ -37,14 +37,20 @@ truth for whether a plan is done.
 1. **Migration 029** (`mark_notifications_seen` by ID) must reach production
    **before** the Plan A app code. App-first breaks mark-seen (PGRST202).
    Failures report to Sentry.
-2. **Plan B, before merge:**
-   - Add the GitHub repo secret `SUPABASE_SECRET_KEY`.
-   - Deploy migrations 030 and 031 before the app.
-   - Do a dry run of the nightly replay against production (read-only) and
-     review the per-player diff before the first real write. See
-     `docs/runbooks/rating-recalc.md` (created by Plan B).
-   - Run the one-time repair in that runbook. The playtest match's dirty flag
-     was cleared by the broken SQL recalc.
+2. **Plan B** (full steps: `docs/runbooks/rating-recalc.md`, "First-run
+   sequence"):
+   1. Create a Supabase secret key and add it as the GitHub repo secret
+      `SUPABASE_SECRET_KEY`.
+   2. Merge the PR. CI's **Deploy Migrations to Production** job applies 030
+      and 031 (030 also unschedules the old pg_cron job); wait for it to go
+      green before relying on the new app behaviour.
+   3. Run **Nightly Rating Recalc** manually with **force** + **dry_run**. It
+      reads production and writes nothing; review the per-player diff.
+   4. Set the repo variable `RATING_REPLAY_WRITE_ENABLED` = `true`.
+   5. Run the workflow manually with **force** only (no dry_run): the first
+      real write. It also serves as the one-time repair of the playtest match
+      whose dirty flag the broken SQL recalc cleared. From then on the
+      schedule writes too.
 
 ## Decisions (user)
 

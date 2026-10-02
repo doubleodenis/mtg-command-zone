@@ -30,7 +30,7 @@ npm run test:coverage    # Coverage report
 
 # Rating scripts (run against real DB via tsx)
 npm run ratings:recalculate          # Full recalculation from scratch
-npm run ratings:recalculate-dirty    # Only dirty matches (bracket changed post-confirm)
+npm run ratings:recalculate-if-dirty   # Replay only if a match is dirty (what the nightly job runs)
 ```
 
 ---
@@ -88,7 +88,7 @@ src/
 │   └── index.ts            # Re-exports
 ├── middleware.ts            # Auth session + protected route redirects
 supabase/
-├── migrations/             # Numbered SQL migrations (001–020)
+├── migrations/             # Numbered SQL migrations (001–031)
 ├── seeds/                  # Seed scripts for dev
 └── snippets/               # Utility SQL snippets
 scripts/                    # tsx scripts for DB maintenance
@@ -149,7 +149,7 @@ Key components:
 - Global rating (per format)
 - Collection-scoped rating (per format × collection, for every collection the match belongs to)
 
-**Dirty match recalculation** — When a deck's bracket is updated post-confirmation, the match is flagged `is_dirty`. A nightly PL/pgSQL procedure `recalculate_dirty_matches()` re-runs affected ratings. The `pg_cron` job at 4am UTC is enabled (`024_enable_nightly_recalc_cron.sql`).
+**Nightly replay** — `src/lib/rating-replay.ts` is the canonical rating computation: it replays every confirmed match chronologically (global + membership-aware collection scopes). The **Nightly Rating Recalc** GitHub Action (`.github/workflows/nightly-rating-recalc.yml`, 04:00 UTC) runs `scripts/recalculate-ratings.ts --if-dirty` and swaps the result in atomically via `apply_rating_replay` (migration 030). Confirm-time rating updates are an approximation the replay corrects. Collection actions (member joins, match added/approved, auto-confirm) only flag matches dirty (migration 031); their collection ratings appear after the next replay. Runbook: `docs/runbooks/rating-recalc.md`.
 
 ---
 
@@ -207,8 +207,8 @@ Phases 1–10 are complete. Active work:
 
 **Resolved (previously listed here, verified fixed in code):**
 - Deck bracket update not recalculating ratings correctly — fixed in `accd6a2` ("fixed dirty match rating recalculation"); `/api/debug/recalculate` (dev-only) and `MatchDebugPanel` remain as diagnostic tooling, not evidence of an open bug
-- `pg_cron` job for nightly dirty-match recalc not enabled — enabled via `024_enable_nightly_recalc_cron.sql` / commit `ec2cacd`
-- Full rating recalculation missing `algorithm_version` stamp — `apply_rating_change()` (migration 006), `recalculate-ratings.ts`, and `recalculate_dirty_matches()` (migration 018) all stamp `algorithm_version` on every written row
+- Nightly dirty-match recalc not running — historical: the `pg_cron` job (024) and its SQL procedure `recalculate_dirty_matches()` (018) never succeeded in production and were retired in migration 030; superseded by the Nightly Rating Recalc GitHub Action (see Rating System → Nightly replay)
+- Full rating recalculation missing `algorithm_version` stamp — `apply_rating_change()` (migration 006) and the nightly replay (`recalculate-ratings.ts` → `apply_rating_replay`, migration 030) stamp `algorithm_version` on every written row
 
 ---
 

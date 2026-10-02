@@ -388,3 +388,53 @@ the persistent surfaces never showed the notification.
 - Check the friend's `confirmed_at` on the shared match and whether a
   collection `ratings` row exists. If they confirmed *before* being added,
   confirming again won't fix the leaderboard (B2).
+
+---
+
+## Findings 2026-10-01
+
+Investigation for B2 found that the rating recalc itself was broken. These
+findings drove Plan B (`docs/superpowers/plans/2026-10-01-plan-b-rating-correctness.md`).
+
+1. **The nightly SQL recalc has never succeeded.** It ran 15 times in prod
+   since 2026-09-17 with 0 successes. `recalculate_dirty_matches()` calls
+   `upsert_rating_history(user, format, collection, match, …)`, but the
+   function takes `(user, match, format, collection, …)`. All four are UUIDs,
+   so the values land in the wrong columns, and global rows hit
+   `format_id NOT NULL`. It then clears the dirty flags anyway. Reproduced
+   locally. Last night it failed for 2 users and cleared the flag on the
+   playtest match.
+2. **The procedure's design is order-dependent too.** Each user is replayed
+   against opponents' *current* ratings, which other iterations in the same
+   loop are resetting.
+3. **There are three recalc implementations:** the SQL procedure, the
+   dirty-only TS script (doesn't cascade), and the full TS replay script. The
+   full replay is closest to right, but it:
+   - reads collection opponents after earlier players in the same match were
+     already updated,
+   - exits 0 on errors,
+   - resets everything first and then writes row by row, so a failure
+     mid-run leaves prod half-rebuilt.
+4. **Migration 028 blocks collection rating writes.** `apply_rating_change`
+   requires the caller to be in the match. `addMatchToCollection`,
+   `approveCollectionMatch` and auto-confirm write ratings and update other
+   players' rows from the acting user's session, so they fail silently
+   whenever that user wasn't in the match.
+5. **Prod has no non-member collection rating rows (checked).** No cleanup is
+   needed.
+
+### Decisions (2026-10-01, user)
+
+- Nightly recalc = the TS full replay run by a **GitHub Action**. Retire the SQL
+  procedure and pg_cron job.
+- Collection-scope ratings for late joiners, newly added or approved matches
+  and auto-confirmed members are written **by the nightly replay**. The app
+  only flags matches. Copy tells users "updates overnight".
+- Auto-confirm = **full confirm** (status + confirmed_at). Its ratings arrive
+  with the nightly replay. Still skips members on Unknown Deck.
+- Collection ratings require **membership** (already decided 2026-09-30).
+- The self-confirm path (a player confirming their own slot) keeps writing
+  global and collection ratings immediately. That's allowed under 028, and the
+  nightly replay corrects any approximation.
+
+**Status:** B2 and F4 are implemented on `fix/plan-b-rating-correctness`.

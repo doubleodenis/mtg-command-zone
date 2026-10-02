@@ -227,8 +227,9 @@ For a real recovery, also run the attack cases TC-SEC-10..19 from
    resolves IPv6-only), `SUPABASE_PROJECT_REF`, `SUPABASE_ACCESS_TOKEN`.
 3. Re-check Auth settings — providers, redirect URLs, and any password-strength
    settings — these live in project config, **not** in the dump.
-4. Re-enable the `pg_cron` nightly recalc if the new project lacks it
-   (migration 024).
+4. Point the **Nightly Rating Recalc** workflow at the new project: update the
+   `SUPABASE_SECRET_KEY` secret (and `NEXT_PUBLIC_SUPABASE_URL`). See
+   `docs/runbooks/rating-recalc.md`.
 5. Trigger `backup.yml` manually and confirm an archive lands from the *new*
    project.
 

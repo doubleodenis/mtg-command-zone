@@ -1,1 +1,0 @@
-CALL recalculate_dirty_matches(100)

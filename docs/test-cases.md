@@ -19,7 +19,7 @@ is meant to cover.
 
 **Actors** — `anon` (logged out), `owner` (match creator / resource owner),
 `participant` (in the match, not the creator), `stranger` (signed in,
-unrelated), `service_role` (maintenance scripts, pg_cron).
+unrelated), `service_role` (maintenance scripts, the nightly replay GitHub Action).
 
 Companion spec: `docs/superpowers/specs/2026-09-23-playtest-hardening-design.md`.
 
@@ -178,18 +178,16 @@ RPCs `is_collection_member`, `is_collection_owner`, `is_collection_public`
 ## 9. Dirty-match recalculation
 
 **Touches:** `matches.is_dirty` / `last_recalculated_at`, `rating_history`,
-`ratings`, `recalculation_log`; routines `get_dirty_matches_batch`,
-`start_recalculation_log`, `complete_recalculation_log`,
-`reset_ratings_for_recalculation`, `upsert_rating_history`,
-`update_user_rating`, `clear_match_dirty_flag`, procedure
-`recalculate_dirty_matches`
+`ratings`, `recalculation_log`; `apply_rating_replay` (migration 030, the
+atomic swap used by `scripts/recalculate-ratings.ts`). The old procedure
+`recalculate_dirty_matches` and its pg_cron job were retired in 030.
 
 | ID | Case | Expected |
 |---|---|---|
-| TC-RECALC-01 | `[ ]` `npm run ratings:recalculate-dirty` | Only dirty matches reprocessed; `is_dirty` cleared; `recalculation_log` opened and completed |
+| TC-RECALC-01 | `[ ]` `npm run ratings:recalculate-if-dirty` | No-op when nothing is dirty; otherwise full replay swapped in atomically, `is_dirty` cleared, `recalculation_log` opened and completed |
 | TC-RECALC-02 | `[ ]` `npm run ratings:recalculate` | Full rebuild reproduces current ratings from `rating_history` inputs |
-| TC-RECALC-03 | `[ ]` Every written row stamped `algorithm_version` | True for `apply_rating_change`, the scripts, and `recalculate_dirty_matches` |
-| TC-RECALC-04 | `[ ]` pg_cron job at 04:00 UTC | Runs as service_role; `auth.uid()` NULL so ownership checks bypass |
+| TC-RECALC-03 | `[ ]` Every written row stamped `algorithm_version` | True for `apply_rating_change` and the replay (`apply_rating_replay`) |
+| TC-RECALC-04 | `[ ]` Nightly Rating Recalc GitHub Action at 04:00 UTC | Runs the replay with `SUPABASE_SECRET_KEY` (service_role); scheduled writes only when `RATING_REPLAY_WRITE_ENABLED` is `true`, otherwise dry run |
 | TC-RECALC-05 | `[verified]` service_role bypasses every ownership check | `apply_rating_change`, `update_user_rating`, `mark_notifications_read` all succeed with `auth.uid() IS NULL` |
 | TC-RECALC-06 | `[ ]` Scripts refuse to run without `SUPABASE_SECRET_KEY` | Hard failure, no partial writes |
 
