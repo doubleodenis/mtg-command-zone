@@ -19,6 +19,7 @@ import type { Bracket } from '@/types/common'
 import { mapRatingRow, mapRatingHistoryRow } from '@/types/database-mappers'
 import { RATING_CONFIG } from '@/types/rating'
 import { ALGORITHM_VERSION } from '@/lib/rating'
+import { selectAutoResolvableParticipations } from '@/lib/confirmation'
 
 // ============================================
 // Rating Queries
@@ -934,7 +935,8 @@ export async function resolvePendingMatchesForNewFriends(
     .select(`
       id,
       user_id,
-      match:matches!inner(played_at, created_by)
+      match:matches!inner(played_at, created_by),
+      deck:decks!match_participants_deck_id_fkey(deck_name)
     `)
     .in('user_id', [userId1, userId2])
     .eq('participant_status', 'pending')
@@ -947,28 +949,21 @@ export async function resolvePendingMatchesForNewFriends(
     id: string
     user_id: string | null
     match: { played_at: string; created_by: string } | null
+    deck: { deck_name: string | null } | null
   }
 
-  const eligible = (pending as unknown as PendingRow[])
-    .filter((row) => {
-      const createdBy = row.match?.created_by
-      // The match's reporter must be the OTHER user in the pair relative to
-      // this row's own participant -- not just "anyone in the pair" -- so a
-      // reporter's own slot (always confirmed at creation today, but the
-      // filter should still say what it means) is never treated as eligible.
-      const otherUser = row.user_id === userId1 ? userId2 : userId1
-      return createdBy === otherUser
-    })
-    .sort(
-      (a, b) =>
-        new Date(a.match!.played_at).getTime() -
-        new Date(b.match!.played_at).getTime()
-    )
+  // Only rows reported by the other friend AND holding a real deck (spec F4:
+  // the DB trigger from migration 031 refuses deckless confirmations).
+  const eligible = selectAutoResolvableParticipations(
+    pending as unknown as PendingRow[],
+    userId1,
+    userId2
+  )
 
   let resolvedCount = 0
 
   for (const row of eligible) {
-    const { data: confirmedRows } = await client
+    const { data: confirmedRows, error: confirmError } = await client
       .from('match_participants')
       .update({
         participant_status: 'confirmed',
@@ -977,10 +972,12 @@ export async function resolvePendingMatchesForNewFriends(
       .eq('id', row.id)
       .select('id')
 
-    if (!confirmedRows || confirmedRows.length === 0) {
+    if (confirmError || !confirmedRows || confirmedRows.length === 0) {
+      // No confirmation happened, so no rating may be applied.
       console.error(
-        `[RATING] resolvePendingMatchesForNewFriends: FAILED to confirm participant ${row.id} - update matched 0 rows`
+        `[RATING] resolvePendingMatchesForNewFriends: FAILED to confirm participant ${row.id} - ${confirmError?.message ?? 'update matched 0 rows'}`
       )
+      continue
     }
 
     const applyResult = await applyParticipantRating(client, row.id)

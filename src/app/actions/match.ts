@@ -19,7 +19,12 @@ import {
   isCollectionMember,
 } from "@/lib/supabase/collections";
 import { getFriendshipStatus } from "@/lib/supabase/profiles";
-import { shouldAutoConfirmParticipant } from "@/lib/confirmation";
+import {
+  DECK_REQUIRED_MESSAGE,
+  hasConfirmableDeck,
+  isDeckRequiredError,
+  shouldAutoConfirmParticipant,
+} from "@/lib/confirmation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type {
   Result,
@@ -133,7 +138,7 @@ export async function logMatch(payload: {
   // Get all real participants (not placeholders)
   const { data: participants, error: participantsError } = await supabase
     .from("match_participants")
-    .select("id, user_id")
+    .select("id, user_id, deck_id")
     .eq("match_id", match.id)
     .not("user_id", "is", null);
 
@@ -142,6 +147,21 @@ export async function logMatch(payload: {
       success: false,
       error: `Failed to fetch participants: ${participantsError.message}`,
     };
+  }
+
+  // Spec F4: only a participant with a real deck can be auto-confirmed.
+  const deckIds = (participants ?? [])
+    .map((p) => p.deck_id)
+    .filter((id): id is string => id !== null);
+  const deckNameById = new Map<string, string | null>();
+  if (deckIds.length > 0) {
+    const { data: decks } = await supabase
+      .from("decks")
+      .select("id, deck_name")
+      .in("id", deckIds);
+    for (const d of decks ?? []) {
+      deckNameById.set(d.id, d.deck_name);
+    }
   }
 
   const now = new Date().toISOString();
@@ -169,11 +189,15 @@ export async function logMatch(payload: {
       reporterId: user.id,
       participantUserId: participant.user_id,
       friendshipStatus,
+      deck:
+        participant.deck_id && deckNameById.has(participant.deck_id)
+          ? { deckName: deckNameById.get(participant.deck_id) ?? null }
+          : null,
     });
 
     if (!shouldConfirm) continue; // stays 'pending' -- notification already fires via DB trigger
 
-    const { data: confirmedRows } = await supabase
+    const { data: confirmedRows, error: confirmError } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
@@ -182,10 +206,13 @@ export async function logMatch(payload: {
       .eq("id", participant.id)
       .select("id");
 
-    if (!confirmedRows || confirmedRows.length === 0) {
+    if (confirmError || !confirmedRows || confirmedRows.length === 0) {
+      // No confirmation happened, so no rating may be applied; the
+      // participant stays pending and confirms themselves later.
       console.error(
-        `[RATING] logMatch: FAILED to confirm participant ${participant.id} - update matched 0 rows`,
+        `[RATING] logMatch: FAILED to confirm participant ${participant.id} - ${confirmError?.message ?? "update matched 0 rows"}`,
       );
+      continue;
     }
 
     const applyResult = await applyParticipantRating(supabase, participant.id);
@@ -278,8 +305,20 @@ export async function confirmMatch(
     }
   }
 
+  // Spec F4: a confirmation only counts with a real deck. The DB trigger
+  // (migration 031) enforces it too; checking here gives a clear message.
+  const { data: deckRow } = await supabase
+    .from("match_participants")
+    .select("deck:decks!match_participants_deck_id_fkey(deck_name)")
+    .eq("id", participantId)
+    .single();
+  const deck = deckRow?.deck ?? null;
+  if (!hasConfirmableDeck(deck ? { deckName: deck.deck_name } : null)) {
+    return { success: false, error: DECK_REQUIRED_MESSAGE };
+  }
+
   if (participant.participant_status === "pending") {
-    const { data: confirmedRows } = await supabase
+    const { data: confirmedRows, error: confirmError } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
@@ -288,10 +327,17 @@ export async function confirmMatch(
       .eq("id", participantId)
       .select("id");
 
-    if (!confirmedRows || confirmedRows.length === 0) {
+    if (confirmError || !confirmedRows || confirmedRows.length === 0) {
+      // No confirmation happened, so no rating may be applied.
       console.error(
-        `[RATING] confirmMatch: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+        `[RATING] confirmMatch: FAILED to confirm participant ${participantId} - ${confirmError?.message ?? "update matched 0 rows"}`,
       );
+      return {
+        success: false,
+        error: isDeckRequiredError(confirmError)
+          ? DECK_REQUIRED_MESSAGE
+          : "Failed to confirm match participation",
+      };
     }
   }
 
@@ -569,6 +615,9 @@ export async function claimSlotWithAutoApproval(participantId: string): Promise<
       claim_status, 
       claimed_by,
       placeholder_name,
+      deck:decks!match_participants_deck_id_fkey (
+        deck_name
+      ),
       match:matches!inner (
         id,
         format_id,
@@ -655,10 +704,13 @@ export async function claimSlotWithAutoApproval(participantId: string): Promise<
     reporterId: match.created_by,
     participantUserId: user.id,
     friendshipStatus: isAlreadyFriend ? "accepted" : null,
+    // A claimed slot usually holds no deck or the Unknown Deck placeholder,
+    // so it stays pending until the claimant picks a deck (spec F4).
+    deck: participant.deck ? { deckName: participant.deck.deck_name } : null,
   });
 
   if (shouldConfirm) {
-    const { data: confirmedRows } = await supabase
+    const { data: confirmedRows, error: confirmError } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
@@ -667,17 +719,19 @@ export async function claimSlotWithAutoApproval(participantId: string): Promise<
       .eq("id", participantId)
       .select("id");
 
-    if (!confirmedRows || confirmedRows.length === 0) {
+    if (confirmError || !confirmedRows || confirmedRows.length === 0) {
+      // No confirmation happened, so no rating may be applied; the slot
+      // stays pending and the claimant confirms themselves later.
       console.error(
-        `[RATING] claimSlotWithAutoApproval: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+        `[RATING] claimSlotWithAutoApproval: FAILED to confirm participant ${participantId} - ${confirmError?.message ?? "update matched 0 rows"}`,
       );
-    }
-
-    const applyResult = await applyParticipantRating(supabase, participantId);
-    if (!applyResult.success) {
-      console.error(
-        `[RATING] claimSlotWithAutoApproval: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
-      );
+    } else {
+      const applyResult = await applyParticipantRating(supabase, participantId);
+      if (!applyResult.success) {
+        console.error(
+          `[RATING] claimSlotWithAutoApproval: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+        );
+      }
     }
   }
 
@@ -777,6 +831,9 @@ export async function approveClaimRequest(
       match_id,
       claim_status,
       claimed_by,
+      deck:decks!match_participants_deck_id_fkey (
+        deck_name
+      ),
       match:matches!inner (
         created_by
       )
@@ -822,10 +879,13 @@ export async function approveClaimRequest(
     reporterId: match.created_by,
     participantUserId: participant.claimed_by!,
     friendshipStatus,
+    // A claimed slot usually holds no deck or the Unknown Deck placeholder,
+    // so it stays pending until the claimant picks a deck (spec F4).
+    deck: participant.deck ? { deckName: participant.deck.deck_name } : null,
   });
 
   if (shouldConfirm) {
-    const { data: confirmedRows } = await supabase
+    const { data: confirmedRows, error: confirmError } = await supabase
       .from("match_participants")
       .update({
         participant_status: "confirmed" as ParticipantStatus,
@@ -834,17 +894,19 @@ export async function approveClaimRequest(
       .eq("id", participantId)
       .select("id");
 
-    if (!confirmedRows || confirmedRows.length === 0) {
+    if (confirmError || !confirmedRows || confirmedRows.length === 0) {
+      // No confirmation happened, so no rating may be applied; the slot
+      // stays pending and the claimant confirms themselves later.
       console.error(
-        `[RATING] approveClaimRequest: FAILED to confirm participant ${participantId} - update matched 0 rows`,
+        `[RATING] approveClaimRequest: FAILED to confirm participant ${participantId} - ${confirmError?.message ?? "update matched 0 rows"}`,
       );
-    }
-
-    const applyResult = await applyParticipantRating(supabase, participantId);
-    if (!applyResult.success) {
-      console.error(
-        `[RATING] approveClaimRequest: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
-      );
+    } else {
+      const applyResult = await applyParticipantRating(supabase, participantId);
+      if (!applyResult.success) {
+        console.error(
+          `[RATING] approveClaimRequest: FAILED to apply rating for participant ${participantId} - ${applyResult.error}`,
+        );
+      }
     }
   }
   // else: stays pending -- the claimant confirms themselves via confirmMatch()
