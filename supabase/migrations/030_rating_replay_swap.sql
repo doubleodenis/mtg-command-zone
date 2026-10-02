@@ -127,13 +127,31 @@ BEGIN
   -- Every ratings row must agree with the history written for its scope:
   -- matches played, wins, and the latest rating_after. A row with games but
   -- no history is equally wrong.
-  WITH h AS (
-    SELECT user_id, format_id, collection_id,
+  --
+  -- "Latest" is the LAST element of p_history for that scope (payload order
+  -- is the replay's chronological order), not the max created_at: the replay
+  -- orders by played_at at millisecond precision then match id, so two
+  -- matches played in the same millisecond can sort opposite to their
+  -- microsecond created_at.
+  WITH payload_last AS (
+    SELECT DISTINCT ON (x.user_id, x.format_id, x.collection_id)
+           x.user_id, x.format_id, x.collection_id, x.rating_after AS last_rating
+    FROM jsonb_array_elements(p_history) WITH ORDINALITY AS e(elem, ord)
+    CROSS JOIN LATERAL jsonb_to_record(e.elem) AS x(
+      user_id UUID, format_id UUID, collection_id UUID, rating_after INTEGER
+    )
+    ORDER BY x.user_id, x.format_id, x.collection_id, e.ord DESC
+  ),
+  h AS (
+    SELECT rh.user_id, rh.format_id, rh.collection_id,
            COUNT(*) AS n,
-           COUNT(*) FILTER (WHERE is_win) AS w,
-           (ARRAY_AGG(rating_after ORDER BY created_at DESC))[1] AS last_rating
-    FROM rating_history
-    GROUP BY user_id, format_id, collection_id
+           COUNT(*) FILTER (WHERE rh.is_win) AS w,
+           MAX(pl.last_rating) AS last_rating
+    FROM rating_history rh
+    LEFT JOIN payload_last pl ON pl.user_id = rh.user_id
+                             AND pl.format_id = rh.format_id
+                             AND pl.collection_id IS NOT DISTINCT FROM rh.collection_id
+    GROUP BY rh.user_id, rh.format_id, rh.collection_id
   )
   SELECT COUNT(*) INTO v_bad
   FROM ratings r
@@ -142,7 +160,8 @@ BEGIN
              AND h.collection_id IS NOT DISTINCT FROM r.collection_id
   WHERE (h.user_id IS NULL AND r.matches_played > 0)
      OR (h.user_id IS NOT NULL AND (
-           r.matches_played <> h.n OR r.wins <> h.w OR r.rating <> h.last_rating));
+           r.matches_played <> h.n OR r.wins <> h.w
+           OR r.rating IS DISTINCT FROM h.last_rating));
 
   -- ...and every history scope must have a ratings row.
   SELECT v_bad + COUNT(*) INTO v_bad
