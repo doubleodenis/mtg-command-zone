@@ -46,7 +46,7 @@ describe("NotificationDropdown", () => {
   it("shows a notification that arrives over realtime after mount", async () => {
     const invite = notification("n2", {
       type: "collection_invite",
-      data: { collection_id: "c1", collection_name: "Groupies", owner_id: "owner", owner_username: "owner", owner_avatar_url: null, role: "member" },
+      data: { collection_id: "c1", collection_name: "Test Collection", owner_id: "owner", owner_username: "owner", owner_avatar_url: null, role: "member" },
     });
     getNotifications.mockResolvedValue({ success: true, data: [invite, notification("n1")] });
     getUnseenNotificationCount.mockResolvedValue({ success: true, data: 2 });
