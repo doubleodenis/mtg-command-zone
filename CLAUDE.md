@@ -30,7 +30,7 @@ npm run test:coverage    # Coverage report
 
 # Rating scripts (run against real DB via tsx)
 npm run ratings:recalculate          # Full recalculation from scratch
-npm run ratings:recalculate-if-dirty   # Replay only if a match is dirty (what the nightly job runs)
+npm run ratings:recalculate-if-dirty   # Replay only if a match is dirty (manual option; the nightly job does a full replay)
 ```
 
 ---
@@ -145,11 +145,13 @@ Key components:
 
 **Algorithm version** — `ALGORITHM_VERSION` constant in `rating.ts`. Increment when the formula changes; stored in `rating_history.algorithm_version` for audit trail.
 
-**Rating scope** — Every confirmation updates two parallel tracks simultaneously:
+**Rating scope** — Ratings live on two parallel tracks:
 - Global rating (per format)
-- Collection-scoped rating (per format × collection, for every collection the match belongs to)
+- Collection-scoped rating (per format × collection, for every collection the match belongs to; members only)
 
-**Nightly replay** — `src/lib/rating-replay.ts` is the canonical rating computation: it replays every confirmed match chronologically (global + membership-aware collection scopes). The **Nightly Rating Recalc** GitHub Action (`.github/workflows/nightly-rating-recalc.yml`, 04:00 UTC) runs `scripts/recalculate-ratings.ts --if-dirty` and swaps the result in atomically via `apply_rating_replay` (migration 030). Confirm-time rating updates are an approximation the replay corrects. Collection actions (member joins, match added/approved, auto-confirm) only flag matches dirty (migration 031); their collection ratings appear after the next replay. Runbook: `docs/runbooks/rating-recalc.md`.
+When a player confirms (self-confirm path), the app writes their global and collection ratings immediately — an approximation. Collection actions (member joins, match added/approved, auto-confirm) write no ratings; they only flag matches. The nightly full replay is canonical and overwrites both tracks.
+
+**Nightly replay** — `src/lib/rating-replay.ts` is the canonical rating computation: it replays every confirmed match chronologically (global + membership-aware collection scopes). The **Nightly Rating Recalc** GitHub Action (`.github/workflows/nightly-rating-recalc.yml`, 04:00 UTC) runs `scripts/recalculate-ratings.ts` nightly (full replay) and swaps the result in atomically via `apply_rating_replay` (migration 030). Confirm-time rating updates are an approximation the replay corrects. `matches.is_dirty` is set by deck/bracket edits after confirmation (`mark_match_dirty`) and by collection actions (member joins, match added/approved, auto-confirm; migration 031). The flags mainly record what changed: several changes (self-confirm in a collection, collection removals, deck deletions, members who join unconfirmed) set none, so the scheduled run replays fully regardless; `--if-dirty` is a manual option only. Collection ratings from collection actions appear after the next replay. Local non-dry runs refuse non-local hosts outside GitHub Actions (`--confirm-host` is break-glass). Runbook: `docs/runbooks/rating-recalc.md`.
 
 ---
 
@@ -206,7 +208,7 @@ Phases 1–10 are complete. Active work:
 - None currently tracked.
 
 **Resolved (previously listed here, verified fixed in code):**
-- Deck bracket update not recalculating ratings correctly — fixed in `accd6a2` ("fixed dirty match rating recalculation"); `/api/debug/recalculate` (dev-only) and `MatchDebugPanel` remain as diagnostic tooling, not evidence of an open bug
+- Deck bracket update not recalculating ratings correctly — historical: addressed at the time by `accd6a2` ("fixed dirty match rating recalculation"), but the dirty-match recalc it fed never succeeded in production (see the next bullet); superseded by the nightly full replay (see Rating System → Nightly replay), which recomputes bracket changes from the current deck brackets. `/api/debug/recalculate` (dev-only) and `MatchDebugPanel` remain as diagnostic tooling, not evidence of an open bug
 - Nightly dirty-match recalc not running — historical: the `pg_cron` job (024) and its SQL procedure `recalculate_dirty_matches()` (018) never succeeded in production and were retired in migration 030; superseded by the Nightly Rating Recalc GitHub Action (see Rating System → Nightly replay)
 - Full rating recalculation missing `algorithm_version` stamp — `apply_rating_change()` (migration 006) and the nightly replay (`recalculate-ratings.ts` → `apply_rating_replay`, migration 030) stamp `algorithm_version` on every written row
 

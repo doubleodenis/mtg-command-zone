@@ -2,10 +2,15 @@
 
 Ratings are rebuilt by replaying every confirmed match in order
 (`src/lib/rating-replay.ts`). The **Nightly Rating Recalc** GitHub Action runs it
-at 04:00 UTC whenever a match is dirty and swaps the result in atomically
-(`apply_rating_replay`, migration 030). Collection ratings for late joiners,
-newly added/approved matches and auto-confirmed members only appear after
-this run.
+at 04:00 UTC and swaps the result in atomically (`apply_rating_replay`,
+migration 030). The scheduled run is always a **full replay**: several
+changes (self-confirm in a collection, collection removals, deck edits or
+deletions, members who join unconfirmed, hand-edited values) alter the
+canonical result without setting any dirty flag, so it can't wait for one.
+Dirty flags (`matches.is_dirty`) now mainly record what changed; manual runs
+use them via `--if-dirty` unless **force** is ticked. Collection ratings for
+late joiners, newly added/approved matches and auto-confirmed members only
+appear after this run.
 
 **Write gate.** Scheduled runs only write when the repo variable
 `RATING_REPLAY_WRITE_ENABLED` is `true`. Until it is set, every scheduled run
@@ -31,21 +36,38 @@ variable and do exactly what their **force** / **dry_run** inputs say.
    approximations corrected, late joiners gaining collection ratings).
 6. GitHub → Settings → Secrets and variables → Actions → Variables → add
    `RATING_REPLAY_WRITE_ENABLED` = `true`.
-7. Run the workflow manually with **force** ticked (and **dry_run** not
-   ticked). This is the first real write. From now on the schedule writes too.
+7. GitHub → Actions → **Nightly Database Backup** (`backup.yml`) → Run
+   workflow, and wait for it to go green. The next step replaces every
+   confirm-time `rating_history` snapshot irreversibly; this dump is the only
+   way back.
+8. Run the Nightly Rating Recalc workflow manually with **force** ticked (and
+   **dry_run** not ticked). This is the first real write. From now on the
+   schedule writes too.
 
 Alternative to step 4, before merging: run a local dry run against
-production. Export the production URL and secret key in the shell only
-(never write them to `.env.local` or any other file):
+production. Run it in a subshell so the variables die with it, and type the
+key at a silent prompt so it never reaches the screen or shell history
+(never write either value to `.env.local` or any other file):
 
-    export NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
-    export SUPABASE_SECRET_KEY=<secret key>
-    npx tsx scripts/recalculate-ratings.ts --dry-run
+    (
+      read -rp 'Production Supabase URL: ' NEXT_PUBLIC_SUPABASE_URL
+      read -rsp 'Production secret key: ' SUPABASE_SECRET_KEY; echo
+      export NEXT_PUBLIC_SUPABASE_URL SUPABASE_SECRET_KEY
+      npx tsx scripts/recalculate-ratings.ts --dry-run
+    )
+
+The script prints its target host first. Without `--dry-run` it refuses any
+host other than `127.0.0.1`/`localhost` outside GitHub Actions.
 
 ## Run it now
 GitHub → Actions → Nightly Rating Recalc → Run workflow (tick **force** to
-replay even with nothing dirty). Locally against a project:
+replay even with nothing dirty). Production writes go through this workflow.
+
+Local non-dry runs are for **local** databases (`npx supabase start`):
 `npx tsx scripts/recalculate-ratings.ts --dry-run` first, then without it.
+Against any other host the script refuses to write unless given
+`--confirm-host=<exact host>`; that flag is an explicit break-glass for when
+the workflow is unavailable, not a routine path.
 
 ## If it fails
 The swap is one transaction, so a failed swap changes nothing. The job log
@@ -76,6 +98,6 @@ Notifications → Actions) so that failures reach whoever owns this job.
 ## One-time data repair (playtest match, 2026-09-30)
 The old SQL recalc cleared the dirty flag on the playtest match without
 recalculating it. No SQL is needed: the replay is global, so the first
-forced, non-dry run in the first-run sequence (step 7) rebuilds every
+forced, non-dry run in the first-run sequence (step 8) rebuilds every
 rating, including that match. Afterwards, check the collection
 leaderboard.

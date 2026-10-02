@@ -16,7 +16,7 @@ row above it, so the top row is the base and merges first.
 | `docs/playtest-feedback-2026-09-30` | `b4e53d3` | Spec + step 1 plan |
 | `fix/match-details-nav-participants` | `44992c8` | Step 1: match details nav, clickable participants, per-participant bracket |
 | `fix/plan-a-display-fixes` | `bd0d2f8` | Plan A: Top Commanders, Compared to You copy, notifications (+ migration 029), rapid-round backlog |
-| `fix/plan-b-rating-correctness` | see `git log` | Plan B: rating correctness. **In progress.** |
+| `fix/plan-b-rating-correctness` | see `git log` | Plan B: rating correctness. Implemented; final-review fixes applied. |
 
 ## Plans
 
@@ -24,7 +24,7 @@ row above it, so the top row is the base and merges first.
 |---|---|---|---|
 | Step 1: Match details nav + participants (B1, F5) | `plans/2026-09-30-match-details-nav-and-participants.md` | ✅ Done | Final review: 0 Critical/Important; 2 of 3 minors fixed (`44992c8`), 1 → rapid round R10 |
 | Plan A: Display fixes (B3, B4, F6) | `plans/2026-10-01-plan-a-display-fixes.md` | ✅ Done | Final review: 2 Important fixed (`bab875e`), 9 minors → rapid round R1–R9 |
-| Plan B: Rating correctness (B2, F4) | `plans/2026-10-01-plan-b-rating-correctness.md` | ✅ Implemented (pending final review) | Reviewed after every task; final review pending |
+| Plan B: Rating correctness (B2, F4) | `plans/2026-10-01-plan-b-rating-correctness.md` | ✅ Implemented; final-review fixes applied | Reviewed after every task; final review: 3 Important + minors fixed in the final fix wave |
 | Plan C: Match editing (F2, F3) | not written | Waiting on Plan B | — |
 | Plan D: Comments + avatars (F1, F7) | not written | Not started | — |
 | Rapid round (14 small fixes) | `specs/2026-10-01-rapid-round-feedback.md` | Backlog | — |
@@ -47,10 +47,14 @@ truth for whether a plan is done.
    3. Run **Nightly Rating Recalc** manually with **force** + **dry_run**. It
       reads production and writes nothing; review the per-player diff.
    4. Set the repo variable `RATING_REPLAY_WRITE_ENABLED` = `true`.
-   5. Run the workflow manually with **force** only (no dry_run): the first
+   5. Run **Nightly Database Backup** (`backup.yml`) manually and wait for it
+      to go green: the first write replaces every confirm-time
+      `rating_history` snapshot irreversibly.
+   6. Run the workflow manually with **force** only (no dry_run): the first
       real write. It also serves as the one-time repair of the playtest match
       whose dirty flag the broken SQL recalc cleared. From then on the
-      schedule writes too.
+      schedule writes too (a full replay every night, not only when a match
+      is dirty).
 
 ## Decisions (user)
 

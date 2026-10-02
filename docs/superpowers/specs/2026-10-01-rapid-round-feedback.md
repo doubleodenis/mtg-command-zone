@@ -24,7 +24,7 @@ Line numbers are as of commit `709bcc3`.
 | R11 | Match Details header crowds its badges at 375px | Match Details | S |
 | R12 | Logged-out visitors see signed-in tabs on public pages | Navigation | M |
 | R13 | Some `/player/` links don't encode the username | Links | S |
-| R14 | CLAUDE.md says migrations are "001–020" | Docs | S |
+| R14 | ~~CLAUDE.md says migrations are "001–020"~~ ✅ Done (`033f1c4`) | Docs | S |
 
 ---
 
@@ -155,6 +155,7 @@ Line numbers are as of commit `709bcc3`.
 ## Docs
 
 ### R14 — CLAUDE.md says migrations are "001–020"
+**Status:** ✅ Done — fixed in `033f1c4` (CLAUDE.md now says "001–031").
 - **Where:** `CLAUDE.md:91`
 - **Fix:** update it to "001–029", or drop the range so it doesn't go stale
   again.
