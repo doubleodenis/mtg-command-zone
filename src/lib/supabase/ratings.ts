@@ -19,6 +19,7 @@ import type { Bracket } from '@/types/common'
 import { mapRatingRow, mapRatingHistoryRow } from '@/types/database-mappers'
 import { RATING_CONFIG } from '@/types/rating'
 import { ALGORITHM_VERSION } from '@/lib/rating'
+import { selectAutoResolvableParticipations } from '@/lib/confirmation'
 
 // ============================================
 // Rating Queries
@@ -715,136 +716,6 @@ export async function updateCollectionRatings(
   return { success: true, data: results }
 }
 
-/**
- * Apply collection-scoped rating changes for all confirmed participants of a match.
- *
- * Called when a match is added/approved to a collection. Iterates every confirmed
- * real participant, checks if they're a member of the collection, and applies their
- * rating change using collection-scoped ratings for both the player and opponents.
- */
-export async function applyMatchCollectionRatings(
-  client: SupabaseClient<Database>,
-  params: {
-    matchId: string
-    collectionId: string
-    algorithmVersion: number
-  }
-): Promise<Result<null>> {
-  const { calculateRating } = await import('@/lib/rating')
-
-  // Load match format + all confirmed participants with deck info
-  const { data: match, error: matchError } = await client
-    .from('matches')
-    .select(`
-      format_id,
-      match_participants (
-        id,
-        user_id,
-        is_winner,
-        confirmed_at,
-        deck:decks!match_participants_deck_id_fkey ( bracket )
-      )
-    `)
-    .eq('id', params.matchId)
-    .single()
-
-  if (matchError || !match) {
-    return { success: false, error: matchError?.message ?? 'Match not found' }
-  }
-
-  const confirmed = match.match_participants.filter((p) => p.user_id && p.confirmed_at)
-  if (confirmed.length === 0) return { success: true, data: null }
-
-  // Load collection members so we only rate participants who belong to this collection
-  const { data: members, error: membersError } = await client
-    .from('collection_members')
-    .select('user_id')
-    .eq('collection_id', params.collectionId)
-
-  if (membersError) {
-    return { success: false, error: membersError.message }
-  }
-
-  const memberIds = new Set((members ?? []).map((m) => m.user_id))
-
-  // Participants who are both confirmed and members of this collection
-  const ratedParticipants = confirmed.filter((p) => memberIds.has(p.user_id!))
-  if (ratedParticipants.length === 0) return { success: true, data: null }
-
-  // Pre-fetch collection-scoped ratings for all rated participants (and use as opponents)
-  const ratingSnapshots = new Map<string, number>()
-  for (const p of ratedParticipants) {
-    const r = await getRating(client, p.user_id!, match.format_id, params.collectionId)
-    ratingSnapshots.set(p.user_id!, r.success ? r.data.rating : RATING_CONFIG.defaultRating)
-  }
-
-  for (const participant of ratedParticipants) {
-    const collRatingResult = await getRating(
-      client,
-      participant.user_id!,
-      match.format_id,
-      params.collectionId
-    )
-    if (!collRatingResult.success) continue
-
-    const collRating = collRatingResult.data
-
-    // Opponents = other confirmed member participants using their snapshotted collection rating.
-    // Fall back to all confirmed participants (global ratings) if no other members present.
-    const memberOpponents = ratedParticipants
-      .filter((p) => p.user_id !== participant.user_id)
-      .map((p) => ({
-        rating: ratingSnapshots.get(p.user_id!) ?? RATING_CONFIG.defaultRating,
-        bracket: (p.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
-      }))
-
-    const allOpponents = confirmed
-      .filter((p) => p.user_id !== participant.user_id)
-      .map((p) => ({
-        rating: RATING_CONFIG.defaultRating,
-        bracket: (p.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
-      }))
-
-    const opponents = memberOpponents.length > 0 ? memberOpponents : allOpponents
-
-    const ratingCalc = calculateRating({
-      playerId: participant.user_id!,
-      playerRating: collRating.rating,
-      playerBracket: (participant.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
-      playerMatchCount: collRating.matchesPlayed,
-      isWinner: participant.is_winner,
-      opponents,
-      formatId: match.format_id,
-      collectionId: params.collectionId,
-    })
-
-    const newRating = collRating.rating + ratingCalc.delta
-    const applyResult = await applyRatingChange(client, {
-      userId: participant.user_id!,
-      matchId: params.matchId,
-      formatId: match.format_id,
-      collectionId: params.collectionId,
-      newRating,
-      delta: ratingCalc.delta,
-      isWin: participant.is_winner,
-      playerBracket: (participant.deck?.bracket ?? RATING_CONFIG.defaultBracket) as Bracket,
-      opponentAvgRating: ratingCalc.opponentAvgRating,
-      opponentAvgBracket: ratingCalc.opponentAvgBracket,
-      kFactor: ratingCalc.kFactor,
-      algorithmVersion: params.algorithmVersion,
-    })
-
-    if (!applyResult.success) {
-      console.error(
-        `applyMatchCollectionRatings: failed for user ${participant.user_id} in collection ${params.collectionId}:`,
-        applyResult.error
-      )
-    }
-  }
-
-  return { success: true, data: null }
-}
-
 // ============================================
 // Shared Per-Participant Rating Application
 // ============================================
@@ -1064,7 +935,8 @@ export async function resolvePendingMatchesForNewFriends(
     .select(`
       id,
       user_id,
-      match:matches!inner(played_at, created_by)
+      match:matches!inner(played_at, created_by),
+      deck:decks!match_participants_deck_id_fkey(deck_name)
     `)
     .in('user_id', [userId1, userId2])
     .eq('participant_status', 'pending')
@@ -1077,28 +949,21 @@ export async function resolvePendingMatchesForNewFriends(
     id: string
     user_id: string | null
     match: { played_at: string; created_by: string } | null
+    deck: { deck_name: string | null } | null
   }
 
-  const eligible = (pending as unknown as PendingRow[])
-    .filter((row) => {
-      const createdBy = row.match?.created_by
-      // The match's reporter must be the OTHER user in the pair relative to
-      // this row's own participant -- not just "anyone in the pair" -- so a
-      // reporter's own slot (always confirmed at creation today, but the
-      // filter should still say what it means) is never treated as eligible.
-      const otherUser = row.user_id === userId1 ? userId2 : userId1
-      return createdBy === otherUser
-    })
-    .sort(
-      (a, b) =>
-        new Date(a.match!.played_at).getTime() -
-        new Date(b.match!.played_at).getTime()
-    )
+  // Only rows reported by the other friend AND holding a real deck (spec F4:
+  // the DB trigger from migration 031 refuses deckless confirmations).
+  const eligible = selectAutoResolvableParticipations(
+    pending as unknown as PendingRow[],
+    userId1,
+    userId2
+  )
 
   let resolvedCount = 0
 
   for (const row of eligible) {
-    const { data: confirmedRows } = await client
+    const { data: confirmedRows, error: confirmError } = await client
       .from('match_participants')
       .update({
         participant_status: 'confirmed',
@@ -1107,10 +972,12 @@ export async function resolvePendingMatchesForNewFriends(
       .eq('id', row.id)
       .select('id')
 
-    if (!confirmedRows || confirmedRows.length === 0) {
+    if (confirmError || !confirmedRows || confirmedRows.length === 0) {
+      // No confirmation happened, so no rating may be applied.
       console.error(
-        `[RATING] resolvePendingMatchesForNewFriends: FAILED to confirm participant ${row.id} - update matched 0 rows`
+        `[RATING] resolvePendingMatchesForNewFriends: FAILED to confirm participant ${row.id} - ${confirmError?.message ?? 'update matched 0 rows'}`
       )
+      continue
     }
 
     const applyResult = await applyParticipantRating(client, row.id)

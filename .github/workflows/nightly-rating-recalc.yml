@@ -1,0 +1,66 @@
+name: Nightly Rating Recalc
+
+# Replays all confirmed matches (src/lib/rating-replay.ts) and swaps the result
+# in atomically (migration 030). Scheduled runs ALWAYS do a full replay: many
+# changes (self-confirm in a collection, collection removals, deck edits or
+# deletions, members who join unconfirmed, hand-edited values) alter the
+# canonical result without setting a dirty flag. Manual runs replay only if a
+# match is dirty, unless force is ticked.
+# Replaced the pg_cron job, whose SQL procedure never succeeded.
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 4am UTC daily
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Replay even if no match is dirty (scheduled runs always replay)'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Compute and print the per-player diff; write nothing'
+        type: boolean
+        default: false
+
+# Least privilege: the token can only read the repo (actions/checkout needs
+# that if the repo is ever private). It cannot write anything while npm ci
+# runs alongside the Supabase secret key.
+permissions:
+  contents: read
+
+# One replay at a time: a manual run during the scheduled one waits.
+concurrency:
+  group: nightly-rating-recalc
+  cancel-in-progress: false
+
+jobs:
+  recalc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Replay ratings
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          WRITE_ENABLED: ${{ vars.RATING_REPLAY_WRITE_ENABLED }}
+        run: |
+          ARGS=""
+          DRY_RUN="${{ inputs.dry_run }}"
+          # Scheduled: full replay every night. Manual: --if-dirty unless force.
+          if [ "${{ github.event_name }}" != "schedule" ] && [ "${{ inputs.force }}" != "true" ]; then
+            ARGS="--if-dirty"
+          fi
+          # Scheduled runs write only once an operator has reviewed a dry run
+          # and set the repo variable RATING_REPLAY_WRITE_ENABLED=true.
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$WRITE_ENABLED" != "true" ]; then
+            echo "RATING_REPLAY_WRITE_ENABLED is not 'true' — scheduled run is a dry run."
+            DRY_RUN="true"
+          fi
+          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          npx tsx scripts/recalculate-ratings.ts $ARGS

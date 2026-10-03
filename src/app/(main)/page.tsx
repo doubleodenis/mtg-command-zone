@@ -31,6 +31,7 @@ import {
   getUserPendingConfirmations,
   getUserCollectionActivities,
   getTopCommanders,
+  TOP_COMMANDER_EMPTY_LABEL,
 } from "@/lib/services";
 
 
@@ -171,8 +172,8 @@ async function GlobalDashboard() {
         )}
       </Section>
 
-      {/* Most Played Commanders */}
-      <Section title="POPULAR COMMANDERS">
+      {/* Top Commanders */}
+      <Section title="TOP COMMANDERS">
         <Card>
           <CardContent className="p-0">
             {topCommanders.length > 0 ? (
@@ -284,8 +285,8 @@ async function PersonalDashboard({ userId }: { userId: string }) {
     .sort((a, b) => b.stats.winRate - a.stats.winRate)[0] ?? userDecksWithStats[0] ?? null;
 
   // Top commander platform-wide
-  const topCommander = topCommandersResult.success && topCommandersResult.data.length > 0
-    ? topCommandersResult.data[0]
+  const topCommander = topCommandersResult.success
+    ? (topCommandersResult.data.find((c) => c.qualified) ?? null)
     : null;
 
   const recentMatches = recentMatchesResult.success 
@@ -339,7 +340,7 @@ async function PersonalDashboard({ userId }: { userId: string }) {
             label="Top Commander" 
             animatedValue={topCommander?.stats.winRate ?? 0} 
             suffix="%"
-            sublabel={topCommander?.commanderName ?? "No data"}
+            sublabel={topCommander?.commanderName ?? TOP_COMMANDER_EMPTY_LABEL}
           />
           <DashboardStatCard 
             label="Top Player WR" 

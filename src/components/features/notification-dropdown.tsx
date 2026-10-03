@@ -7,8 +7,10 @@ import { Bell, X, FileText, User, Users, Trophy } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { getNotifications, getUnseenNotificationCount, markNotificationsSeen } from "@/lib/supabase/notifications";
+import { subscribeToNotificationsChanged } from "@/lib/notification-events";
 import type { NotificationWithActor, NotificationType } from "@/types/notification";
-import { getNotificationTitle, getNotificationUrl } from "@/types/notification";
+import { getCollectionName, getNotificationTitle, getNotificationUrl } from "@/types/notification";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useEscapeKey } from "@/hooks/use-escape-key";
 
@@ -32,21 +34,41 @@ export function NotificationDropdown({
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
+  // Same limit as the navbar's server fetch.
+  const refresh = React.useCallback(async () => {
+    const supabase = createClient();
+    const [listResult, countResult] = await Promise.all([
+      getNotifications(supabase, userId, { limit: 10 }),
+      getUnseenNotificationCount(supabase, userId),
+    ]);
+    // On failure keep what we have rather than blanking the menu.
+    if (listResult.success) setNotifications(listResult.data);
+    if (countResult.success) setUnseenCount(countResult.data);
+  }, [userId]);
+
+  React.useEffect(
+    () => subscribeToNotificationsChanged(() => void refresh()),
+    [refresh]
+  );
+
   const closeDropdown = React.useCallback(() => setIsOpen(false), []);
   useClickOutside(dropdownRef, closeDropdown, isOpen);
   useEscapeKey(closeDropdown, isOpen);
 
-  // Mark notifications as seen when dropdown opens
+  // Mark only the notifications this menu actually shows as seen. Anything
+  // beyond the list stays unseen and keeps the badge up.
   const handleOpen = async () => {
     setIsOpen(true);
-    
-    if (unseenCount > 0) {
-      setUnseenCount(0);
-      const supabase = createClient();
-      await supabase.rpc("mark_notifications_seen", {
-        p_recipient_id: userId,
-      });
-    }
+
+    const unseenIds = notifications.filter((n) => !n.seenAt).map((n) => n.id);
+    if (unseenIds.length === 0) return;
+
+    const seenAt = new Date().toISOString();
+    setUnseenCount((count) => Math.max(0, count - unseenIds.length));
+    setNotifications((prev) =>
+      prev.map((n) => (unseenIds.includes(n.id) ? { ...n, seenAt } : n))
+    );
+    await markNotificationsSeen(createClient(), userId, unseenIds);
   };
 
   // Mark notification as read and navigate
@@ -289,7 +311,8 @@ function NotificationMessage({ notification }: { notification: NotificationWithA
     case "collection_invite":
       return (
         <>
-          <span className="font-medium">{actorName}</span> invited you to join a collection
+          <span className="font-medium">{actorName}</span> added you to{" "}
+          <span className="font-medium">{getCollectionName(data) ?? "a collection"}</span>
         </>
       );
     case "collection_match_added":

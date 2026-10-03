@@ -8,6 +8,7 @@ import { ColorIdentity } from "@/components/ui/mana-pip";
 import { BracketIndicator } from "@/components/ui/bracket-indicator";
 import { updateMatchParticipantDeck, confirmMatch } from "@/app/actions/match";
 import type { DeckSummary } from "@/types";
+import { PLACEHOLDER_DECK_NAME } from "@/types/deck";
 import type { ManaColor } from "@/app/_design-system";
 
 interface UpdateDeckModalProps {
@@ -34,17 +35,25 @@ export function UpdateDeckModal({
   isConfirmed,
   ratingsApplied = false,
 }: UpdateDeckModalProps) {
-  const [selectedDeckId, setSelectedDeckId] = React.useState<string | null>(currentDeckId);
+  // Spec F4: the Unknown Deck placeholder is never a deck you can pick or
+  // confirm with, and is never preselected.
+  const selectableDecks = React.useMemo(
+    () => decks.filter((d) => d.deckName !== PLACEHOLDER_DECK_NAME),
+    [decks]
+  );
+  const initialDeckId = selectableDecks.some((d) => d.id === currentDeckId) ? currentDeckId : null;
+
+  const [selectedDeckId, setSelectedDeckId] = React.useState<string | null>(initialDeckId);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   // Reset state when modal opens
   React.useEffect(() => {
     if (isOpen) {
-      setSelectedDeckId(currentDeckId);
+      setSelectedDeckId(initialDeckId);
       setError(null);
     }
-  }, [isOpen, currentDeckId]);
+  }, [isOpen, initialDeckId]);
 
   const handleSubmit = async () => {
     if (!selectedDeckId) {
@@ -126,9 +135,9 @@ export function UpdateDeckModal({
           )}
 
           {/* Deck list */}
-          {decks.length > 0 ? (
+          {selectableDecks.length > 0 ? (
             <div className="space-y-2 pb-4">
-              {decks.map((deck) => (
+              {selectableDecks.map((deck) => (
                 <button
                   key={deck.id}
                   type="button"
@@ -180,7 +189,7 @@ export function UpdateDeckModal({
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={isSubmitting || !selectedDeckId || decks.length === 0}
+            disabled={isSubmitting || !selectedDeckId || selectableDecks.length === 0}
           >
             {isSubmitting 
               ? (isConfirmed ? "Updating..." : "Confirming...") 

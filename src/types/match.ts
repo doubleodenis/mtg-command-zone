@@ -92,6 +92,8 @@ export type ParticipantDisplayInfo = {
   id: UUID
   userId: UUID | null // null for placeholder participants
   name: string
+  /** Profile username for linking to /player/[username]; null for placeholders */
+  username: string | null
   avatarUrl: string | null
   isRegistered: boolean
   isConfirmed: boolean

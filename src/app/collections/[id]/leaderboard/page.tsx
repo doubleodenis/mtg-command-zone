@@ -22,10 +22,15 @@ export default async function CollectionLeaderboardPage({ params }: PageProps) {
   const leaderboard = leaderboardResult.success ? leaderboardResult.data.entries : [];
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        <LeaderboardWithFilter entries={leaderboard} />
-      </CardContent>
-    </Card>
+    <>
+      <Card>
+        <CardContent className="p-0">
+          <LeaderboardWithFilter entries={leaderboard} />
+        </CardContent>
+      </Card>
+      <p className="mt-3 text-xs text-text-3">
+        New members and newly added matches count toward this leaderboard after the nightly update.
+      </p>
+    </>
   );
 }

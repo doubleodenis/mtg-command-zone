@@ -76,6 +76,8 @@ export {
   removeMatchFromCollection,
   getPendingMatchApprovals,
   getPendingMatchApprovalsWithDetails,
+  markCollectionMatchesDirty,
+  autoConfirmCollectionMembers,
 } from './collections'
 
 // Matches
@@ -106,7 +108,6 @@ export {
   getRatingHistoryEntry,
   applyRatingChange,
   updateCollectionRatings,
-  applyMatchCollectionRatings,
 } from './ratings'
 
 // Formats

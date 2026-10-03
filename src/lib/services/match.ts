@@ -17,6 +17,7 @@ import type { FormatSlug, ParticipantData } from '@/types/format'
 import type { RatingDelta } from '@/types/rating'
 import { mapDeckSummary, mapProfileSummary } from '@/types/database-mappers'
 import { calculateRating } from '@/lib/rating'
+import { hasConfirmableDeck } from '@/lib/confirmation'
 import { RATING_CONFIG } from '@/types/rating'
 
 // ============================================
@@ -348,6 +349,7 @@ async function transformMatchToCardData(
       name: profileSummary
         ? (profileSummary.displayName || profileSummary.username)
         : (p.placeholder_name ?? "Unknown"),
+      username: profileSummary?.username ?? null,
       avatarUrl: profileSummary?.avatarUrl ?? null,
       isRegistered: !!p.user_id,
       isConfirmed: !!p.confirmed_at,
@@ -413,7 +415,7 @@ export async function getUserPendingConfirmations(
   // Query participations without nested join to avoid PostgREST coercion issues
   const { data: participations, error } = await client
     .from('match_participants')
-    .select('id, match_id, deck_id, created_at')
+    .select('id, match_id, deck_id, created_at, deck:decks!match_participants_deck_id_fkey(deck_name)')
     .eq('user_id', userId)
     .is('confirmed_at', null)
 
@@ -443,6 +445,7 @@ async function transformToPendingConfirmation(
     match_id: string
     deck_id: string | null
     created_at: string | null
+    deck: { deck_name: string | null } | null
   }
 ): Promise<PendingConfirmation> {
   // Fetch match with format separately to avoid nested join issues
@@ -489,6 +492,9 @@ async function transformToPendingConfirmation(
       ratingsApplied: false, // If we have pending confirmation, ratings aren't applied yet
     },
     createdAt: participation.created_at ?? new Date().toISOString(),
-    hasDeckAssigned: participation.deck_id !== null,
+    // Spec F4: the Unknown Deck placeholder doesn't count as a deck.
+    hasDeckAssigned: hasConfirmableDeck(
+      participation.deck ? { deckName: participation.deck.deck_name } : null
+    ),
   }
 }

@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MatchPreviewCard, InviteLinkButton, MatchDebugPanel } from '@/components/match'
 import { AddToCollectionButton } from '@/components/match/add-to-collection-button'
-import { Navbar } from '@/components/features/navbar'
-import { ParticipantList } from './participant-list'
+import { ParticipantList } from '@/components/match/participant-list'
 import type { MatchCardData, DeckSummary } from '@/types'
 
 // Force dynamic rendering
@@ -87,9 +86,7 @@ export default async function MatchDetailsPage({ params }: PageProps) {
   const confirmedCount = match.participants.filter((p) => p.isConfirmed).length
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      
+    <main className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b border-card-border bg-card">
         <div className="max-w-4xl md:mx-auto px-4 py-6">
@@ -203,6 +200,7 @@ export default async function MatchDetailsPage({ params }: PageProps) {
               participants={match.participants.map((p) => ({
                 id: p.id,
                 name: p.name,
+                username: p.username,
                 avatarUrl: p.avatarUrl,
                 userId: p.userId,
                 isWinner: p.isWinner,
@@ -242,6 +240,6 @@ export default async function MatchDetailsPage({ params }: PageProps) {
           ratingsAppliedAt={match.ratingsAppliedAt}
         />
       </div>
-    </div>
+    </main>
   )
 }

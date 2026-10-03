@@ -1,13 +1,10 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Navbar } from '@/components/features/navbar'
 
 export default function MatchNotFound() {
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-      
       <div className="max-w-4xl md:mx-auto px-4 py-16">
         <Card className="max-w-md mx-auto text-center">
           <CardHeader>
