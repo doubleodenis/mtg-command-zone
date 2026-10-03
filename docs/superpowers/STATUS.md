@@ -6,7 +6,7 @@
 different model. Update it whenever a plan finishes, a branch merges, or
 something is deployed.
 
-## Branches (stacked, none pushed or merged)
+## Branches (stacked; Plan B pushed as PR #26, which contains all four)
 
 Each branch is cut from the one above it. Merging a branch brings in every
 row above it, so the top row is the base and merges first.
@@ -16,7 +16,7 @@ row above it, so the top row is the base and merges first.
 | `docs/playtest-feedback-2026-09-30` | `b4e53d3` | Spec + step 1 plan |
 | `fix/match-details-nav-participants` | `44992c8` | Step 1: match details nav, clickable participants, per-participant bracket |
 | `fix/plan-a-display-fixes` | `bd0d2f8` | Plan A: Top Commanders, Compared to You copy, notifications (+ migration 029), rapid-round backlog |
-| `fix/plan-b-rating-correctness` | `a81f92f` | Plan B: rating correctness. ✅ Done (final review clean). |
+| `fix/plan-b-rating-correctness` | `51ba8ee` | Plan B: rating correctness. ✅ Done (final review clean). **PR #26 → main** (includes every row above). |
 
 ## Plans
 
