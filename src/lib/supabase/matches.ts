@@ -18,6 +18,11 @@ import type {
   ClaimableMatchSlot,
 } from "@/types/match";
 import type { FormatSlug, MatchData, ParticipantData } from "@/types/format";
+import {
+  DECK_REQUIRED_MESSAGE,
+  hasConfirmableDeck,
+  isDeckRequiredError,
+} from "@/lib/confirmation";
 import { PENTAGRAM_ADJACENCY_MAP, getPentagramEnemies } from "@/types/format";
 import {
   mapMatchRow,
@@ -577,12 +582,32 @@ function getParticipantData(
 }
 
 /**
- * Confirm match participation
+ * Confirm match participation.
+ *
+ * Refuses without a real deck (spec F4) -- the same rule and message as the
+ * confirmMatch server action. The DB trigger from migration 031 enforces it
+ * too; checking first gives a clear error instead of a raw check_violation.
+ * Does NOT apply a rating -- use the confirmMatch server action for that.
  */
 export async function confirmMatchParticipation(
   client: SupabaseClient<Database>,
   participantId: string
 ): Promise<Result<MatchParticipant>> {
+  const { data: deckRow, error: deckError } = await client
+    .from('match_participants')
+    .select('deck:decks!match_participants_deck_id_fkey(deck_name)')
+    .eq('id', participantId)
+    .single()
+
+  if (deckError || !deckRow) {
+    return { success: false, error: 'Participant not found' }
+  }
+
+  const deck = deckRow.deck ?? null
+  if (!hasConfirmableDeck(deck ? { deckName: deck.deck_name } : null)) {
+    return { success: false, error: DECK_REQUIRED_MESSAGE }
+  }
+
   const { data, error } = await client
     .from('match_participants')
     .update({ confirmed_at: new Date().toISOString() })
@@ -591,7 +616,10 @@ export async function confirmMatchParticipation(
     .single()
 
   if (error) {
-    return { success: false, error: error.message }
+    return {
+      success: false,
+      error: isDeckRequiredError(error) ? DECK_REQUIRED_MESSAGE : error.message,
+    }
   }
 
   return {

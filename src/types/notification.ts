@@ -210,7 +210,7 @@ export function getNotificationTitle(type: NotificationType): string {
     match_result_edited: 'Match Result Edited',
     elo_milestone: 'Rating Milestone',
     rank_changed: 'Rank Changed',
-    collection_invite: 'Collection Invitation',
+    collection_invite: 'Added to Collection',
     collection_match_added: 'Match Added to Collection',
     collection_join_request: 'Collection Join Request',
     claim_available: 'Placeholder Claim Request',
@@ -220,6 +220,16 @@ export function getNotificationTitle(type: NotificationType): string {
     friend_accepted: 'Friend Request Accepted',
   }
   return titles[type]
+}
+
+/**
+ * Collection name carried by collection notifications, if present.
+ * The DB trigger (notify_collection_invite) stores it in data.collection_name.
+ */
+export function getCollectionName(data: NotificationData): string | null {
+  return 'collection_name' in data && typeof data.collection_name === 'string'
+    ? data.collection_name
+    : null
 }
 
 /**

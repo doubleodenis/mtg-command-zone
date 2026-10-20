@@ -160,11 +160,9 @@
 - [x] Nightly rating recalculation job
   - [x] UI indicator on match detail when pending recalculation ("Pending Recalc" badge)
   - [x] Warning in update-deck modal for confirmed matches ("will trigger overnight recalculation")
-  - [x] Dirty match recalculation script (`npm run ratings:recalculate-dirty`)
   - [x] SQL helper functions (`get_rating_before_match`, `get_dirty_matches_batch`, etc.)
   - [x] Recalculation logging table for monitoring
-  - [x] Pure PL/pgSQL stored procedure `recalculate_dirty_matches()` (no edge function needed)
-  - [ ] pg_cron scheduled job setup (enable via Supabase dashboard, 4am UTC)
+  - [x] Nightly replay: **Nightly Rating Recalc** GitHub Action (04:00 UTC) runs `npm run ratings:recalculate-if-dirty`, which replays every confirmed match and swaps ratings in atomically (`apply_rating_replay`, migration 030). Replaced the earlier PL/pgSQL procedure + pg_cron job, which never succeeded in production (retired in 030). Runbook: `docs/runbooks/rating-recalc.md`
 - [x] Rating recalculation debugging tools
   - [x] Enhanced logging in `updateMatchParticipantDeck()` with bracket change tracking
   - [x] Verbose logging in recalc script (bracket values, delta comparisons, upsert results)
@@ -173,7 +171,7 @@
 - [ ] Full rating recalculation (admin tool)
   - [x] Reset all ratings to default
   - [x] Replay confirmed matches in chronological order
-  - [ ] Stamp new `algorithm_version` on rewritten history rows
+  - [x] Stamp new `algorithm_version` on rewritten history rows (the replay stamps `ALGORITHM_VERSION`)
 
 ---
 

@@ -147,6 +147,7 @@ export function createMockParticipantDisplayInfo(
     id: generateMockId(),
     userId: profile.id,
     name: profile.username,
+    username: profile.username,
     avatarUrl: profile.avatarUrl,
     isRegistered: true,
     isConfirmed: true,

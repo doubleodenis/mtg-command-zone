@@ -3,9 +3,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function MatchDetailLoading() {
   return (
     <div className="min-h-screen bg-background">
-      {/* Navbar placeholder - will be replaced by real navbar from layout */}
-      <div className="h-14 border-b border-card-border bg-card" />
-      
       {/* Header */}
       <div className="border-b border-card-border bg-card">
         <div className="max-w-4xl md:mx-auto px-4 py-6">

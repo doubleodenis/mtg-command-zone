@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { FormatBadge, ConfirmationStatus, Select } from '@/components/ui'
 import { formatRelativeTime } from '@/lib/utils'
 import { confirmMatch } from '@/app/actions/match'
+import { PLACEHOLDER_DECK_NAME } from '@/types/deck'
 import type { PendingConfirmation } from '@/types'
 
 type PendingConfirmationCardProps = {
@@ -26,6 +27,12 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
   const [selectedDeck, setSelectedDeck] = React.useState<string>('')
   const [error, setError] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<{ delta: number } | null>(null)
+
+  // Spec F4: the Unknown Deck placeholder never counts as a deck to confirm with.
+  const selectableDecks = React.useMemo(
+    () => userDecks.filter((d) => d.deckName !== PLACEHOLDER_DECK_NAME),
+    [userDecks]
+  )
 
   const confirmationStatus = match.isFullyConfirmed 
     ? 'confirmed' 
@@ -53,12 +60,12 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
     // If user has no deck assigned
     if (!confirmation.hasDeckAssigned) {
       // Show deck selector if they have decks to choose from
-      if (userDecks.length > 0 && !selectedDeck) {
+      if (selectableDecks.length > 0 && !selectedDeck) {
         setShowDeckSelect(true)
         return
       }
       // Show warning if they have no decks at all
-      if (userDecks.length === 0) {
+      if (selectableDecks.length === 0) {
         setShowNoDeckWarning(true)
         return
       }
@@ -102,7 +109,7 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
             value={selectedDeck}
             onChange={(value) => setSelectedDeck(value)}
             placeholder="Choose a deck..."
-            options={userDecks.map((deck) => ({
+            options={selectableDecks.map((deck) => ({
               value: deck.id,
               label: `${deck.commanderName}${deck.deckName ? ` (${deck.deckName})` : ''}`,
             }))}
@@ -132,7 +139,7 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
             <div>
               <p className="text-sm font-medium text-text-1">No deck selected</p>
               <p className="text-sm text-text-2 mt-1">
-                You don't have any decks yet. Add a deck first to track your stats properly, or confirm without one.
+                You don't have any decks yet. Add a deck to confirm this match.
               </p>
             </div>
           </div>
@@ -145,9 +152,6 @@ export function PendingConfirmationCard({ confirmation, userDecks = [] }: Pendin
                 Add Deck
               </Button>
             </Link>
-            <Button size="sm" onClick={() => handleConfirm()} disabled={isConfirming}>
-              {isConfirming ? 'Confirming...' : 'Confirm Anyway'}
-            </Button>
           </div>
         </CardContent>
       </Card>

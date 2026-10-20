@@ -1,20 +1,26 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RatingDelta } from "@/components/ui";
+import { BracketBadge, RatingDelta } from "@/components/ui";
 import { UpdateDeckModal } from "@/components/match/update-deck-modal";
 import { PostClaimModal } from "@/components/match/post-claim-modal";
 import { claimSlotWithAutoApproval } from "@/app/actions/match";
 import { PLACEHOLDER_DECK_NAME } from "@/types/deck";
-import type { DeckSummary, RatingDelta as RatingDeltaType } from "@/types";
+import type { Bracket, DeckSummary, RatingDelta as RatingDeltaType } from "@/types";
+
+function isBracket(value: number): value is Bracket {
+  return value === 1 || value === 2 || value === 3 || value === 4;
+}
 
 type ParticipantInfo = {
   id: string;
   name: string;
+  username: string | null;
   avatarUrl: string | null;
   userId: string | null;
   isWinner: boolean;
@@ -136,6 +142,10 @@ export function ParticipantList({
           // Can claim if: logged in, slot is unclaimed (userId is null), and user isn't already in the match
           const isUnclaimedSlot = participant.userId === null;
           const canClaim = currentUserId && isUnclaimedSlot && !isAlreadyParticipant;
+          const profileHref =
+            participant.userId && participant.username
+              ? `/player/${encodeURIComponent(participant.username)}`
+              : null;
 
           return (
             <div
@@ -147,16 +157,37 @@ export function ParticipantList({
               {/* Profile info */}
               <div className="flex items-center gap-3">
                 <span className="text-sm text-text-3 w-6 shrink-0">#{index + 1}</span>
-                <Avatar
-                  src={participant.avatarUrl}
-                  alt={participant.name}
-                  fallback={participant.name}
-                  size="lg"
-                  className="h-10! w-10! sm:h-14! sm:w-14! shrink-0"
-                />
+                {profileHref ? (
+                  <Link href={profileHref} className="shrink-0" aria-hidden tabIndex={-1}>
+                    <Avatar
+                      src={participant.avatarUrl}
+                      alt={participant.name}
+                      fallback={participant.name}
+                      size="lg"
+                      className="h-10! w-10! sm:h-14! sm:w-14! shrink-0"
+                    />
+                  </Link>
+                ) : (
+                  <Avatar
+                    src={participant.avatarUrl}
+                    alt={participant.name}
+                    fallback={participant.name}
+                    size="lg"
+                    className="h-10! w-10! sm:h-14! sm:w-14! shrink-0"
+                  />
+                )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-text-1 truncate">{participant.name}</p>
+                    {profileHref ? (
+                      <Link
+                        href={profileHref}
+                        className="font-medium text-text-1 truncate hover:text-accent transition-colors"
+                      >
+                        {participant.name}
+                      </Link>
+                    ) : (
+                      <p className="font-medium text-text-1 truncate">{participant.name}</p>
+                    )}
                     {isUnclaimedSlot && (
                       <Badge variant="outline" className="text-accent border-accent/30 text-xs">
                         Open Slot
@@ -164,12 +195,18 @@ export function ParticipantList({
                     )}
                   </div>
                   {participant.deck && (
-                    <p className="text-sm text-text-3 truncate">
-                      {participant.deck.commanderName || "Unknown Commander"}
-                      {hasPlaceholderDeck && canUpdateDeck && (
-                        <span className="text-accent ml-1">(placeholder)</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm text-text-3 truncate">
+                        {participant.deck.commanderName || "Unknown Commander"}
+                        {hasPlaceholderDeck && canUpdateDeck && (
+                          <span className="text-accent ml-1">(placeholder)</span>
+                        )}
+                      </p>
+                      {participant.deck.deckName !== PLACEHOLDER_DECK_NAME &&
+                        isBracket(participant.deck.bracket) && (
+                        <BracketBadge bracket={participant.deck.bracket} className="shrink-0" />
                       )}
-                    </p>
+                    </div>
                   )}
                 </div>
               </div>

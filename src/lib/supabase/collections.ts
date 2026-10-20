@@ -681,66 +681,53 @@ export async function getUserMemberCollections(
   }
 }
 
+
+// mark_collection_matches_dirty / auto_confirm_collection_members were added
+// in migration 031; database.types.ts is regenerated from production, so it
+// doesn't know them until 031 is deployed.
+type CollectionRecalcShim = {
+  rpc(
+    fn: 'mark_collection_matches_dirty',
+    args: { p_collection_id: string; p_user_id: string | null; p_match_id: string | null }
+  ): Promise<{ data: number | null; error: { message: string } | null }>
+  rpc(
+    fn: 'auto_confirm_collection_members',
+    args: { p_match_id: string; p_collection_id: string }
+  ): Promise<{ data: number | null; error: { message: string } | null }>
+}
+
 /**
- * Auto-confirm all unconfirmed participants in a match who are members of a collection.
- * Used when a collection has auto_approve_members enabled.
- * Sets confirmed_at for each qualifying participant.
- * Returns the user IDs that were auto-confirmed.
+ * Flag a collection's approved matches for the nightly rating replay, which
+ * writes collection-scope ratings (028 forbids writing other players' ratings
+ * from a user session). Narrow with userId (a joining member) or matchId.
+ */
+export async function markCollectionMatchesDirty(
+  client: SupabaseClient<Database>,
+  params: { collectionId: string; userId?: string; matchId?: string }
+): Promise<Result<number>> {
+  const { data, error } = await (client as unknown as CollectionRecalcShim).rpc('mark_collection_matches_dirty', {
+    p_collection_id: params.collectionId,
+    p_user_id: params.userId ?? null,
+    p_match_id: params.matchId ?? null,
+  })
+  if (error) return { success: false, error: error.message }
+  return { success: true, data: data ?? 0 }
+}
+
+/**
+ * Confirm the collection's members in an approved match (members with a real
+ * deck only) and flag it for the nightly replay. No-op unless the collection
+ * has auto_approve_members.
  */
 export async function autoConfirmCollectionMembers(
   client: SupabaseClient<Database>,
   matchId: string,
   collectionId: string
-): Promise<Result<string[]>> {
-  // Get all unconfirmed registered participants for this match
-  const { data: participants, error: participantsError } = await client
-    .from('match_participants')
-    .select('id, user_id')
-    .eq('match_id', matchId)
-    .not('user_id', 'is', null)
-    .is('confirmed_at', null)
-
-  if (participantsError) {
-    return { success: false, error: participantsError.message }
-  }
-
-  if (!participants || participants.length === 0) {
-    return { success: true, data: [] }
-  }
-
-  // Get collection members that overlap with unconfirmed participants
-  const userIds = participants.map((p) => p.user_id!)
-  const { data: members, error: membersError } = await client
-    .from('collection_members')
-    .select('user_id')
-    .eq('collection_id', collectionId)
-    .in('user_id', userIds)
-
-  if (membersError) {
-    return { success: false, error: membersError.message }
-  }
-
-  if (!members || members.length === 0) {
-    return { success: true, data: [] }
-  }
-
-  const memberIds = new Set(members.map((m) => m.user_id))
-  const toConfirm = participants.filter((p) => memberIds.has(p.user_id!))
-
-  if (toConfirm.length === 0) {
-    return { success: true, data: [] }
-  }
-
-  const participantIds = toConfirm.map((p) => p.id)
-
-  const { error: updateError } = await client
-    .from('match_participants')
-    .update({ confirmed_at: new Date().toISOString() })
-    .in('id', participantIds)
-
-  if (updateError) {
-    return { success: false, error: updateError.message }
-  }
-
-  return { success: true, data: toConfirm.map((p) => p.user_id!) }
+): Promise<Result<number>> {
+  const { data, error } = await (client as unknown as CollectionRecalcShim).rpc('auto_confirm_collection_members', {
+    p_match_id: matchId,
+    p_collection_id: collectionId,
+  })
+  if (error) return { success: false, error: error.message }
+  return { success: true, data: data ?? 0 }
 }

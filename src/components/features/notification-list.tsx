@@ -8,10 +8,12 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import { markNotificationsSeen } from "@/lib/supabase/notifications";
+import { emitNotificationsChanged } from "@/lib/notification-events";
 import { approveClaimRequest, rejectClaimRequest } from "@/app/actions/match";
 import { acceptFriendRequest, rejectFriendRequest } from "@/app/actions/friend";
 import type { NotificationWithActor, NotificationType, ClaimAvailableData, FriendRequestData } from "@/types/notification";
-import { getNotificationTitle, getNotificationUrl } from "@/types/notification";
+import { getCollectionName, getNotificationTitle, getNotificationUrl } from "@/types/notification";
 
 interface NotificationListProps {
   initialNotifications: NotificationWithActor[];
@@ -33,6 +35,17 @@ export function NotificationList({
   const [claimActionLoading, setClaimActionLoading] = React.useState<string | null>(null);
   const [friendActionLoading, setFriendActionLoading] = React.useState<string | null>(null);
   const router = useRouter();
+
+  // The full page shows more than the navbar dropdown, so it's the place a
+  // backlog of unseen notifications gets cleared. Mark what's rendered, then
+  // tell the (persistent) navbar badge to refetch its count.
+  React.useEffect(() => {
+    const unseenIds = initialNotifications.filter((n) => !n.seenAt).map((n) => n.id);
+    if (unseenIds.length === 0) return;
+    void markNotificationsSeen(createClient(), userId, unseenIds).then((result) => {
+      if (result.success) emitNotificationsChanged();
+    });
+  }, [initialNotifications, userId]);
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
@@ -482,7 +495,8 @@ function NotificationMessage({ notification }: { notification: NotificationWithA
     case "collection_invite":
       return (
         <>
-          <span className="font-medium">{actorName}</span> invited you to join a collection
+          <span className="font-medium">{actorName}</span> added you to{" "}
+          <span className="font-medium">{getCollectionName(data) ?? "a collection"}</span>
         </>
       );
     case "collection_match_added":

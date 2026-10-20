@@ -5,6 +5,7 @@
  * and dismissing notifications.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import type { Result, UUID } from '@/types'
@@ -135,17 +136,36 @@ export async function getUnseenNotificationCount(
 // ============================================
 
 /**
- * Mark notifications as seen (when dropdown is opened)
+ * Mark notifications as seen. Pass the IDs actually shown to the user;
+ * omitting them marks every unseen notification (legacy behaviour).
  */
 export async function markNotificationsSeen(
   client: SupabaseClient<Database>,
-  userId: string
+  userId: string,
+  notificationIds?: string[]
 ): Promise<Result<number>> {
-  const { data, error } = await client.rpc('mark_notifications_seen', {
+  // p_notification_ids was added in migration 029; database.types.ts is
+  // regenerated from production, so it won't know the argument until 029 is
+  // deployed. Drop this shim after the next type regeneration.
+  type MarkSeenShim = {
+    rpc(
+      fn: 'mark_notifications_seen',
+      args: { p_recipient_id: string; p_notification_ids?: string[] }
+    ): Promise<{ data: number | null; error: { message: string } | null }>
+  }
+  const { data, error } = await (client as unknown as MarkSeenShim).rpc('mark_notifications_seen', {
     p_recipient_id: userId,
+    ...(notificationIds ? { p_notification_ids: notificationIds } : {}),
   })
 
   if (error) {
+    // Callers update the badge optimistically and ignore this result, so
+    // report it: otherwise a failure (e.g. app deployed before migration 029)
+    // only shows up as a badge that keeps coming back.
+    Sentry.captureMessage('mark_notifications_seen failed', {
+      level: 'warning',
+      extra: { error: error.message, idCount: notificationIds?.length ?? null },
+    })
     return { success: false, error: error.message }
   }
 

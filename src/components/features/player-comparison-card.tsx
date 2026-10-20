@@ -74,6 +74,13 @@ export function PlayerComparisonCard({
   // 3 with confirmed ratings.
   const chartUnlocked = meetings.length >= 3;
 
+  // Shared matches that exist but aren't meetings yet: not confirmed by both
+  // players, or still pending recalculation.
+  const pendingCount = Math.max(
+    0,
+    asEnemies.matchesPlayed + asTeammates.matchesPlayed - meetings.length
+  );
+
   return (
     <Card className={cn("overflow-hidden", className)}>
       {/* Identity header */}
@@ -118,6 +125,7 @@ export function PlayerComparisonCard({
           <SparseRivalryUnlock
             matchesTogether={meetings.length}
             meetings={meetings}
+            pendingCount={pendingCount}
           />
         )}
 
@@ -254,22 +262,28 @@ function FormatBeatChips({ byFormat }: FormatBeatChipsProps) {
 type SparseRivalryUnlockProps = {
   matchesTogether: number;
   meetings: Meeting[];
+  pendingCount: number;
 };
 
-function SparseRivalryUnlock({ matchesTogether, meetings }: SparseRivalryUnlockProps) {
+function SparseRivalryUnlock({ matchesTogether, meetings, pendingCount }: SparseRivalryUnlockProps) {
   const lastMeeting = meetings[meetings.length - 1];
   const ratingDelta = lastMeeting ? lastMeeting.yourRating - lastMeeting.yourRatingBefore : 0;
 
   return (
     <div className="flex flex-col sm:flex-row gap-4">
       <div className="flex-1 border border-dashed border-card-border rounded-lg bg-bg-raised flex flex-col items-center justify-center gap-3 min-h-[140px] p-6">
-        <p className="font-display text-base font-semibold text-text-2">Rivalry chart unlocks at 3 matches</p>
+        <p className="font-display text-base font-semibold text-text-2">Rivalry chart unlocks at 3 confirmed matches</p>
         <div className="flex items-center gap-2">
           <div className="w-28 h-1.5 rounded-full bg-bg-overlay overflow-hidden">
             <div className="h-1.5 bg-accent rounded-full" style={{ width: `${(matchesTogether / 3) * 100}%` }} />
           </div>
           <span className="text-mono-xs text-text-3">{matchesTogether} / 3</span>
         </div>
+        {pendingCount > 0 && (
+          <p className="text-xs text-text-3 text-center">
+            {pendingCount} shared {pendingCount === 1 ? "match" : "matches"} waiting on confirmation
+          </p>
+        )}
       </div>
       {lastMeeting && (
         <div className="w-full sm:w-72 space-y-3">
